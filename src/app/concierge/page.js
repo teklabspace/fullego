@@ -1,4 +1,5 @@
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
 
 export default function Concierge() {
   return (
@@ -12,6 +13,7 @@ export default function Concierge() {
           </p>
         </div>
       </section>
+      <Footer />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
 
 export default function Support() {
   return (
@@ -12,6 +13,7 @@ export default function Support() {
           </p>
         </div>
       </section>
+      <Footer />
     </div>
   );
 }

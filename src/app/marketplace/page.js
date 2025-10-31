@@ -1,4 +1,5 @@
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
 
 export default function Marketplace() {
   return (
@@ -12,6 +13,7 @@ export default function Marketplace() {
           </p>
         </div>
       </section>
+      <Footer />
     </div>
   );
 }

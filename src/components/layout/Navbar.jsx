@@ -62,7 +62,7 @@ const Navbar = () => {
           </motion.div>
 
           {/* Center Navigation - Desktop */}
-          <nav className="hidden lg:block">
+          <nav className="hidden xl:block">
             <ul
               className="flex items-center gap-2 rounded-[154px] border border-[#FFFFFF1A] px-4 py-2 backdrop-blur-sm"
               style={{
@@ -95,7 +95,7 @@ const Navbar = () => {
           </nav>
 
           {/* Right Actions - Desktop */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden xl:flex items-center gap-3">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Link
               href="/dashboard"
@@ -115,11 +115,11 @@ const Navbar = () => {
             </motion.div>
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile/Tablet Menu Button */}
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={toggleMobileMenu}
-            className="md:hidden relative z-50 flex flex-col items-center justify-center w-10 h-10 rounded-lg border border-[#FFFFFF1A] bg-brand-surface/50 backdrop-blur-sm"
+            className="xl:hidden relative z-50 flex flex-col items-center justify-center w-10 h-10 rounded-lg border border-[#FFFFFF1A] bg-brand-surface/50 backdrop-blur-sm"
             aria-label="Toggle menu"
           >
             <motion.span
