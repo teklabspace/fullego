@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useTheme } from '@/context/ThemeContext';
 
 const menuSections = [
   {
@@ -109,7 +110,7 @@ const menuSections = [
         id: 'help-center',
         label: 'Help Center',
         icon: 'HelpCircle',
-        href: '/dashboard/support',
+        href: '/help-center',
       },
     ],
   },
@@ -118,6 +119,7 @@ const menuSections = [
 export default function Sidebar({ isOpen, onClose }) {
   const pathname = usePathname();
   const [openSubmenu, setOpenSubmenu] = useState('null');
+  const { isDarkMode } = useTheme();
 
   const toggleSubmenu = itemId => {
     setOpenSubmenu(openSubmenu === itemId ? null : itemId);
@@ -137,9 +139,13 @@ export default function Sidebar({ isOpen, onClose }) {
       <aside
         className={`
           fixed top-0 left-0 z-50 h-screen w-64 
-          bg-[#101014] border-r border-[#FFFFFF14]
-          transition-transform duration-300 lg:translate-x-0
+          transition-all duration-300 lg:translate-x-0
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+          ${
+            isDarkMode
+              ? 'bg-[#101014] border-r border-[#FFFFFF14]'
+              : 'bg-white border-r border-gray-200'
+          }
         `}
       >
         <div className='flex flex-col h-full'>
@@ -148,7 +154,11 @@ export default function Sidebar({ isOpen, onClose }) {
             <img src='/Dashboardlogo.svg' alt='Fullego' className='h-8' />
             <button
               onClick={onClose}
-              className='lg:hidden text-white hover:text-gray-300 transition-colors'
+              className={`lg:hidden transition-colors ${
+                isDarkMode
+                  ? 'text-white hover:text-gray-300'
+                  : 'text-[#101014] hover:text-[#101014]/70'
+              }`}
             >
               <Icon name='X' size={40} />
             </button>
@@ -172,16 +182,25 @@ export default function Sidebar({ isOpen, onClose }) {
                   transition-all duration-200
                   ${
                     pathname === '/dashboard'
-                      ? 'text-white border border-[#FFFFFF1A]'
-                      : 'text-gray-400 hover:bg-[#2B2B30]/50 hover:text-white'
+                      ? isDarkMode
+                        ? 'text-white border border-[#FFFFFF1A]'
+                        : 'text-[#101014] border border-[#F1CB68]'
+                      : isDarkMode
+                      ? 'text-gray-400 hover:bg-[#2B2B30]/50 hover:text-white'
+                      : 'text-[#101014]/70 hover:bg-gray-100 hover:text-[#101014]'
                   }
                 `}
                 style={
                   pathname === '/dashboard'
-                    ? {
-                        background:
-                          'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
-                      }
+                    ? isDarkMode
+                      ? {
+                          background:
+                            'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                        }
+                      : {
+                          background: '#FFFFFF',
+                          boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                        }
                     : {}
                 }
               >
@@ -189,14 +208,19 @@ export default function Sidebar({ isOpen, onClose }) {
                   name='Home'
                   size={20}
                   className={
-                    pathname === '/dashboard' ? 'brightness-0 invert' : ''
+                    pathname === '/dashboard' && isDarkMode
+                      ? 'brightness-0 invert'
+                      : ''
                   }
                   style={
                     pathname !== '/dashboard'
                       ? {
-                          filter:
-                            'brightness(0) saturate(100%) invert(64%) sepia(6%) saturate(449%) hue-rotate(178deg) brightness(95%) contrast(88%)',
+                          filter: isDarkMode
+                            ? 'brightness(0) saturate(100%) invert(64%) sepia(6%) saturate(449%) hue-rotate(178deg) brightness(95%) contrast(88%)'
+                            : 'brightness(0.5)',
                         }
+                      : pathname === '/dashboard' && !isDarkMode
+                      ? { filter: 'none' }
                       : {}
                   }
                 />
@@ -205,7 +229,11 @@ export default function Sidebar({ isOpen, onClose }) {
             </div>
             {menuSections.map((section, index) => (
               <div key={index}>
-                <h3 className='text-xs font-medium text-[#57575A] uppercase tracking-wider mb-3 px-4'>
+                <h3
+                  className={`text-xs font-medium uppercase tracking-wider mb-3 px-4 ${
+                    isDarkMode ? 'text-[#57575A]' : 'text-[#101014]/50'
+                  }`}
+                >
                   {section.title}
                 </h3>
                 <div className='space-y-1'>
@@ -220,16 +248,25 @@ export default function Sidebar({ isOpen, onClose }) {
                               transition-all duration-200
                               ${
                                 pathname.startsWith(item.href)
-                                  ? 'text-[#FFFFFF] border border-[#FFFFFF1A]'
-                                  : 'text-gray-400 hover:text-white hover:bg-[#2B2B30]/50'
+                                  ? isDarkMode
+                                    ? 'text-white border border-[#FFFFFF1A]'
+                                    : 'text-[#101014] border border-[#F1CB68]'
+                                  : isDarkMode
+                                  ? 'text-gray-400 hover:text-white hover:bg-[#2B2B30]/50'
+                                  : 'text-[#101014]/70 hover:text-[#101014] hover:bg-gray-100'
                               }
                             `}
                             style={
                               pathname.startsWith(item.href)
-                                ? {
-                                    background:
-                                      'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
-                                  }
+                                ? isDarkMode
+                                  ? {
+                                      background:
+                                        'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                                    }
+                                  : {
+                                      background: '#FFFFFF',
+                                      boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                                    }
                                 : {}
                             }
                           >
@@ -238,16 +275,19 @@ export default function Sidebar({ isOpen, onClose }) {
                                 name={item.icon}
                                 size={20}
                                 className={
-                                  pathname.startsWith(item.href)
+                                  pathname.startsWith(item.href) && isDarkMode
                                     ? 'brightness-0 invert'
                                     : ''
                                 }
                                 style={
                                   !pathname.startsWith(item.href)
                                     ? {
-                                        filter:
-                                          'brightness(0) saturate(100%) invert(64%) sepia(6%) saturate(449%) hue-rotate(178deg) brightness(95%) contrast(88%)',
+                                        filter: isDarkMode
+                                          ? 'brightness(0) saturate(100%) invert(64%) sepia(6%) saturate(449%) hue-rotate(178deg) brightness(95%) contrast(88%)'
+                                          : 'brightness(0.5)',
                                       }
+                                    : pathname.startsWith(item.href) && !isDarkMode
+                                    ? { filter: 'none' }
                                     : {}
                                 }
                               />
@@ -256,9 +296,14 @@ export default function Sidebar({ isOpen, onClose }) {
                             <Icon
                               name='ChevronDown'
                               size={16}
-                              className={`transition-transform brightness-0 invert ${
+                              className={`transition-transform ${
                                 openSubmenu === item.id ? 'rotate-180' : ''
                               }`}
+                              style={{
+                                filter: isDarkMode
+                                  ? 'brightness(0) invert(1)'
+                                  : 'brightness(0.5)',
+                              }}
                             />
                           </button>
                           {openSubmenu === item.id && (
@@ -272,16 +317,25 @@ export default function Sidebar({ isOpen, onClose }) {
                                     flex items-center px-4 py-2 text-sm rounded-[24px] w-[190px] h-[40px] transition-colors
                                     ${
                                       pathname === subItem.href
-                                        ? 'text-white border border-[#FFFFFF1A]'
-                                        : 'text-gray-400 hover:text-white hover:bg-[#2B2B30]/50'
+                                        ? isDarkMode
+                                          ? 'text-white border border-[#FFFFFF1A]'
+                                          : 'text-[#101014] border border-[#F1CB68]'
+                                        : isDarkMode
+                                        ? 'text-gray-400 hover:text-white hover:bg-[#2B2B30]/50'
+                                        : 'text-[#101014]/70 hover:text-[#101014] hover:bg-gray-100'
                                     }
                                   `}
                                   style={
                                     pathname === subItem.href
-                                      ? {
-                                          background:
-                                            'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
-                                        }
+                                      ? isDarkMode
+                                        ? {
+                                            background:
+                                              'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                                          }
+                                        : {
+                                            background: '#FFFFFF',
+                                            boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                                          }
                                       : {}
                                   }
                                 >
@@ -302,16 +356,25 @@ export default function Sidebar({ isOpen, onClose }) {
                               item.isLogout
                                 ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
                                 : pathname === item.href
-                                ? 'text-white border border-[#FFFFFF1A]'
-                                : 'text-gray-400 hover:text-white hover:bg-[#2B2B30]/50'
+                                ? isDarkMode
+                                  ? 'text-white border border-[#FFFFFF1A]'
+                                  : 'text-[#101014] border border-[#F1CB68]'
+                                : isDarkMode
+                                ? 'text-gray-400 hover:text-white hover:bg-[#2B2B30]/50'
+                                : 'text-[#101014]/70 hover:text-[#101014] hover:bg-gray-100'
                             }
                           `}
                           style={
                             pathname === item.href && !item.isLogout
-                              ? {
-                                  background:
-                                    'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
-                                }
+                              ? isDarkMode
+                                ? {
+                                    background:
+                                      'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                                  }
+                                : {
+                                    background: '#FFFFFF',
+                                    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                                  }
                               : {}
                           }
                         >
@@ -319,16 +382,19 @@ export default function Sidebar({ isOpen, onClose }) {
                             name={item.icon}
                             size={20}
                             className={
-                              pathname === item.href && !item.isLogout
+                              pathname === item.href && !item.isLogout && isDarkMode
                                 ? 'brightness-0 invert'
                                 : ''
                             }
                             style={
                               pathname !== item.href && !item.isLogout
                                 ? {
-                                    filter:
-                                      'brightness(0) saturate(100%) invert(64%) sepia(6%) saturate(449%) hue-rotate(178deg) brightness(95%) contrast(88%)',
+                                    filter: isDarkMode
+                                      ? 'brightness(0) saturate(100%) invert(64%) sepia(6%) saturate(449%) hue-rotate(178deg) brightness(95%) contrast(88%)'
+                                      : 'brightness(0.5)',
                                   }
+                                : pathname === item.href && !item.isLogout && !isDarkMode
+                                ? { filter: 'none' }
                                 : {}
                             }
                           />

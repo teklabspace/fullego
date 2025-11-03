@@ -1,5 +1,6 @@
 import { Poppins } from 'next/font/google';
 import './globals.css';
+import { ThemeProvider } from '@/context/ThemeContext';
 
 const poppins = Poppins({
   variable: '--font-poppins',
@@ -17,7 +18,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang='en' suppressHydrationWarning={true}>
       <body className={`${poppins.variable} font-poppins antialiased`}>
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

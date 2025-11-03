@@ -22,3 +22,26 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* Global cursor pointer for interactive elements */
+button,
+a,
+[role="button"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+select,
+[onclick] {
+  cursor: pointer;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+input[type="number"],
+textarea {
+  cursor: text;
+}

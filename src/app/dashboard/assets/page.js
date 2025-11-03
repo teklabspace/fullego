@@ -162,12 +162,21 @@ export default function AssetsPage() {
   ];
 
   const categories = [
-    { id: 'all', name: 'All Assets', icon: '🏛️' },
-    { id: 'Yachts', name: 'Yachts', icon: '🛥️' },
-    { id: 'Private Jets', name: 'Private Jets', icon: '✈️' },
-    { id: 'Real Estate', name: 'Real Estate', icon: '🏢' },
-    { id: 'Vehicles', name: 'Vehicles', icon: '🚗' },
-    { id: 'Art & Collectibles', name: 'Art & Collectibles', icon: '🎨' },
+    { id: 'all', name: 'All Assets', icon: 'AllAssets.svg' },
+    { id: 'Yachts', name: 'Yachts', icon: '' },
+    { id: 'Private Jets', name: 'Private Jets', icon: 'Jets.svg' },
+    { id: 'Real Estate', name: 'Real Estate', icon: 'Realstat.svg' },
+    { id: 'Vehicles', name: 'Vehicles', icon: 'vehicels.svg' },
+    {
+      id: 'Art & Collectibles',
+      name: 'Art & Collectibles',
+      icon: 'Art_collectibles.svg',
+    },
+    {
+      id: 'Watches & Jewelry',
+      name: 'Watches & Jewelry',
+      icon: 'watches_jawelry.svg',
+    },
   ];
 
   const filteredAssets =
@@ -213,7 +222,7 @@ export default function AssetsPage() {
     <DashboardLayout>
       {/* Hero Section */}
       <div
-        className='relative mb-8 rounded-2xl overflow-hidden'
+        className='relative mb-8 rounded-2xl overflow-hidden border border-[#FFFFFF14]'
         style={{
           backgroundImage:
             'url(https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1600&q=80)',
@@ -222,7 +231,14 @@ export default function AssetsPage() {
           height: '240px',
         }}
       >
-        <div className='absolute inset-0 bg-gradient-to-r from-black/70 to-black/30' />
+        <div
+          className='absolute inset-0'
+          style={{
+            background:
+              'linear-gradient(90deg, #1A1F24 0%, rgba(0, 0, 0, 0) 100%)',
+            height: '245px',
+          }}
+        />
         <div className='relative h-full flex flex-col justify-center px-8'>
           <h1 className='text-3xl md:text-4xl font-bold text-white mb-3'>
             Manage Your Luxury Portfolio
@@ -231,8 +247,11 @@ export default function AssetsPage() {
             Track, monitor, and manage your high-value assets in one place
           </p>
           <div className='flex gap-4'>
-            <button className='bg-[#D4AF37] hover:bg-[#BF9B30] text-[#101014] px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2'>
-              <span className='text-xl'>+</span> Add New Asset
+            <button className='bg-[#F1CB68]  text-[#101014] px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2'>
+              <span>
+                <img src='/AssestSpark.svg' alt='Add' />
+              </span>{' '}
+              Add New Asset
             </button>
             <button className='bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white px-6 py-3 rounded-lg font-semibold transition-colors border border-white/20'>
               View Analytics
@@ -242,13 +261,22 @@ export default function AssetsPage() {
       </div>
 
       {/* Category Tabs */}
-      <div className='flex gap-3 mb-6 overflow-x-auto pb-2'>
+      <div className='flex gap-3 mb-6 overflow-x-auto pb-2 scrollbar-hide'>
+        <style jsx>{`
+          .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+          }
+          .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+        `}</style>
         {categories.map(category => (
           <button
             key={category.id}
             onClick={() => setSelectedCategory(category.id)}
             className={`
-              px-4 py-2.5 rounded-lg font-medium whitespace-nowrap transition-all flex items-center gap-2
+              px-4 py-2.5 rounded-lg font-medium whitespace-nowrap transition-all flex items-center gap-2 w-auto
               ${
                 selectedCategory === category.id
                   ? 'bg-[#D4AF37] text-[#101014]'
@@ -256,7 +284,13 @@ export default function AssetsPage() {
               }
             `}
           >
-            <span>{category.icon}</span>
+            {category.icon && (
+              <img
+                src={`/${category.icon}`}
+                alt={category.name}
+                className='w-5 h-5'
+              />
+            )}
             <span>{category.name}</span>
           </button>
         ))}
