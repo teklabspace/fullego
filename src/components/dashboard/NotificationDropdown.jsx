@@ -1,4 +1,5 @@
 'use client';
+import { useTheme } from '@/context/ThemeContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -10,6 +11,7 @@ export default function NotificationDropdown() {
   const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef(null);
   const router = useRouter();
+  const { isDarkMode } = useTheme();
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -97,14 +99,21 @@ export default function NotificationDropdown() {
             transition={{ duration: 0.2 }}
             className='absolute -right-15 md:right-0 mt-3 w-[calc(100vw-2rem)] md:w-[400px] max-w-[400px] rounded-2xl overflow-hidden shadow-2xl z-50'
             style={{
-              background:
-                'linear-gradient(135deg, rgba(30, 30, 35, 0.98) 0%, rgba(20, 20, 25, 0.98) 100%)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: isDarkMode
+                ? 'linear-gradient(135deg, rgba(30, 30, 35, 0.98) 0%, rgba(20, 20, 25, 0.98) 100%)'
+                : 'rgba(255, 255, 255, 0.98)',
+              border: isDarkMode
+                ? '1px solid rgba(255, 255, 255, 0.1)'
+                : '1px solid rgba(0, 0, 0, 0.1)',
               backdropFilter: 'blur(10px)',
             }}
           >
             {/* Header */}
-            <div className='flex items-center justify-between p-6 border-b border-white/10'>
+            <div
+              className={`flex items-center justify-between p-6 border-b ${
+                isDarkMode ? 'border-white/10' : 'border-gray-200'
+              }`}
+            >
               <div className='flex items-center gap-3'>
                 <div
                   className='w-2 h-8 rounded-full'
@@ -113,7 +122,13 @@ export default function NotificationDropdown() {
                       'linear-gradient(180deg, #FFFFFF 0%, #D4AF37 100%)',
                   }}
                 />
-                <h3 className='text-xl font-bold text-white'>Notification</h3>
+                <h3
+                  className={`text-xl font-bold ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  Notification
+                </h3>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
@@ -124,7 +139,9 @@ export default function NotificationDropdown() {
                   alt='Close'
                   width={16}
                   height={16}
-                  style={{ filter: 'brightness(0) invert(1)' }}
+                  style={{
+                    filter: isDarkMode ? 'brightness(0) invert(1)' : 'none',
+                  }}
                 />
               </button>
             </div>
@@ -136,7 +153,9 @@ export default function NotificationDropdown() {
                 className={`flex-1 px-6 py-3 rounded-full text-sm font-medium transition-all cursor-pointer ${
                   activeTab === 'all'
                     ? 'text-black font-semibold'
-                    : 'bg-transparent text-white'
+                    : isDarkMode
+                    ? 'bg-transparent text-white'
+                    : 'bg-transparent text-gray-900'
                 }`}
                 style={{
                   background:
@@ -152,7 +171,9 @@ export default function NotificationDropdown() {
                 className={`flex-1 px-6 py-3 rounded-full text-sm font-medium transition-all cursor-pointer ${
                   activeTab === 'unread'
                     ? 'text-black font-semibold'
-                    : 'bg-transparent text-white'
+                    : isDarkMode
+                    ? 'bg-transparent text-white'
+                    : 'bg-transparent text-gray-900'
                 }`}
                 style={{
                   background:
@@ -174,7 +195,9 @@ export default function NotificationDropdown() {
                   alt='Filter'
                   width={18}
                   height={18}
-                  style={{ filter: 'brightness(0) invert(1)' }}
+                  style={{
+                    filter: isDarkMode ? 'brightness(0) invert(1)' : 'none',
+                  }}
                 />
               </button>
             </div>
@@ -185,15 +208,14 @@ export default function NotificationDropdown() {
                 filteredNotifications.map(notification => (
                   <div
                     key={notification.id}
-                    className='flex items-start gap-4 px-6 py-4 hover:bg-white/5 transition-colors cursor-pointer border-b border-white/5'
+                    className={`flex items-start gap-4 px-6 py-4 transition-colors cursor-pointer border-b ${
+                      isDarkMode
+                        ? 'hover:bg-white/5 border-white/5'
+                        : 'hover:bg-gray-100 border-gray-200'
+                    }`}
                   >
                     {/* Bell Icon */}
-                    <div
-                      className='w-10 h-10 rounded-full flex items-center justify-center shrink-0'
-                      style={{
-                        background: 'rgba(212, 175, 55, 0.2)',
-                      }}
-                    >
+                    <div className=' flex items-center justify-center shrink-0'>
                       <Image
                         src='/icons/bell.svg'
                         alt='Bell'
@@ -220,7 +242,11 @@ export default function NotificationDropdown() {
                             height={16}
                           />
                         )}
-                        <p className='text-white text-sm flex-1'>
+                        <p
+                          className={`text-sm flex-1 ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}
+                        >
                           {notification.message}
                         </p>
                       </div>
@@ -238,7 +264,11 @@ export default function NotificationDropdown() {
             </div>
 
             {/* Footer Button */}
-            <div className='p-4 border-t border-white/10'>
+            <div
+              className={`p-4 border-t ${
+                isDarkMode ? 'border-white/10' : 'border-gray-200'
+              }`}
+            >
               <button
                 onClick={() => {
                   setIsOpen(false);

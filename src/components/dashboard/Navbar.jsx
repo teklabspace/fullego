@@ -119,12 +119,16 @@ export default function Navbar({ onMenuClick }) {
             {/* Mobile Menu Button */}
             <button
               onClick={onMenuClick}
-              className='flex lg:hidden text-white hover:text-gray-300 transition-colors'
+              className={`flex lg:hidden transition-colors ${
+                isDarkMode
+                  ? 'text-white hover:text-gray-300'
+                  : 'text-gray-900 hover:text-gray-600'
+              }`}
             >
               <img
                 src='/icons/hamburger.svg'
                 alt='Menu'
-                className='w-10 h-10 brightness-0 invert'
+                className={`w-10 h-10 ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             </button>
           </div>
@@ -143,13 +147,17 @@ export default function Navbar({ onMenuClick }) {
             <input
               type='text'
               placeholder='Search...'
-              className='
+              className={`
                 w-full pl-10 pr-4 py-2
-                bg-transparent border border-[#2B2B30] rounded-full
-                text-white placeholder-gray-500 text-sm
+                border rounded-full text-sm
                 focus:outline-none focus:border-fullego-gold
                 transition-all
-              '
+                ${
+                  isDarkMode
+                    ? 'bg-transparent border-[#2B2B30] text-white placeholder-gray-500'
+                    : 'bg-gray-50 border-gray-200 text-[#101014] placeholder-gray-400'
+                }
+              `}
             />
           </div>
         </div>

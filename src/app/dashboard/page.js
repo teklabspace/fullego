@@ -21,7 +21,7 @@ export default function DashboardPage() {
     <DashboardLayout>
       {/* Header Section */}
       <div className='mb-8 border border-[#1A1A1A] rounded-2xl p-6'>
-        <h1 className='text-3xl md:text-4xl font-bold text-white mb-3'>
+        <h1 className='text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3'>
           Good morning, Olivia.
         </h1>
         <p className='text-gray-400 text-lg mb-8'>
@@ -33,7 +33,7 @@ export default function DashboardPage() {
           <div>
             <p className='text-gray-400 text-sm mb-2'>Net Worth</p>
             <div className='flex items-center gap-3'>
-              <h2 className='text-3xl font-bold text-white'>$12.4M</h2>
+              <h2 className='text-3xl font-bold text-gray-900 dark:text-white'>$12.4M</h2>
               <span className='text-[#10B981] text-sm font-medium bg-[#10B9811A] px-2 py-1 rounded'>
                 ↑ 3.7%
               </span>
@@ -41,11 +41,11 @@ export default function DashboardPage() {
           </div>
           <div>
             <p className='text-gray-400 text-sm mb-2'>Asset Allocation</p>
-            <h2 className='text-3xl font-bold text-white'>5 Classes</h2>
+            <h2 className='text-3xl font-bold text-gray-900 dark:text-white'>5 Classes</h2>
           </div>
           <div>
             <p className='text-gray-400 text-sm mb-2'>Available Liquidity</p>
-            <h2 className='text-3xl font-bold text-white'>$1.75M</h2>
+            <h2 className='text-3xl font-bold text-gray-900 dark:text-white'>$1.75M</h2>
           </div>
         </div>
       </div>
@@ -87,14 +87,14 @@ function NetWorthCard() {
       {/* Header */}
       <div className='flex items-center justify-between mb-2'>
         <div className='flex items-center gap-2'>
-          <h3 className='text-white font-semibold text-sm'>Net Worth</h3>
+          <h3 className='text-gray-900 dark:text-white font-semibold text-sm'>Net Worth</h3>
           <InfoIcon />
         </div>
       </div>
 
       {/* Value */}
       <div className='flex items-center gap-2 mb-3'>
-        <h2 className='text-xl font-bold text-white'>$12.4M</h2>
+        <h2 className='text-xl font-bold text-gray-900 dark:text-white'>$12.4M</h2>
         <span className='text-[#10B981] text-xs font-medium bg-[#10B9811A] px-1.5 py-0.5 rounded'>
           ↑ 3.7%
         </span>
@@ -150,7 +150,7 @@ function AssetAllocationCard() {
       {/* Header */}
       <div className='flex items-center justify-between mb-3'>
         <div className='flex items-center gap-2'>
-          <h3 className='text-white font-semibold text-sm'>Asset Allocation</h3>
+          <h3 className='text-gray-900 dark:text-white font-semibold text-sm'>Asset Allocation</h3>
           <InfoIcon />
         </div>
       </div>
@@ -189,7 +189,7 @@ function AssetAllocationCard() {
                 />
                 <span className='text-gray-400 text-[10px]'>{item.name}</span>
               </div>
-              <span className='text-white text-[10px] font-medium ml-1'>
+              <span className='text-gray-900 dark:text-white text-[10px] font-medium ml-1'>
                 {item.value}%
               </span>
             </div>
@@ -215,13 +215,13 @@ function LiabilitiesCard() {
       {/* Header */}
       <div className='flex items-center justify-between mb-2'>
         <div className='flex items-center gap-2'>
-          <h3 className='text-white font-semibold text-sm'>Liabilities</h3>
+          <h3 className='text-gray-900 dark:text-white font-semibold text-sm'>Liabilities</h3>
           <InfoIcon />
         </div>
       </div>
 
       {/* Total */}
-      <h2 className='text-xl font-bold text-white mb-4'>{total}</h2>
+      <h2 className='text-xl font-bold text-gray-900 dark:text-white mb-4'>{total}</h2>
 
       {/* Liabilities List */}
       <div className='space-y-3 flex-1'>
@@ -229,7 +229,7 @@ function LiabilitiesCard() {
           <div key={index}>
             <div className='flex items-center justify-between mb-1.5'>
               <span className='text-gray-400 text-xs'>{item.name}</span>
-              <span className='text-white text-xs font-medium'>
+              <span className='text-gray-900 dark:text-white text-xs font-medium'>
                 {item.amount}
               </span>
             </div>
@@ -253,7 +253,7 @@ function AvailableLiquidityCard() {
       {/* Header */}
       <div className='flex items-center justify-between mb-2'>
         <div className='flex items-center gap-2'>
-          <h3 className='text-white font-semibold text-sm'>
+          <h3 className='text-gray-900 dark:text-white font-semibold text-sm'>
             Available Liquidity
           </h3>
           <InfoIcon />
@@ -261,7 +261,7 @@ function AvailableLiquidityCard() {
       </div>
 
       {/* Total */}
-      <h2 className='text-xl font-bold text-white mb-3'>$1.75M</h2>
+      <h2 className='text-xl font-bold text-gray-900 dark:text-white mb-3'>$1.75M</h2>
 
       {/* Details */}
       <div className='space-y-2 flex-1'>
@@ -279,7 +279,7 @@ function AvailableLiquidityCard() {
         <div className='bg-[#D4AF371A] rounded-lg p-2'>
           <div className='flex items-center justify-between mb-0.5'>
             <span className='text-gray-400 text-xs'>Liquidity Target:</span>
-            <span className='text-white text-xs font-medium'>
+            <span className='text-gray-900 dark:text-white text-xs font-medium'>
               70% of target
             </span>
           </div>
@@ -358,7 +358,7 @@ function PerformanceAnalyticsCard() {
     <div className='bg-transparent border border-[#FFFFFF14] rounded-2xl p-6'>
       {/* Header */}
       <div className='flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4'>
-        <h3 className='text-white font-semibold text-lg'>
+        <h3 className='text-gray-900 dark:text-white font-semibold text-lg'>
           Performance Analytics
         </h3>
 
@@ -474,7 +474,7 @@ function TimeButton({ children, active, onClick }) {
         ${
           active
             ? 'bg-[#D4AF37] text-[#101014]'
-            : 'text-gray-400 hover:text-white'
+            : 'text-gray-400 dark:hover:text-white hover:text-gray-900'
         }
       `}
     >

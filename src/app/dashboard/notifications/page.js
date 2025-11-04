@@ -2,8 +2,10 @@
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import Image from 'next/image';
 import { useState } from 'react';
+import { useTheme } from '@/context/ThemeContext';
 
 export default function NotificationsPage() {
+  const { isDarkMode } = useTheme();
   const [activeTab, setActiveTab] = useState('all');
 
   const notifications = [
@@ -49,7 +51,7 @@ export default function NotificationsPage() {
       <div className='min-h-screen'>
         {/* Header */}
         <div className='mb-8'>
-          <h1 className='text-3xl font-bold text-white'>Notifications</h1>
+          <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Notifications</h1>
           <p className='text-gray-400 mt-2'>
             Stay updated with your latest activities
           </p>
@@ -60,7 +62,7 @@ export default function NotificationsPage() {
           <button
             onClick={() => setActiveTab('all')}
             className={`px-8 py-3 rounded-full text-sm font-medium transition-all cursor-pointer ${
-              activeTab === 'all' ? 'text-black font-semibold' : 'bg-transparent text-white'
+              activeTab === 'all' ? 'text-black font-semibold' : isDarkMode ? 'bg-transparent text-white' : 'bg-transparent text-gray-900'
             }`}
             style={{
               background:
@@ -76,7 +78,7 @@ export default function NotificationsPage() {
             className={`px-8 py-3 rounded-full text-sm font-medium transition-all cursor-pointer ${
               activeTab === 'unread'
                 ? 'text-black font-semibold'
-                : 'bg-transparent text-white'
+                : isDarkMode ? 'bg-transparent text-white' : 'bg-transparent text-gray-900'
             }`}
             style={{
               background:
@@ -131,7 +133,7 @@ export default function NotificationsPage() {
                           height={18}
                         />
                       )}
-                      <p className='text-white font-medium flex-1'>
+                      <p className={`font-medium flex-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                         {notification.message}
                       </p>
                     </div>

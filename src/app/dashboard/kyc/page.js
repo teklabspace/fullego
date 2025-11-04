@@ -34,7 +34,7 @@ export default function KYCPage() {
                 style={{ filter: 'brightness(0) invert(1)' }}
               />
             </div>
-            <h2 className='text-2xl font-bold text-white mb-4'>
+            <h2 className={`text-2xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
               Verify Your Identity
             </h2>
             <p className='text-gray-400 mb-6'>

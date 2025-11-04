@@ -3,12 +3,14 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { useTheme } from '@/context/ThemeContext';
 
 export default function ProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef(null);
   const router = useRouter();
+  const { isDarkMode } = useTheme();
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -68,7 +70,11 @@ export default function ProfileDropdown() {
     return (
       <div className='relative'>
         {/* Desktop Profile Button */}
-        <button className='hidden md:flex w-[213px] h-[56px] items-center gap-3 px-3 bg-gradient-to-r from-[#222126] to-[#111116] border border-white/10 rounded-[40px] shadow-md cursor-pointer'>
+        <button className={`hidden md:flex w-[213px] h-[56px] items-center gap-3 px-3 rounded-[40px] shadow-md cursor-pointer ${
+          isDarkMode
+            ? 'bg-gradient-to-r from-[#222126] to-[#111116] border border-white/10'
+            : 'bg-white border border-gray-200'
+        }`}>
           <div className='w-10 h-10 rounded-full overflow-hidden bg-[#F1CB68] flex items-center justify-center'>
             <Image
               src='/icons/user-avatar.svg'
@@ -79,10 +85,14 @@ export default function ProfileDropdown() {
             />
           </div>
           <div className='flex flex-col justify-center gap-[2px] text-left'>
-            <p className='text-white text-[16px] font-semibold leading-[130%] tracking-[-0.02em] font-[Outfit]'>
+            <p className={`text-[16px] font-semibold leading-[130%] tracking-[-0.02em] font-[Outfit] ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
               Olivia
             </p>
-            <p className='text-white/60 text-[16px] font-normal leading-[130%] tracking-[-0.02em] font-[Outfit]'>
+            <p className={`text-[16px] font-normal leading-[130%] tracking-[-0.02em] font-[Outfit] ${
+              isDarkMode ? 'text-white/60' : 'text-gray-600'
+            }`}>
               User Account
             </p>
           </div>
@@ -107,7 +117,11 @@ export default function ProfileDropdown() {
       {/* Desktop Profile Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className='hidden md:flex w-[213px] h-[56px] items-center gap-3 px-3 bg-gradient-to-r from-[#222126] to-[#111116] border border-white/10 rounded-[40px] shadow-md hover:opacity-80 transition-opacity cursor-pointer'
+        className={`hidden md:flex w-[213px] h-[56px] items-center gap-3 px-3 rounded-[40px] shadow-md hover:opacity-80 transition-opacity cursor-pointer ${
+          isDarkMode
+            ? 'bg-gradient-to-r from-[#222126] to-[#111116] border border-white/10'
+            : 'bg-white border border-gray-200'
+        }`}
       >
         <div className='w-10 h-10 rounded-full overflow-hidden bg-[#F1CB68] flex items-center justify-center'>
           <Image
@@ -119,10 +133,14 @@ export default function ProfileDropdown() {
           />
         </div>
         <div className='flex flex-col justify-center gap-[2px] text-left'>
-          <p className='text-white text-[16px] font-semibold leading-[130%] tracking-[-0.02em] font-[Outfit]'>
+          <p className={`text-[16px] font-semibold leading-[130%] tracking-[-0.02em] font-[Outfit] ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
             Olivia
           </p>
-          <p className='text-white/60 text-[16px] font-normal leading-[130%] tracking-[-0.02em] font-[Outfit]'>
+          <p className={`text-[16px] font-normal leading-[130%] tracking-[-0.02em] font-[Outfit] ${
+            isDarkMode ? 'text-white/60' : 'text-gray-600'
+          }`}>
             User Account
           </p>
         </div>
@@ -152,14 +170,15 @@ export default function ProfileDropdown() {
             transition={{ duration: 0.2 }}
             className='absolute right-0 md:right-0 mt-3 w-[calc(100vw-2rem)] md:w-[360px] max-w-[360px] rounded-2xl overflow-hidden shadow-2xl z-50'
             style={{
-              background:
-                'linear-gradient(135deg, rgba(30, 30, 35, 0.98) 0%, rgba(20, 20, 25, 0.98) 100%)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: isDarkMode
+                ? 'linear-gradient(135deg, rgba(30, 30, 35, 0.98) 0%, rgba(20, 20, 25, 0.98) 100%)'
+                : 'rgba(255, 255, 255, 0.98)',
+              border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.1)',
               backdropFilter: 'blur(10px)',
             }}
           >
             {/* User Info Header */}
-            <div className='p-6 border-b border-white/10'>
+            <div className={`p-6 border-b ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
               <div className='flex items-center gap-4'>
                 <div className='w-14 h-14 rounded-full overflow-hidden bg-[#F1CB68] flex items-center justify-center'>
                   <Image
@@ -171,8 +190,8 @@ export default function ProfileDropdown() {
                   />
                 </div>
                 <div>
-                  <p className='text-white text-lg font-semibold'>Olivia</p>
-                  <p className='text-white/60 text-sm'>User Account</p>
+                  <p className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Olivia</p>
+                  <p className={`text-sm ${isDarkMode ? 'text-white/60' : 'text-gray-600'}`}>User Account</p>
                 </div>
               </div>
             </div>
@@ -183,14 +202,18 @@ export default function ProfileDropdown() {
                 <button
                   key={item.id}
                   onClick={() => handleMenuClick(item.href)}
-                  className='w-full flex items-center gap-3 px-6 py-3 text-white hover:bg-white/5 transition-colors cursor-pointer'
+                  className={`w-full flex items-center gap-3 px-6 py-3 transition-colors cursor-pointer ${
+                    isDarkMode
+                      ? 'text-white hover:bg-white/5'
+                      : 'text-gray-900 hover:bg-gray-100'
+                  }`}
                 >
                   <Image
                     src={item.icon}
                     alt={item.label}
                     width={20}
                     height={20}
-                    style={{ filter: 'brightness(0) invert(1)' }}
+                    style={{ filter: isDarkMode ? 'brightness(0) invert(1)' : 'none' }}
                   />
                   <span className='text-[15px]'>{item.label}</span>
                 </button>
@@ -198,7 +221,7 @@ export default function ProfileDropdown() {
             </div>
 
             {/* Logout Button */}
-            <div className='border-t border-white/10 p-2'>
+            <div className={`border-t p-2 ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
               <button
                 onClick={handleLogout}
                 className='w-full flex items-center gap-3 px-6 py-3 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer'

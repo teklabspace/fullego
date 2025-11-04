@@ -1,8 +1,8 @@
 'use client';
-import Link from 'next/link';
-import { useState } from 'react';
-import { usePathname } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 
 const menuSections = [
   {
@@ -22,9 +22,9 @@ const menuSections = [
         hasSubmenu: true,
         submenu: [
           {
-            id: 'real-estate',
-            label: 'Real Estate',
-            href: '/dashboard/portfolio/real-estate',
+            id: 'Overview',
+            label: 'Overview',
+            href: '/dashboard/portfolio/Overview',
           },
           {
             id: 'crypto',
@@ -32,14 +32,14 @@ const menuSections = [
             href: '/dashboard/portfolio/crypto',
           },
           {
-            id: 'private-equity',
-            label: 'Private Equity',
-            href: '/dashboard/portfolio/private-equity',
+            id: 'cash-flow',
+            label: 'Cash Flow',
+            href: '/dashboard/portfolio/cash-flow',
           },
           {
-            id: 'banking',
-            label: 'Banking & Cash',
-            href: '/dashboard/portfolio/banking',
+            id: 'trade-engine',
+            label: 'Trade Engine',
+            href: '/dashboard/portfolio/trade-engine',
           },
         ],
       },
@@ -265,7 +265,8 @@ export default function Sidebar({ isOpen, onClose }) {
                                     }
                                   : {
                                       background: '#FFFFFF',
-                                      boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                                      boxShadow:
+                                        '0px 4px 12px rgba(0, 0, 0, 0.1)',
                                     }
                                 : {}
                             }
@@ -286,7 +287,8 @@ export default function Sidebar({ isOpen, onClose }) {
                                           ? 'brightness(0) saturate(100%) invert(64%) sepia(6%) saturate(449%) hue-rotate(178deg) brightness(95%) contrast(88%)'
                                           : 'brightness(0.5)',
                                       }
-                                    : pathname.startsWith(item.href) && !isDarkMode
+                                    : pathname.startsWith(item.href) &&
+                                      !isDarkMode
                                     ? { filter: 'none' }
                                     : {}
                                 }
@@ -334,7 +336,8 @@ export default function Sidebar({ isOpen, onClose }) {
                                           }
                                         : {
                                             background: '#FFFFFF',
-                                            boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                                            boxShadow:
+                                              '0px 4px 12px rgba(0, 0, 0, 0.1)',
                                           }
                                       : {}
                                   }
@@ -373,7 +376,8 @@ export default function Sidebar({ isOpen, onClose }) {
                                   }
                                 : {
                                     background: '#FFFFFF',
-                                    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                                    boxShadow:
+                                      '0px 4px 12px rgba(0, 0, 0, 0.1)',
                                   }
                               : {}
                           }
@@ -382,7 +386,9 @@ export default function Sidebar({ isOpen, onClose }) {
                             name={item.icon}
                             size={20}
                             className={
-                              pathname === item.href && !item.isLogout && isDarkMode
+                              pathname === item.href &&
+                              !item.isLogout &&
+                              isDarkMode
                                 ? 'brightness-0 invert'
                                 : ''
                             }
@@ -393,7 +399,9 @@ export default function Sidebar({ isOpen, onClose }) {
                                       ? 'brightness(0) saturate(100%) invert(64%) sepia(6%) saturate(449%) hue-rotate(178deg) brightness(95%) contrast(88%)'
                                       : 'brightness(0.5)',
                                   }
-                                : pathname === item.href && !item.isLogout && !isDarkMode
+                                : pathname === item.href &&
+                                  !item.isLogout &&
+                                  !isDarkMode
                                 ? { filter: 'none' }
                                 : {}
                             }
