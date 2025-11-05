@@ -51,7 +51,7 @@ const Navbar = () => {
   }, []);
 
   return (
-    <header className='py-6 relative z-50'>
+    <header className='py-6 sticky top-0 z-50 bg-brand-bg/80 backdrop-blur-lg transition-all duration-300'>
       <Container>
         <div className='flex items-center justify-between'>
           {/* Logo */}
