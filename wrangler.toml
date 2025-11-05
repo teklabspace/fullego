@@ -5,6 +5,6 @@ pages_build_output_dir = "out"
 [env.production]
 name = "fullego-production"
 
-[env.staging]
-name = "fullego-staging"
+[env.preview]
+name = "fullego-preview"
 
