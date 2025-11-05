@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
   // Cloudflare Pages compatibility - use static export
   output: 'export',
   images: {
@@ -10,6 +9,8 @@ const nextConfig = {
   trailingSlash: true,
   // Skip dynamic routes during build (they'll be handled client-side)
   skipTrailingSlashRedirect: true,
+  // Disable source maps for faster builds (optional)
+  productionBrowserSourceMaps: false,
 };
 
 export default nextConfig;
