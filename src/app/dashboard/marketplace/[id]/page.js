@@ -5,6 +5,12 @@ import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+// Required for static export
+export async function generateStaticParams() {
+  // Return empty array - routes will be handled client-side
+  return [];
+}
+
 export default function InvestmentDetailPage({ params }) {
   const { isDarkMode } = useTheme();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
