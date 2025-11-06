@@ -1,12 +1,19 @@
-// Required for static export - generateStaticParams must be in a server component
-export function generateStaticParams() {
-  // Return placeholder - actual IDs handled client-side via URL
-  return [{ id: 'placeholder' }];
-}
-
 import AssetDetailClient from './AssetDetailClient';
 
+// Required for static export with dynamic routes
+export async function generateStaticParams() {
+  // Generate a range of IDs for static export
+  // Cloudflare Pages will pre-render these routes at build time
+  // Increase the range if you need to support more asset IDs
+  const ids = [];
+  const maxId = 500; // Adjust this number based on your needs
+
+  for (let i = 1; i <= maxId; i++) {
+    ids.push({ id: i.toString() });
+  }
+  return ids;
+}
+
 export default function AssetDetailPage() {
-  // Don't pass params - let client component read from URL directly
   return <AssetDetailClient />;
 }
