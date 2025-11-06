@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Container from "@/components/ui/Container";
 import Button from "@/components/ui/Button";
-import Layout from '@/components/layout/Layout';
+import Layout from '../../components/layout/Layout';
 
 export default function FullegoLandingPage() {
   return (
