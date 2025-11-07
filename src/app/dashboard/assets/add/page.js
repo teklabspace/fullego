@@ -2,7 +2,14 @@
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import {
+  allCategories,
+  getCategoryGroup,
+  getFormFieldsForCategory,
+  getCategoriesByGroup,
+  getCategoryGroups,
+} from '@/config/assetConfig';
 
 const steps = [
   { id: 1, title: 'Basic Information' },
@@ -10,46 +17,97 @@ const steps = [
   { id: 3, title: 'Asset Valuation' },
 ];
 
-const assetCategories = [
-  { id: 'all', name: 'All Assets', icon: 'AllAssets.svg' },
-  { id: 'Yachts', name: 'Yachts', icon: 'yacht.svg' },
-  { id: 'Private Jets', name: 'Private Jets', icon: 'Jets.svg' },
-  { id: 'Real Estate', name: 'Real Estate', icon: 'Realstat.svg' },
-  { id: 'Vehicles', name: 'Vehicles', icon: 'vehicels.svg' },
-  {
-    id: 'Art & Collectibles',
-    name: 'Art & Collectibles',
-    icon: 'Art_collectibles.svg',
-  },
-];
-
 const conditions = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor'];
 const ownershipTypes = ['Sole', 'Joint', 'Trust', 'Corporate'];
+const riskLevels = ['Low', 'Medium', 'High', 'Very High'];
+const paymentFrequencies = ['Monthly', 'Quarterly', 'Semi-Annual', 'Annual'];
+const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD'];
+
+// Helper function to convert field name to form field key
+const fieldNameToKey = fieldName => {
+  return fieldName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+};
+
+// Helper function to get field type based on field name
+const getFieldType = fieldName => {
+  const lowerName = fieldName.toLowerCase();
+  if (lowerName.includes('date')) return 'date';
+  if (lowerName.includes('price') || lowerName.includes('value') || lowerName.includes('cost') || lowerName.includes('owed')) return 'currency';
+  if (lowerName.includes('rate') || lowerName.includes('interest')) return 'percentage';
+  if (lowerName.includes('description') || lowerName.includes('notes') || lowerName.includes('purpose')) return 'textarea';
+  if (lowerName.includes('image')) return 'file';
+  if (lowerName.includes('condition')) return 'select';
+  if (lowerName.includes('ownership type')) return 'select';
+  if (lowerName.includes('risk level')) return 'select';
+  if (lowerName.includes('payment frequency')) return 'select';
+  if (lowerName.includes('currency')) return 'select';
+  if (lowerName.includes('type') && !lowerName.includes('ownership')) return 'select';
+  return 'text';
+};
+
+// Helper function to get select options
+const getSelectOptions = fieldName => {
+  const lowerName = fieldName.toLowerCase();
+  if (lowerName.includes('condition')) return conditions;
+  if (lowerName.includes('ownership type')) return ownershipTypes;
+  if (lowerName.includes('risk level')) return riskLevels;
+  if (lowerName.includes('payment frequency')) return paymentFrequencies;
+  if (lowerName.includes('currency')) return currencies;
+  return [];
+};
 
 export default function AddAssetPage() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-
-  const [formData, setFormData] = useState({
-    assetName: '',
-    description: '',
-    make: '',
-    model: '',
-    year: '',
-    purchaseDate: '',
-    purchasePrice: '',
-    currentLocation: '',
-    condition: 'Excellent',
-    ownershipType: 'Sole',
-  });
-
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedCategoryGroup, setSelectedCategoryGroup] = useState(null);
+  const [formData, setFormData] = useState({});
   const [assetPhotos, setAssetPhotos] = useState([]);
   const [supportingDocs, setSupportingDocs] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [valuationType, setValuationType] = useState('manual');
   const [estimatedValue, setEstimatedValue] = useState('');
+
+  // Get categories grouped by category group
+  const categoriesByGroup = useMemo(() => {
+    const groups = getCategoryGroups();
+    return groups.map(group => ({
+      groupName: group,
+      categories: getCategoriesByGroup(group),
+    }));
+  }, []);
+
+  // Get form fields for selected category
+  const formFields = useMemo(() => {
+    if (!selectedCategory) return [];
+    return getFormFieldsForCategory(selectedCategory);
+  }, [selectedCategory]);
+
+  // Initialize form data when category changes
+  const handleCategorySelect = categoryId => {
+    setSelectedCategory(categoryId);
+    const category = allCategories.find(cat => cat.id === categoryId);
+    if (category) {
+      setSelectedCategoryGroup(category.categoryGroup);
+      // Initialize form data with empty values for all fields
+      const fields = getFormFieldsForCategory(categoryId);
+      const initialData = {};
+      fields.forEach(field => {
+        const key = fieldNameToKey(field);
+        if (getFieldType(field) === 'select') {
+          const options = getSelectOptions(field);
+          initialData[key] = options[0] || '';
+        } else {
+          initialData[key] = '';
+        }
+      });
+      setFormData(initialData);
+    }
+  };
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -66,6 +124,8 @@ export default function AddAssetPage() {
       // Submit form - Step 3 is the final step
       console.log('Form Data:', {
         ...formData,
+        category: selectedCategory,
+        categoryGroup: selectedCategoryGroup,
         assetPhotos: assetPhotos.length,
         supportingDocs: supportingDocs.length,
         valuationType,
@@ -175,6 +235,204 @@ export default function AddAssetPage() {
     if (stepId < currentStep) return 'completed';
     if (stepId === currentStep) return 'active';
     return 'pending';
+  };
+
+  // Render form field based on field name
+  const renderFormField = fieldName => {
+    const fieldKey = fieldNameToKey(fieldName);
+    const fieldType = getFieldType(fieldName);
+    const value = formData[fieldKey] || '';
+
+    // Skip Image field as it's handled in step 2
+    if (fieldName.toLowerCase().includes('image')) {
+      return null;
+    }
+
+    // Handle special fields
+    if (fieldName === 'Make/Model/Year') {
+      return (
+        <div key={fieldKey} className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
+          <div>
+            <label className='block text-sm font-medium text-white mb-2'>
+              Make
+            </label>
+            <input
+              type='text'
+              name='make'
+              value={formData.make || ''}
+              onChange={handleChange}
+              placeholder='Enter make'
+              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+            />
+          </div>
+          <div>
+            <label className='block text-sm font-medium text-white mb-2'>
+              Model
+            </label>
+            <input
+              type='text'
+              name='model'
+              value={formData.model || ''}
+              onChange={handleChange}
+              placeholder='Enter model'
+              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+            />
+          </div>
+          <div>
+            <label className='block text-sm font-medium text-white mb-2'>
+              Year
+            </label>
+            <input
+              type='text'
+              name='year'
+              value={formData.year || ''}
+              onChange={handleChange}
+              placeholder='Enter year'
+              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Handle Category field - show as read-only if category is selected
+    if (fieldName === 'Category') {
+      return (
+        <div key={fieldKey} className='mb-6'>
+          <label className='block text-sm font-medium text-white mb-2'>
+            {fieldName}
+          </label>
+          <input
+            type='text'
+            value={selectedCategory ? allCategories.find(c => c.id === selectedCategory)?.name || '' : ''}
+            readOnly
+            className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-gray-400 cursor-not-allowed'
+          />
+        </div>
+      );
+    }
+
+    switch (fieldType) {
+      case 'date':
+        return (
+          <div key={fieldKey} className='mb-6'>
+            <label className='block text-sm font-medium text-white mb-2'>
+              {fieldName}
+            </label>
+            <input
+              type='date'
+              name={fieldKey}
+              value={value}
+              onChange={handleChange}
+              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
+            />
+          </div>
+        );
+
+      case 'currency':
+        return (
+          <div key={fieldKey} className='mb-6'>
+            <label className='block text-sm font-medium text-white mb-2'>
+              {fieldName}
+            </label>
+            <div className='relative'>
+              <span className='absolute left-4 top-1/2 -translate-y-1/2 text-[#F1CB68] font-semibold'>
+                $
+              </span>
+              <input
+                type='text'
+                name={fieldKey}
+                value={value}
+                onChange={handleChange}
+                placeholder='0.00'
+                className='w-full pl-8 pr-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+              />
+            </div>
+          </div>
+        );
+
+      case 'percentage':
+        return (
+          <div key={fieldKey} className='mb-6'>
+            <label className='block text-sm font-medium text-white mb-2'>
+              {fieldName}
+            </label>
+            <div className='relative'>
+              <input
+                type='text'
+                name={fieldKey}
+                value={value}
+                onChange={handleChange}
+                placeholder='0.00'
+                className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+              />
+              <span className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400'>
+                %
+              </span>
+            </div>
+          </div>
+        );
+
+      case 'textarea':
+        return (
+          <div key={fieldKey} className='mb-6'>
+            <label className='block text-sm font-medium text-white mb-2'>
+              {fieldName}
+            </label>
+            <textarea
+              name={fieldKey}
+              value={value}
+              onChange={handleChange}
+              placeholder={`Enter ${fieldName.toLowerCase()}`}
+              rows={4}
+              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors resize-none'
+            />
+          </div>
+        );
+
+      case 'select':
+        const options = getSelectOptions(fieldName);
+        return (
+          <div key={fieldKey} className='mb-6'>
+            <label className='block text-sm font-medium text-white mb-2'>
+              {fieldName}
+            </label>
+            <select
+              name={fieldKey}
+              value={value}
+              onChange={handleChange}
+              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white focus:outline-none focus:border-[#F1CB68] transition-colors appearance-none cursor-pointer'
+            >
+              {options.length > 0 ? (
+                options.map(option => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))
+              ) : (
+                <option value=''>Select {fieldName}</option>
+              )}
+            </select>
+          </div>
+        );
+
+      default:
+        return (
+          <div key={fieldKey} className='mb-6'>
+            <label className='block text-sm font-medium text-white mb-2'>
+              {fieldName}
+            </label>
+            <input
+              type='text'
+              name={fieldKey}
+              value={value}
+              onChange={handleChange}
+              placeholder={`Enter ${fieldName.toLowerCase()}`}
+              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+            />
+          </div>
+        );
+    }
   };
 
   return (
@@ -306,199 +564,60 @@ export default function AddAssetPage() {
         {currentStep === 1 && (
           <div className='max-w-4xl mx-auto'>
             <div className='bg-gradient-to-r from-[#222126] to-[#111116] border border-[#FFFFFF14] rounded-2xl p-6 md:p-8'>
-              {/* Select Assets Category */}
+              {/* Select Category Group and Category */}
               <div className='mb-8'>
                 <label className='block text-sm font-medium text-gray-400 mb-4'>
-                  Select Assets Category
+                  Select Category Type
                 </label>
-                <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3'>
-                  {assetCategories.map(category => (
-                    <button
-                      key={category.id}
-                      onClick={() => setSelectedCategory(category.id)}
-                      className={`p-4 rounded-xl border-2 transition-all text-center flex flex-col items-center justify-center ${
-                        selectedCategory === category.id
-                          ? 'bg-[#F1CB68] border-[#F1CB68] text-[#0B0D12]'
-                          : 'bg-[#2A2A2D] border-[#FFFFFF14] text-white hover:border-[#F1CB68]/50'
-                      }`}
-                    >
-                      {category.icon && (
-                        <img
-                          src={`/${category.icon}`}
-                          alt={category.name}
-                          className='w-8 h-8 mb-2 object-contain'
-                        />
-                      )}
-                      <div className='text-xs font-medium whitespace-nowrap'>
-                        {category.name}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Asset Name */}
-              <div className='mb-6'>
-                <label className='block text-sm font-medium text-white mb-2'>
-                  Asset Name
-                </label>
-                <input
-                  type='text'
-                  name='assetName'
-                  value={formData.assetName}
-                  onChange={handleChange}
-                  placeholder='Enter asset Name....'
-                  className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
-                />
-              </div>
-
-              {/* Description */}
-              <div className='mb-6'>
-                <label className='block text-sm font-medium text-white mb-2'>
-                  Description
-                </label>
-                <textarea
-                  name='description'
-                  value={formData.description}
-                  onChange={handleChange}
-                  placeholder='Enter a brief description of asset .....'
-                  rows={5}
-                  className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors resize-none'
-                />
-              </div>
-
-              {/* Make, Model, Year */}
-              <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
-                <div>
-                  <label className='block text-sm font-medium text-white mb-2'>
-                    Make
-                  </label>
-                  <input
-                    type='text'
-                    name='make'
-                    value={formData.make}
-                    onChange={handleChange}
-                    placeholder='Sunseeker'
-                    className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
-                  />
-                </div>
-                <div>
-                  <label className='block text-sm font-medium text-white mb-2'>
-                    Model
-                  </label>
-                  <input
-                    type='text'
-                    name='model'
-                    value={formData.model}
-                    onChange={handleChange}
-                    placeholder='Predator 74'
-                    className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
-                  />
-                </div>
-                <div>
-                  <label className='block text-sm font-medium text-white mb-2'>
-                    Year
-                  </label>
-                  <input
-                    type='text'
-                    name='year'
-                    value={formData.year}
-                    onChange={handleChange}
-                    placeholder='2025'
-                    className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
-                  />
-                </div>
-              </div>
-
-              {/* Purchase Date, Purchase Price */}
-              <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-6'>
-                <div>
-                  <label className='block text-sm font-medium text-white mb-2'>
-                    Purchase Date
-                  </label>
-                  <input
-                    type='date'
-                    name='purchaseDate'
-                    value={formData.purchaseDate}
-                    onChange={handleChange}
-                    className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
-                  />
-                </div>
-                <div>
-                  <label className='block text-sm font-medium text-white mb-2'>
-                    Purchase Price
-                  </label>
-                  <div className='relative'>
-                    <span className='absolute left-4 top-1/2 -translate-y-1/2 text-[#F1CB68] font-semibold'>
-                      $
-                    </span>
-                    <input
-                      type='text'
-                      name='purchasePrice'
-                      value={formData.purchasePrice}
-                      onChange={handleChange}
-                      placeholder='350.0'
-                      className='w-full pl-8 pr-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
-                    />
+                
+                {/* Category Groups */}
+                {categoriesByGroup.map(({ groupName, categories }) => (
+                  <div key={groupName} className='mb-6'>
+                    <h3 className='text-lg font-semibold text-white mb-3'>
+                      {groupName}
+                    </h3>
+                    <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3'>
+                      {categories.map(category => (
+                        <button
+                          key={category.id}
+                          onClick={() => handleCategorySelect(category.id)}
+                          className={`p-4 rounded-xl border-2 transition-all text-center flex flex-col items-center justify-center min-h-[100px] ${
+                            selectedCategory === category.id
+                              ? 'bg-[#F1CB68] border-[#F1CB68] text-[#0B0D12]'
+                              : 'bg-[#2A2A2D] border-[#FFFFFF14] text-white hover:border-[#F1CB68]/50'
+                          }`}
+                        >
+                          {category.iconFile ? (
+                            <img
+                              src={`/${category.iconFile}`}
+                              alt={category.name}
+                              className='w-8 h-8 mb-2 object-contain'
+                            />
+                          ) : (
+                            <span className='text-2xl mb-2'>{category.icon}</span>
+                          )}
+                          <div className='text-xs font-medium text-center leading-tight'>
+                            {category.name}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
 
-              {/* Current Location, Condition */}
-              <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-6'>
-                <div>
-                  <label className='block text-sm font-medium text-white mb-2'>
-                    Current Location
-                  </label>
-                  <input
-                    type='text'
-                    name='currentLocation'
-                    value={formData.currentLocation}
-                    onChange={handleChange}
-                    placeholder='Enter your location....'
-                    className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
-                  />
+              {/* Dynamic Form Fields */}
+              {selectedCategory && formFields.length > 0 && (
+                <div className='mt-8 pt-8 border-t border-[#FFFFFF14]'>
+                  <h3 className='text-xl font-semibold text-white mb-6'>
+                    Asset Details
+                  </h3>
+                  {formFields.map(field => renderFormField(field))}
                 </div>
-                <div>
-                  <label className='block text-sm font-medium text-white mb-2'>
-                    Condition
-                  </label>
-                  <select
-                    name='condition'
-                    value={formData.condition}
-                    onChange={handleChange}
-                    className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white focus:outline-none focus:border-[#F1CB68] transition-colors appearance-none cursor-pointer'
-                  >
-                    {conditions.map(condition => (
-                      <option key={condition} value={condition}>
-                        {condition}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Ownership Type */}
-              <div className='mb-8'>
-                <label className='block text-sm font-medium text-white mb-2'>
-                  Ownership Type
-                </label>
-                <select
-                  name='ownershipType'
-                  value={formData.ownershipType}
-                  onChange={handleChange}
-                  className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white focus:outline-none focus:border-[#F1CB68] transition-colors appearance-none cursor-pointer'
-                >
-                  {ownershipTypes.map(type => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              )}
 
               {/* Action Buttons */}
-              <div className='flex flex-col sm:flex-row gap-4 justify-end'>
+              <div className='flex flex-col sm:flex-row gap-4 justify-end mt-8'>
                 <button
                   onClick={handleCancel}
                   className='px-6 py-3 rounded-lg border border-[#FFFFFF14] text-white hover:bg-white/5 transition-colors'
@@ -507,7 +626,12 @@ export default function AddAssetPage() {
                 </button>
                 <button
                   onClick={handleNext}
-                  className='px-6 py-3 rounded-lg bg-[#F1CB68] text-[#0B0D12] font-semibold hover:bg-[#d4b55a] transition-colors'
+                  disabled={!selectedCategory}
+                  className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                    selectedCategory
+                      ? 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   Next Step
                 </button>
@@ -744,7 +868,7 @@ export default function AddAssetPage() {
                   onClick={() => setCurrentStep(currentStep - 1)}
                   className='px-6 py-3 rounded-lg border border-[#FFFFFF14] text-white hover:bg-white/5 transition-colors'
                 >
-                  Cancel
+                  Back
                 </button>
                 <button
                   onClick={handleNext}

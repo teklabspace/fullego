@@ -8,14 +8,14 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 const categories = [
-  'All',
-  'Private Equity',
-  'Real Estate',
-  'Private Credit',
-  'Alternatives',
-  'Funds',
-  'Deals',
-  'Arts & Collectibles',
+  { id: 'All', name: 'All', icon: 'grid.svg' },
+  { id: 'Private Equity', name: 'Private Equity', icon: 'trending-up.svg' },
+  { id: 'Real Estate', name: 'Real Estate', icon: 'Highrise.svg' },
+  { id: 'Private Credit', name: 'Private Credit', icon: 'wallet-keys.svg' },
+  { id: 'Alternatives', name: 'Alternatives', icon: 'pie-chart.svg' },
+  { id: 'Funds', name: 'Funds', icon: 'bar-chart.svg' },
+  { id: 'Deals', name: 'Deals', icon: 'shopping-bag.svg' },
+  { id: 'Arts & Collectibles', name: 'Arts & Collectibles', icon: 'diamond.svg' },
 ];
 
 const allInvestmentFunds = [
@@ -534,24 +534,24 @@ export default function Marketplace() {
             <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
               {categories.map(category => (
                 <motion.button
-                  key={category}
-                  onClick={() => setActiveCategory(category)}
+                  key={category.id}
+                  onClick={() => setActiveCategory(category.id)}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className={`whitespace-nowrap px-6 py-2 text-sm font-medium transition-all rounded-full ${
-                    activeCategory === category
-                      ? 'text-white'
-                      : 'text-gray-400 hover:text-white bg-white/5'
+                  className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-all rounded-lg flex items-center gap-2 ${
+                    activeCategory === category.id
+                      ? 'text-white bg-[#D4AF37]'
+                      : 'text-gray-400 hover:text-white bg-white/5 border border-[#FFFFFF14]'
                   }`}
-                  style={
-                    activeCategory === category
-                      ? {
-                          background: 'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
-                        }
-                      : {}
-                  }
                 >
-                  {category}
+                  {category.icon && (
+                    <img
+                      src={`/icons/${category.icon}`}
+                      alt={category.name}
+                      className="w-5 h-5"
+                    />
+                  )}
+                  <span>{category.name}</span>
                 </motion.button>
               ))}
               <div className="ml-auto relative">

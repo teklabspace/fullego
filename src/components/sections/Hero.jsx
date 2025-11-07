@@ -13,7 +13,7 @@ const Hero = () => {
       {/* Grid Background Image */}
       <div
         aria-hidden
-        className='pointer-events-none absolute inset-0 -z-10'
+        className='pointer-events-none absolute inset-0 z-10'
         style={{
           backgroundImage: 'url(/Gridbackground.png)',
           backgroundSize: 'cover',
@@ -75,11 +75,11 @@ const Hero = () => {
               letterSpacing: '-0.02em',
             }}
           >
-            <span style={{ color: '#FFFFFF' }}>Your</span>{' '}
+            Your{' '}
             <span className='relative inline-block'>
               {/* Ellipse Glow on Wealth */}
               <div
-                className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[100px] h-[100px] rounded-full pointer-events-none z-20'
+                className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[100px] h-[100px] rounded-full pointer-events-none z-0'
                 style={{
                   background: 'rgba(255, 255, 255, 0.068)',
                   backgroundBlendMode: 'plus-lighter',
@@ -104,7 +104,18 @@ const Hero = () => {
             </span>
             <br />
             <span className='relative inline-block'>
+              {/* Border around Unified, Elevated */}
+              <div
+                className='absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0'
+                style={{
+                  width: '668px',
+                  height: '84px',
+                  border: '1.5px solid rgba(255, 255, 255, 0.25)',
+                  borderRadius: '8px',
+                }}
+              />
               <span
+                className='relative z-10'
                 style={{
                   background:
                     'linear-gradient(to right, #FFFFFF 0%, #D4AF37 100%)',
@@ -115,16 +126,6 @@ const Hero = () => {
               >
                 Unified, Elevated.
               </span>
-              {/* Border around Unified, Elevated */}
-              <div
-                className='absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none'
-                style={{
-                  width: '668px',
-                  height: '84px',
-                  border: '1.5px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: '8px',
-                }}
-              />
             </span>
           </motion.h1>
 

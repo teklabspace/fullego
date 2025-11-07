@@ -3,6 +3,11 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import {
+  getCategoryGroup,
+  getCardFieldsForCategory,
+  allCategories,
+} from '@/config/assetConfig';
 
 export default function AssetsPage() {
   const { isDarkMode } = useTheme();
@@ -164,22 +169,16 @@ export default function AssetsPage() {
     },
   ];
 
+  // Get all categories for filtering
   const categories = [
     { id: 'all', name: 'All Assets', icon: 'AllAssets.svg' },
-    { id: 'Yachts', name: 'Yachts', icon: 'yacht.svg' },
-    { id: 'Private Jets', name: 'Private Jets', icon: 'Jets.svg' },
-    { id: 'Real Estate', name: 'Real Estate', icon: 'Realstat.svg' },
-    { id: 'Vehicles', name: 'Vehicles', icon: 'vehicels.svg' },
-    {
-      id: 'Art & Collectibles',
-      name: 'Art & Collectibles',
-      icon: 'Art_collectibles.svg',
-    },
-    {
-      id: 'Watches & Jewelry',
-      name: 'Watches & Jewelry',
-      icon: 'watches_jawelry.svg',
-    },
+    ...allCategories
+      .filter(cat => cat.iconFile) // Only show categories with icon files for now
+      .map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        icon: cat.iconFile,
+      })),
   ];
 
   const filteredAssets =
@@ -363,15 +362,157 @@ function AssetCard({
   onRequestSell,
   onRequestAppraisal,
 }) {
+  // Get card fields for this asset's category
+  const cardFields = getCardFieldsForCategory(asset.category);
+  const categoryGroup = getCategoryGroup(asset.category);
+
+  // Helper function to get field value from asset
+  const getFieldValue = fieldName => {
+    const lowerName = fieldName.toLowerCase();
+    
+    // Map field names to asset properties
+    if (lowerName.includes('asset name') || lowerName.includes('fund name')) {
+      return asset.name;
+    }
+    if (lowerName.includes('category')) {
+      return asset.category;
+    }
+    if (lowerName.includes('location')) {
+      return asset.location;
+    }
+    if (lowerName.includes('estimated value') || lowerName.includes('current value') || lowerName.includes('contribution value')) {
+      return asset.estimatedValue || asset.currentValue;
+    }
+    if (lowerName.includes('last appraisal')) {
+      return asset.lastAppraisal;
+    }
+    if (lowerName.includes('condition')) {
+      return asset.condition;
+    }
+    if (lowerName.includes('ownership type')) {
+      return asset.ownershipType;
+    }
+    if (lowerName.includes('image')) {
+      return asset.image;
+    }
+    if (lowerName.includes('investment type')) {
+      return asset.investmentType;
+    }
+    if (lowerName.includes('institution')) {
+      return asset.institution;
+    }
+    if (lowerName.includes('currency')) {
+      return asset.currency;
+    }
+    if (lowerName.includes('risk level')) {
+      return asset.riskLevel;
+    }
+    if (lowerName.includes('debt type')) {
+      return asset.debtType;
+    }
+    if (lowerName.includes('creditor')) {
+      return asset.creditor;
+    }
+    if (lowerName.includes('amount owed')) {
+      return asset.amountOwed;
+    }
+    if (lowerName.includes('interest rate')) {
+      return asset.interestRate;
+    }
+    if (lowerName.includes('due date')) {
+      return asset.dueDate;
+    }
+    if (lowerName.includes('wealth type')) {
+      return asset.wealthType;
+    }
+    if (lowerName.includes('description')) {
+      return asset.description;
+    }
+    if (lowerName.includes('expected date')) {
+      return asset.expectedDate;
+    }
+    if (lowerName.includes('type') && !lowerName.includes('investment') && !lowerName.includes('ownership') && !lowerName.includes('debt') && !lowerName.includes('wealth')) {
+      return asset.type;
+    }
+    if (lowerName.includes('impact area')) {
+      return asset.impactArea;
+    }
+    if (lowerName.includes('service type')) {
+      return asset.serviceType;
+    }
+    if (lowerName.includes('vendor')) {
+      return asset.vendor;
+    }
+    if (lowerName.includes('membership id')) {
+      return asset.membershipId;
+    }
+    if (lowerName.includes('annual cost')) {
+      return asset.annualCost;
+    }
+    if (lowerName.includes('record type')) {
+      return asset.recordType;
+    }
+    if (lowerName.includes('document name')) {
+      return asset.documentName;
+    }
+    if (lowerName.includes('related asset/user')) {
+      return asset.relatedAsset;
+    }
+    if (lowerName.includes('upload date')) {
+      return asset.uploadDate;
+    }
+    if (lowerName.includes('expiry date')) {
+      return asset.expiryDate;
+    }
+    
+    // Fallback to asset property with same key
+    const key = fieldName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    return asset[key] || '';
+  };
+
+  // Render card field
+  const renderCardField = fieldName => {
+    const value = getFieldValue(fieldName);
+    if (!value) return null;
+
+    const lowerName = fieldName.toLowerCase();
+    
+    // Skip Image as it's rendered separately
+    if (lowerName.includes('image')) return null;
+
+    // Format value based on field type
+    let displayValue = value;
+    if (typeof value === 'string' && (lowerName.includes('value') || lowerName.includes('cost') || lowerName.includes('owed'))) {
+      if (!value.startsWith('$')) {
+        displayValue = `$${value}`;
+      }
+    }
+
+    return (
+      <div key={fieldName} className='mb-2'>
+        <p className='text-xs text-gray-500 mb-1'>{fieldName}</p>
+        <p className='text-white font-semibold text-sm'>{displayValue}</p>
+      </div>
+    );
+  };
+
   return (
     <div className='bg-transparent border border-[#FFFFFF14] rounded-2xl overflow-hidden hover:border-[#D4AF37]/50 transition-all group'>
       {/* Image */}
       <div className='relative h-48 overflow-hidden'>
-        <img
-          src={asset.image}
-          alt={asset.name}
-          className='w-full h-full object-cover group-hover:scale-110 transition-transform duration-300'
-        />
+        {asset.image ? (
+          <img
+            src={asset.image}
+            alt={asset.name}
+            className='w-full h-full object-cover group-hover:scale-110 transition-transform duration-300'
+          />
+        ) : (
+          <div className='w-full h-full bg-gradient-to-br from-[#2A2A2D] to-[#1a1a1d] flex items-center justify-center'>
+            <span className='text-4xl text-gray-600'>
+              {allCategories.find(c => c.id === asset.category)?.icon || '📦'}
+            </span>
+          </div>
+        )}
         <button className='absolute top-3 right-3 w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-colors'>
           <span
             className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
@@ -390,24 +531,44 @@ function AssetCard({
         >
           {asset.name}
         </h3>
-        <div className='flex items-center gap-2 text-sm text-gray-400 mb-4'>
-          <span>{asset.category}</span>
-          <span>•</span>
-          <span>{asset.location}</span>
-        </div>
+        
+        {/* Dynamic Card Fields */}
+        <div className='mb-4 space-y-2'>
+          {cardFields.map(field => {
+            const value = getFieldValue(field);
+            if (!value || field.toLowerCase().includes('image')) return null;
 
-        {/* Value and Appraisal */}
-        <div className='flex justify-between items-center mb-4'>
-          <div>
-            <p className='text-xs text-gray-500 mb-1'>Estimated Value</p>
-            <p className='text-white font-semibold text-lg'>
-              {asset.estimatedValue}
-            </p>
-          </div>
-          <div className='text-right'>
-            <p className='text-xs text-gray-500 mb-1'>Last Appraisal</p>
-            <p className='text-gray-400 text-sm'>{asset.lastAppraisal}</p>
-          </div>
+            const lowerName = field.toLowerCase();
+            let displayValue = value;
+            
+            // Format currency values
+            if (typeof value === 'string' && (lowerName.includes('value') || lowerName.includes('cost') || lowerName.includes('owed'))) {
+              if (!value.startsWith('$')) {
+                displayValue = `$${value}`;
+              }
+            }
+
+            // Format dates
+            if (lowerName.includes('date') && value) {
+              try {
+                const date = new Date(value);
+                if (!isNaN(date.getTime())) {
+                  displayValue = date.toLocaleDateString();
+                }
+              } catch (e) {
+                // Keep original value if date parsing fails
+              }
+            }
+
+            return (
+              <div key={field} className='flex justify-between items-center'>
+                <p className='text-xs text-gray-500'>{field}:</p>
+                <p className='text-white font-semibold text-sm text-right'>
+                  {displayValue}
+                </p>
+              </div>
+            );
+          })}
         </div>
 
         {/* Action Buttons */}
@@ -418,20 +579,22 @@ function AssetCard({
           >
             View Details
           </button>
-          <div className='grid grid-cols-2 gap-2'>
-            <button
-              onClick={onRequestSell}
-              className='bg-white/5 text-sm hover:bg-white/10 text-white py-2.5 rounded-lg font-medium transition-colors border border-[#FFFFFF14]'
-            >
-              Request to Sell
-            </button>
-            <button
-              onClick={onRequestAppraisal}
-              className='bg-white/5 text-sm hover:bg-white/10 text-white py-2.5 rounded-lg font-medium transition-colors border border-[#FFFFFF14]'
-            >
-              Request Appraisal
-            </button>
-          </div>
+          {categoryGroup === 'Assets' && (
+            <div className='grid grid-cols-2 gap-2'>
+              <button
+                onClick={onRequestSell}
+                className='bg-white/5 text-sm hover:bg-white/10 text-white py-2.5 rounded-lg font-medium transition-colors border border-[#FFFFFF14]'
+              >
+                Request to Sell
+              </button>
+              <button
+                onClick={onRequestAppraisal}
+                className='bg-white/5 text-sm hover:bg-white/10 text-white py-2.5 rounded-lg font-medium transition-colors border border-[#FFFFFF14]'
+              >
+                Request Appraisal
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
