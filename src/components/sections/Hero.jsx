@@ -107,15 +107,14 @@ const Hero = () => {
               <span
                 style={{
                   background:
-                    'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                    'linear-gradient(to right, #FFFFFF 0%, #D4AF37 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
                 }}
               >
-                Unified
+                Unified, Elevated.
               </span>
-              <span style={{ color: '#FFFFFF' }}>, Elevated.</span>
               {/* Border around Unified, Elevated */}
               <div
                 className='absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none'
@@ -164,7 +163,7 @@ const Hero = () => {
             <input
               type='text'
               placeholder='Email/Phone Number'
-              className='w-full sm:flex-1 rounded-full bg-transparent px-4 sm:px-4 py-3 text-sm text-brand-white placeholder:text-[#FFFFFF99] focus:outline-none border border-[#FFFFFF1A] sm:border-0'
+              className='w-full sm:flex-1 rounded-full bg-transparent px-4 sm:px-4 py-3 text-sm text-brand-white placeholder:text-brand-muted focus:outline-none border border-[#FFFFFF1A] sm:border-0'
             />
             <motion.button
               whileHover={{ scale: 1.05 }}
