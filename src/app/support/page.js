@@ -58,23 +58,275 @@ export default function Support() {
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
-    <div className="min-h-screen bg-brand-bg text-brand-white">
+    <div className="min-h-screen bg-[#0B0D12] text-brand-white relative overflow-hidden">
       <Navbar />
+      
+      {/* Background Grid Lines with Creative Angles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Center Grid Shape with Glow - Main */}
+        <div
+          className="absolute"
+          style={{
+            width: '546px',
+            height: '506px',
+            left: 'calc(50% - 546px/2)',
+            top: 'calc(50% - 506px/2 - 100px)',
+          }}
+        >
+          {/* Blurred Yellow Ellipse */}
+          <div
+            className="absolute"
+            style={{
+              width: '181px',
+              height: '181px',
+              left: '181px',
+              top: '192px',
+              background: '#F1CB68',
+              filter: 'blur(135px)',
+              borderRadius: '50%',
+            }}
+          />
+
+          {/* Grid Lines Container */}
+          <div
+            className="absolute"
+            style={{
+              width: '546px',
+              height: '546px',
+              left: '0px',
+              top: '0px',
+            }}
+          >
+            {/* Vertical Lines */}
+            <div
+              className="absolute bg-white/10"
+              style={{
+                width: '546px',
+                height: '1px',
+                left: '133.71px',
+                top: '0px',
+                transform: 'rotate(90deg)',
+                transformOrigin: 'top left',
+              }}
+            />
+            <div
+              className="absolute bg-white/10"
+              style={{
+                width: '546px',
+                height: '1px',
+                left: '267.43px',
+                top: '0px',
+                transform: 'rotate(90deg)',
+                transformOrigin: 'top left',
+              }}
+            />
+            <div
+              className="absolute bg-white/10"
+              style={{
+                width: '546px',
+                height: '1px',
+                left: '401.14px',
+                top: '0px',
+                transform: 'rotate(90deg)',
+                transformOrigin: 'top left',
+              }}
+            />
+
+            {/* Horizontal Lines */}
+            <div
+              className="absolute bg-white/10"
+              style={{
+                width: '546px',
+                height: '1px',
+                left: '0px',
+                top: '133.71px',
+              }}
+            />
+            <div
+              className="absolute bg-white/10"
+              style={{
+                width: '546px',
+                height: '1px',
+                left: '0px',
+                top: '267.43px',
+              }}
+            />
+            <div
+              className="absolute bg-white/10"
+              style={{
+                width: '546px',
+                height: '1px',
+                left: '0px',
+                top: '401.14px',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Angled Grid Pattern - Top Left */}
+        <div
+          className="absolute"
+          style={{
+            width: '400px',
+            height: '400px',
+            left: '10%',
+            top: '10%',
+            transform: 'rotate(15deg)',
+          }}
+        >
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '0px',
+              top: '100px',
+            }}
+          />
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '0px',
+              top: '200px',
+            }}
+          />
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '0px',
+              top: '300px',
+            }}
+          />
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '100px',
+              top: '0px',
+              transform: 'rotate(90deg)',
+              transformOrigin: 'top left',
+            }}
+          />
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '200px',
+              top: '0px',
+              transform: 'rotate(90deg)',
+              transformOrigin: 'top left',
+            }}
+          />
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '300px',
+              top: '0px',
+              transform: 'rotate(90deg)',
+              transformOrigin: 'top left',
+            }}
+          />
+        </div>
+
+        {/* Angled Grid Pattern - Bottom Right */}
+        <div
+          className="absolute"
+          style={{
+            width: '400px',
+            height: '400px',
+            right: '10%',
+            bottom: '10%',
+            transform: 'rotate(-15deg)',
+          }}
+        >
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '0px',
+              top: '100px',
+            }}
+          />
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '0px',
+              top: '200px',
+            }}
+          />
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '0px',
+              top: '300px',
+            }}
+          />
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '100px',
+              top: '0px',
+              transform: 'rotate(90deg)',
+              transformOrigin: 'top left',
+            }}
+          />
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '200px',
+              top: '0px',
+              transform: 'rotate(90deg)',
+              transformOrigin: 'top left',
+            }}
+          />
+          <div
+            className="absolute bg-white/5"
+            style={{
+              width: '400px',
+              height: '1px',
+              left: '300px',
+              top: '0px',
+              transform: 'rotate(90deg)',
+              transformOrigin: 'top left',
+            }}
+          />
+        </div>
+
+        {/* Additional Blurred Ellipse - Top Right */}
+        <div
+          className="absolute"
+          style={{
+            width: '250px',
+            height: '250px',
+            right: '15%',
+            top: '15%',
+            background: '#F1CB68',
+            filter: 'blur(120px)',
+            borderRadius: '50%',
+            opacity: 0.4,
+          }}
+        />
+      </div>
       
       {/* Hero Section */}
       <section id="support" className="relative min-h-[90vh] flex items-center overflow-hidden">
-        {/* Background Grid Pattern */}
-        <div 
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: 'url(/Grid.svg)',
-            backgroundRepeat: 'repeat',
-            backgroundSize: '50px 50px'
-          }}
-        />
-        
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a24]/80 via-[#0f0f18]/90 to-[#1a1a24]/80" />
         
         <div className="container mx-auto px-4 md:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -99,7 +351,10 @@ export default function Support() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="inline-flex items-center gap-2 rounded-full bg-[#F1CB68] px-8 py-4 text-black font-semibold hover:brightness-110 transition-all"
+                className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-[#0B0D12] font-semibold hover:brightness-110 transition-all shadow-lg"
+                style={{
+                  background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                }}
               >
                 Learn more
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -247,7 +502,10 @@ export default function Support() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#F1CB68] px-8 py-4 text-black font-semibold hover:brightness-110 transition-all"
+                className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-[#0B0D12] font-semibold hover:brightness-110 transition-all shadow-lg"
+                style={{
+                  background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                }}
               >
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                   <path d="M2 4L8 10L2 16V4Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -259,7 +517,10 @@ export default function Support() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#FFFFFF1A] bg-[#1a1a24]/60 px-8 py-4 text-white font-semibold hover:bg-[#1a1a24] transition-all"
+                className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-[#0B0D12] font-semibold hover:brightness-110 transition-all shadow-lg"
+                style={{
+                  background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                }}
               >
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                   <path d="M18 10C18 14.4183 14.4183 18 10 18C5.58172 18 2 14.4183 2 10C2 5.58172 5.58172 2 10 2C14.4183 2 18 5.58172 18 10Z" stroke="currentColor" strokeWidth="2"/>

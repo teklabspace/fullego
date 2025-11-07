@@ -7,7 +7,7 @@ export default function WelcomePage() {
   };
 
   return (
-    <div className='min-h-screen bg-[#0B0D12] flex items-center justify-center relative overflow-hidden'>
+    <div className='min-h-screen bg-[#101014] flex items-center justify-center relative overflow-hidden'>
       {/* Center Grid Shape with Glow */}
       <div
         className='absolute'

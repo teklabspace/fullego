@@ -91,8 +91,8 @@ const Navbar = () => {
                       whileTap={{ scale: 0.95 }}
                       className={`block rounded-[24px] py-[13px] px-6 text-sm transition-colors ${
                         activeSection === item.id
-                          ? 'bg-brand-tabInactive text-brand-white border border-[#FFFFFF1A]'
-                          : 'text-brand-white hover:bg-white/5'
+                          ? 'bg-brand-tabInactive text-[#FFFFFF] border border-[#FFFFFF1A]'
+                          : 'text-[#FFFFFF] hover:bg-white/5'
                       }`}
                     >
                       {item.label}
@@ -108,7 +108,7 @@ const Navbar = () => {
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Link
                 href='/login'
-                className='rounded-3xl border border-[#FFFFFF1A] py-3 px-6 text-sm text-brand-white hover:bg-white/5 transition-colors'
+                className='rounded-3xl border border-[#FFFFFF1A] py-3 px-6 text-sm text-[#FFFFFF] hover:bg-white/5 transition-colors'
               >
                 Login
               </Link>
@@ -194,8 +194,8 @@ const Navbar = () => {
                             whileTap={{ scale: 0.95 }}
                             className={`block rounded-xl py-4 px-6 text-base transition-colors ${
                               activeSection === item.id
-                                ? 'bg-brand-tabInactive text-brand-white border border-[#FFFFFF1A]'
-                                : 'text-brand-white hover:bg-white/5'
+                                ? 'bg-brand-tabInactive text-[#FFFFFF] border border-[#FFFFFF1A]'
+                                : 'text-[#FFFFFF] hover:bg-white/5'
                             }`}
                           >
                             {item.label}
@@ -217,7 +217,7 @@ const Navbar = () => {
                     <Link
                       href='/dashboard'
                       onClick={toggleMobileMenu}
-                      className='block w-full text-center rounded-3xl border border-[#FFFFFF1A] py-4 px-6 text-sm text-brand-white hover:bg-white/5 transition-colors'
+                      className='block w-full text-center rounded-3xl border border-[#FFFFFF1A] py-4 px-6 text-sm text-[#FFFFFF] hover:bg-white/5 transition-colors'
                     >
                       Login
                     </Link>
