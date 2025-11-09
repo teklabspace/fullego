@@ -2,7 +2,7 @@
 import { useTheme } from '@/context/ThemeContext';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const menuSections = [
   {
@@ -119,22 +119,40 @@ const menuSections = [
 export default function Sidebar({ isOpen, onClose }) {
   const pathname = usePathname();
   const [openSubmenu, setOpenSubmenu] = useState('null');
-  const [normalizedPathname, setNormalizedPathname] = useState('');
   const { isDarkMode } = useTheme();
 
-  // Normalize pathname for static export compatibility
+  // Track previous pathname to detect changes
+  const prevPathnameRef = useRef(pathname);
+  const [, forceUpdate] = useState(0);
+  
+  // Listen for route changes and force re-render
   useEffect(() => {
-    if (pathname) {
-      // Remove trailing slash and normalize
-      const normalized = pathname.replace(/\/$/, '') || '/';
-      setNormalizedPathname(normalized);
-    } else {
-      // Initialize with current window location if pathname is not available (static export)
+    // Check if pathname actually changed
+    if (prevPathnameRef.current !== pathname) {
+      prevPathnameRef.current = pathname;
+      forceUpdate(prev => prev + 1);
+    }
+    
+    const handleRouteChange = () => {
+      // Check window.location as fallback
       if (typeof window !== 'undefined') {
-        const currentPath = window.location.pathname;
-        const normalized = currentPath.replace(/\/$/, '') || '/';
-        setNormalizedPathname(normalized);
+        const currentPath = window.location.pathname.replace(/\/$/, '') || '/';
+        const prevPath = (prevPathnameRef.current || '').replace(/\/$/, '') || '/';
+        
+        if (currentPath !== prevPath) {
+          prevPathnameRef.current = window.location.pathname;
+          forceUpdate(prev => prev + 1);
+        }
       }
+    };
+    
+    if (typeof window !== 'undefined') {
+      // Listen for popstate (browser back/forward)
+      window.addEventListener('popstate', handleRouteChange);
+      
+      return () => {
+        window.removeEventListener('popstate', handleRouteChange);
+      };
     }
   }, [pathname]);
 
@@ -142,28 +160,30 @@ export default function Sidebar({ isOpen, onClose }) {
     setOpenSubmenu(openSubmenu === itemId ? null : itemId);
   };
 
-  // Helper function to check if pathname matches href
-  const isActive = (href) => {
-    // Get current pathname - try normalizedPathname first, then fallback to window.location
-    let currentPath = normalizedPathname;
-    if (!currentPath && typeof window !== 'undefined') {
-      currentPath = window.location.pathname.replace(/\/$/, '') || '/';
+  // Helper function to get current normalized pathname (always reads fresh)
+  const getCurrentPath = () => {
+    // Always read from the latest pathname or window.location
+    let currentPath = pathname;
+    if (typeof window !== 'undefined' && (!currentPath || currentPath === window.location.pathname)) {
+      currentPath = window.location.pathname;
     }
     
-    if (!currentPath) return false;
+    if (currentPath) {
+      return currentPath.replace(/\/$/, '') || '/';
+    }
+    return '/';
+  };
+
+  // Helper function to check if pathname matches href
+  const isActive = (href) => {
+    const currentPath = getCurrentPath();
     const normalizedHref = href.replace(/\/$/, '') || '/';
     return currentPath === normalizedHref;
   };
 
   // Helper function to check if pathname starts with href (for submenu parents)
   const isActiveParent = (href) => {
-    // Get current pathname - try normalizedPathname first, then fallback to window.location
-    let currentPath = normalizedPathname;
-    if (!currentPath && typeof window !== 'undefined') {
-      currentPath = window.location.pathname.replace(/\/$/, '') || '/';
-    }
-    
-    if (!currentPath) return false;
+    const currentPath = getCurrentPath();
     const normalizedHref = href.replace(/\/$/, '') || '/';
     return currentPath.startsWith(normalizedHref) && currentPath !== normalizedHref;
   };

@@ -8,7 +8,6 @@ import { useTheme } from '@/context/ThemeContext';
 export default function ProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [normalizedPathname, setNormalizedPathname] = useState('');
   const dropdownRef = useRef(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -19,34 +18,60 @@ export default function ProfileDropdown() {
     setMounted(true);
   }, []);
 
-  // Normalize pathname for static export compatibility
+  // Track previous pathname to detect changes
+  const prevPathnameRef = useRef(pathname);
+  const [, forceUpdate] = useState(0);
+  
+  // Listen for route changes and force re-render
   useEffect(() => {
-    if (pathname) {
-      // Remove trailing slash and normalize, also handle query params
-      const pathWithoutQuery = pathname.split('?')[0];
-      const normalized = pathWithoutQuery.replace(/\/$/, '') || '/';
-      setNormalizedPathname(normalized);
-    } else {
-      // Initialize with current window location if pathname is not available (static export)
+    // Check if pathname actually changed
+    if (prevPathnameRef.current !== pathname) {
+      prevPathnameRef.current = pathname;
+      forceUpdate(prev => prev + 1);
+    }
+    
+    const handleRouteChange = () => {
+      // Check window.location as fallback
       if (typeof window !== 'undefined') {
-        const currentPath = window.location.pathname;
-        const pathWithoutQuery = currentPath.split('?')[0];
-        const normalized = pathWithoutQuery.replace(/\/$/, '') || '/';
-        setNormalizedPathname(normalized);
+        const currentPath = window.location.pathname.split('?')[0].replace(/\/$/, '') || '/';
+        const prevPath = (prevPathnameRef.current || '').split('?')[0].replace(/\/$/, '') || '/';
+        
+        if (currentPath !== prevPath) {
+          prevPathnameRef.current = window.location.pathname;
+          forceUpdate(prev => prev + 1);
+        }
       }
+    };
+    
+    if (typeof window !== 'undefined') {
+      // Listen for popstate (browser back/forward)
+      window.addEventListener('popstate', handleRouteChange);
+      
+      return () => {
+        window.removeEventListener('popstate', handleRouteChange);
+      };
     }
   }, [pathname]);
 
-  // Helper function to check if pathname matches href
-  const isActive = (href) => {
-    // Get current pathname - try normalizedPathname first, then fallback to window.location
-    let currentPath = normalizedPathname;
-    if (!currentPath && typeof window !== 'undefined') {
-      const pathWithoutQuery = window.location.pathname.split('?')[0];
-      currentPath = pathWithoutQuery.replace(/\/$/, '') || '/';
+  // Helper function to get current normalized pathname (always reads fresh)
+  const getCurrentPath = () => {
+    // Always read from the latest pathname or window.location
+    let currentPath = pathname;
+    if (typeof window !== 'undefined' && (!currentPath || currentPath === window.location.pathname)) {
+      currentPath = window.location.pathname;
     }
     
-    if (!currentPath) return false;
+    if (currentPath) {
+      // Remove trailing slash and normalize, also handle query params
+      const pathWithoutQuery = currentPath.split('?')[0];
+      return pathWithoutQuery.replace(/\/$/, '') || '/';
+    }
+    return '/';
+  };
+
+  // Helper function to check if pathname matches href
+  const isActive = (href) => {
+    const currentPath = getCurrentPath();
     
     // Handle query params in href
     const hrefWithoutQuery = href.split('?')[0];
@@ -86,7 +111,7 @@ export default function ProfileDropdown() {
       id: 'kyc',
       label: 'KYC Verification',
       icon: '/icons/user-check.svg',
-      href: '/settings?tab=basic',
+      href: '/dashboard/kyc',
     },
     {
       id: 'referral',

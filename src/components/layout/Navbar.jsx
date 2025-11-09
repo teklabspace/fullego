@@ -3,7 +3,8 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Container from '../ui/Container';
 
 const NAV_ITEMS = [
@@ -17,16 +18,130 @@ const NAV_ITEMS = [
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('why-fullego');
+  const pathname = usePathname();
+
+  // Track previous pathname to detect changes
+  const prevPathnameRef = useRef(pathname);
+  const [, forceUpdate] = useState(0);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
 
-  const handleNavClick = id => {
-    setActiveSection(id);
-  };
+  // Helper function to get current normalized pathname (always reads fresh)
+  const getCurrentPath = useCallback(() => {
+    // Always read from the latest pathname or window.location
+    let currentPath = pathname;
+    if (
+      typeof window !== 'undefined' &&
+      (!currentPath || currentPath === window.location.pathname)
+    ) {
+      currentPath = window.location.pathname;
+    }
 
+    if (currentPath) {
+      return currentPath.replace(/\/$/, '') || '/';
+    }
+    return '/';
+  }, [pathname]);
+
+  // Helper function to check if pathname matches href
+  const isActive = useCallback(
+    href => {
+      const currentPath = getCurrentPath();
+      const normalizedHref = href.replace(/\/$/, '') || '/';
+
+      // Special case for home page - check if we're on root
+      if (href === '/' && currentPath === '/') {
+        return true;
+      }
+
+      // For other routes, check if pathname matches
+      if (href !== '/') {
+        return (
+          currentPath === normalizedHref ||
+          currentPath.startsWith(normalizedHref + '/')
+        );
+      }
+
+      return false;
+    },
+    [getCurrentPath]
+  );
+
+  // Update active section based on pathname
   useEffect(() => {
+    const updateActiveSection = () => {
+      const currentPath = getCurrentPath();
+
+      // Find matching nav item based on pathname
+      const matchingItem = NAV_ITEMS.find(item => {
+        if (item.href === '/') {
+          return currentPath === '/';
+        }
+        return (
+          currentPath === item.href.replace(/\/$/, '') ||
+          currentPath.startsWith(item.href.replace(/\/$/, '') + '/')
+        );
+      });
+
+      if (matchingItem) {
+        setActiveSection(matchingItem.id);
+      } else if (currentPath === '/') {
+        // Default to 'why-fullego' for home page
+        setActiveSection('why-fullego');
+      }
+    };
+
+    // Use setTimeout to avoid synchronous setState in effect
+    const timeoutId = setTimeout(updateActiveSection, 0);
+    return () => clearTimeout(timeoutId);
+  }, [pathname, getCurrentPath]);
+
+  // Listen for route changes and force re-render
+  useEffect(() => {
+    const handleRouteChange = () => {
+      // Check window.location as fallback
+      if (typeof window !== 'undefined') {
+        const currentPath = window.location.pathname.replace(/\/$/, '') || '/';
+        const prevPath =
+          (prevPathnameRef.current || '').replace(/\/$/, '') || '/';
+
+        if (currentPath !== prevPath) {
+          prevPathnameRef.current = window.location.pathname;
+          // Use setTimeout to avoid synchronous setState in effect
+          setTimeout(() => {
+            forceUpdate(prev => prev + 1);
+          }, 0);
+        }
+      }
+    };
+
+    // Check if pathname actually changed
+    if (prevPathnameRef.current !== pathname) {
+      prevPathnameRef.current = pathname;
+      // Use setTimeout to avoid synchronous setState in effect
+      setTimeout(() => {
+        forceUpdate(prev => prev + 1);
+      }, 0);
+    }
+
+    if (typeof window !== 'undefined') {
+      // Listen for popstate (browser back/forward)
+      window.addEventListener('popstate', handleRouteChange);
+
+      return () => {
+        window.removeEventListener('popstate', handleRouteChange);
+      };
+    }
+  }, [pathname]);
+
+  // Scroll-based active section detection (only for home page with sections)
+  useEffect(() => {
+    // Only use scroll detection if we're on the home page
+    const currentPath = getCurrentPath();
+    if (currentPath !== '/') return;
+
     const handleScroll = () => {
       const sections = NAV_ITEMS.map(item => item.id);
       const scrollPosition = window.scrollY + 100;
@@ -48,7 +163,7 @@ const Navbar = () => {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [pathname, getCurrentPath]);
 
   return (
     <header className='py-6 relative z-50'>
@@ -90,7 +205,7 @@ const Navbar = () => {
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       className={`block rounded-[24px] py-[13px] px-6 text-sm transition-colors ${
-                        activeSection === item.id
+                        isActive(item.href) || activeSection === item.id
                           ? 'bg-brand-tabInactive text-[#FFFFFF] border border-[#FFFFFF1A]'
                           : 'text-[#FFFFFF] hover:bg-white/5'
                       }`}
@@ -193,7 +308,7 @@ const Navbar = () => {
                           <motion.div
                             whileTap={{ scale: 0.95 }}
                             className={`block rounded-xl py-4 px-6 text-base transition-colors ${
-                              activeSection === item.id
+                              isActive(item.href) || activeSection === item.id
                                 ? 'bg-brand-tabInactive text-brand-white border border-[#FFFFFF1A]'
                                 : 'text-brand-white hover:bg-white/5'
                             }`}
