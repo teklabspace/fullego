@@ -23,6 +23,11 @@ body {
   color: var(--foreground);
 }
 
+/* Ensure text-white always applies white color regardless of system preferences */
+.text-white {
+  color: #ffffff !important;
+}
+
 /* Global cursor pointer for interactive elements */
 button,
 a,

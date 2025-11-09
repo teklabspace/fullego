@@ -73,6 +73,10 @@ const Hero = () => {
             style={{
               lineHeight: '130%',
               letterSpacing: '-0.02em',
+              background: 'linear-gradient(to right, #FFFFFF 0%, #D4AF37 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
             }}
           >
             Your{' '}
@@ -164,7 +168,7 @@ const Hero = () => {
             <input
               type='text'
               placeholder='Email/Phone Number'
-              className='w-full sm:flex-1 rounded-full bg-transparent px-4 sm:px-4 py-3 text-sm text-brand-white placeholder:text-brand-muted focus:outline-none border border-[#FFFFFF1A] sm:border-0'
+              className='w-full sm:flex-1 rounded-full bg-transparent px-4 sm:px-4 py-3 text-sm text-brand-white placeholder:text-white focus:outline-none border border-[#FFFFFF1A] sm:border-0'
             />
             <motion.button
               whileHover={{ scale: 1.05 }}
