@@ -1,9 +1,11 @@
 'use client';
+import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import Modal from '../ui/Modal';
 
 const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
+  const { isDarkMode } = useTheme();
   const [activeTab, setActiveTab] = useState('invite');
   const [viewOnly, setViewOnly] = useState(true);
   const [restrictDownload, setRestrictDownload] = useState(false);
@@ -111,18 +113,27 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
             alt='Share'
             width={24}
             height={24}
-            style={{ filter: 'brightness(0) invert(1)' }}
+            style={{ filter: isDarkMode ? 'brightness(0) invert(1)' : 'none' }}
           />
-          <h2 className='text-2xl font-bold text-white'>Share Document</h2>
+          <h2 className={`text-2xl font-bold ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>Share Document</h2>
         </div>
 
         {/* Document Info */}
         <div
-          className='flex items-center gap-3 px-4 py-3 rounded-lg mb-6'
-          style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
+          className='flex items-center gap-3 px-4 py-3 rounded-lg mb-6 border'
+          style={
+            isDarkMode
+              ? {
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                }
+              : {
+                  background: 'rgba(241, 203, 104, 0.2)',
+                  border: '1px solid rgba(0, 0, 0, 0.1)',
+                }
+          }
         >
           <Image
             src='/icons/file-text.svg'
@@ -130,7 +141,9 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
             width={20}
             height={20}
           />
-          <span className='text-white text-sm truncate'>
+          <span className={`text-sm truncate ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
             {file?.name || 'Q2 Portfolio Summary.pdf'}
           </span>
         </div>
@@ -140,7 +153,13 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
           <button
             onClick={() => setActiveTab('link')}
             className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${
-              activeTab === 'link' ? 'text-white' : 'text-gray-400'
+              activeTab === 'link'
+                ? isDarkMode
+                  ? 'text-white'
+                  : 'text-black'
+                : isDarkMode
+                ? 'text-gray-400'
+                : 'text-gray-600'
             }`}
             style={{
               borderBottom:
@@ -154,7 +173,13 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
           <button
             onClick={() => setActiveTab('invite')}
             className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${
-              activeTab === 'invite' ? 'text-white' : 'text-gray-400'
+              activeTab === 'invite'
+                ? isDarkMode
+                  ? 'text-white'
+                  : 'text-black'
+                : isDarkMode
+                ? 'text-gray-400'
+                : 'text-gray-600'
             }`}
             style={{
               borderBottom:
@@ -173,23 +198,36 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
         {activeTab === 'link' ? (
           <div>
             {/* Permission Options */}
-            <h3 className='text-white font-semibold mb-4'>
+            <h3 className={`font-semibold mb-4 ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
               Permission Options
             </h3>
 
             {/* View Only */}
             <div className='flex items-center justify-between mb-4'>
               <div className='flex items-center gap-2'>
-                <span className='text-white text-sm'>View only</span>
+                <span className={`text-sm ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>View only</span>
                 <button
                   className='w-4 h-4 rounded-full flex items-center justify-center cursor-pointer'
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                  }}
+                  style={
+                    isDarkMode
+                      ? {
+                          background: 'rgba(255, 255, 255, 0.1)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                        }
+                      : {
+                          background: 'rgba(0, 0, 0, 0.1)',
+                          border: '1px solid rgba(0, 0, 0, 0.2)',
+                        }
+                  }
                   title='View only means users can see the document but cannot edit it'
                 >
-                  <span className='text-white text-xs'>i</span>
+                  <span className={`text-xs ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>i</span>
                 </button>
               </div>
               <button
@@ -197,14 +235,20 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                 className={`relative w-12 h-6 rounded-full transition-colors cursor-pointer ${
                   viewOnly
                     ? 'bg-gradient-to-r from-white to-[#D4AF37]'
-                    : 'bg-gray-600'
+                    : isDarkMode
+                    ? 'bg-gray-600'
+                    : 'bg-gray-300'
                 }`}
               >
                 <div
                   className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform ${
                     viewOnly
-                      ? 'translate-x-6 bg-gray-900'
-                      : 'translate-x-0.5 bg-gray-300'
+                      ? isDarkMode
+                        ? 'translate-x-6 bg-gray-900'
+                        : 'translate-x-6 bg-white'
+                      : isDarkMode
+                      ? 'translate-x-0.5 bg-gray-300'
+                      : 'translate-x-0.5 bg-gray-500'
                   }`}
                 />
               </button>
@@ -213,16 +257,27 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
             {/* Restrict Download */}
             <div className='flex items-center justify-between mb-4'>
               <div className='flex items-center gap-2'>
-                <span className='text-white text-sm'>Restrict Download</span>
+                <span className={`text-sm ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>Restrict Download</span>
                 <button
                   className='w-4 h-4 rounded-full flex items-center justify-center cursor-pointer'
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                  }}
+                  style={
+                    isDarkMode
+                      ? {
+                          background: 'rgba(255, 255, 255, 0.1)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                        }
+                      : {
+                          background: 'rgba(0, 0, 0, 0.1)',
+                          border: '1px solid rgba(0, 0, 0, 0.2)',
+                        }
+                  }
                   title='Prevent users from downloading the document'
                 >
-                  <span className='text-white text-xs'>i</span>
+                  <span className={`text-xs ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>i</span>
                 </button>
               </div>
               <button
@@ -230,14 +285,20 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                 className={`relative w-12 h-6 rounded-full transition-colors cursor-pointer ${
                   restrictDownload
                     ? 'bg-gradient-to-r from-white to-[#D4AF37]'
-                    : 'bg-gray-600'
+                    : isDarkMode
+                    ? 'bg-gray-600'
+                    : 'bg-gray-300'
                 }`}
               >
                 <div
                   className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform ${
                     restrictDownload
-                      ? 'translate-x-6 bg-gray-900'
-                      : 'translate-x-0.5 bg-gray-300'
+                      ? isDarkMode
+                        ? 'translate-x-6 bg-gray-900'
+                        : 'translate-x-6 bg-white'
+                      : isDarkMode
+                      ? 'translate-x-0.5 bg-gray-300'
+                      : 'translate-x-0.5 bg-gray-500'
                   }`}
                 />
               </button>
@@ -245,24 +306,33 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
 
             {/* Share Link */}
             <div
-              className='flex items-center gap-3 px-4 py-3 rounded-lg mb-4'
-              style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-              }}
+              className='flex items-center gap-3 px-4 py-3 rounded-lg mb-4 border'
+              style={
+                isDarkMode
+                  ? {
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                    }
+                  : {
+                      background: 'rgba(241, 203, 104, 0.2)',
+                      border: '1px solid rgba(0, 0, 0, 0.1)',
+                    }
+              }
             >
               <Image
                 src='/icons/Shear.svg'
                 alt='Link'
                 width={16}
                 height={16}
-                style={{ filter: 'brightness(0) invert(1)' }}
+                style={{ filter: isDarkMode ? 'brightness(0) invert(1)' : 'none' }}
               />
               <input
                 type='text'
                 value={shareLink}
                 readOnly
-                className='flex-1 bg-transparent text-gray-400 text-sm outline-none'
+                className={`flex-1 bg-transparent text-sm outline-none ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}
               />
               <button
                 onClick={handleCopyLink}
@@ -285,7 +355,11 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
             {/* Require Sign-in */}
             <div
               className='flex items-center justify-between pt-4'
-              style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}
+              style={{
+                borderTop: isDarkMode
+                  ? '1px solid rgba(255, 255, 255, 0.1)'
+                  : '1px solid rgba(0, 0, 0, 0.1)',
+              }}
             >
               <div className='flex items-center gap-2'>
                 <Image
@@ -294,11 +368,14 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                   width={20}
                   height={20}
                   style={{
-                    filter:
-                      'brightness(0) saturate(100%) invert(73%) sepia(48%) saturate(418%) hue-rotate(6deg) brightness(94%) contrast(87%)',
+                    filter: isDarkMode
+                      ? 'brightness(0) saturate(100%) invert(73%) sepia(48%) saturate(418%) hue-rotate(6deg) brightness(94%) contrast(87%)'
+                      : 'none',
                   }}
                 />
-                <span className='text-white text-sm'>
+                <span className={`text-sm ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
                   Require sign-in to view
                 </span>
               </div>
@@ -307,14 +384,20 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                 className={`relative w-12 h-6 rounded-full transition-colors cursor-pointer ${
                   requireSignIn
                     ? 'bg-gradient-to-r from-white to-[#D4AF37]'
-                    : 'bg-gray-600'
+                    : isDarkMode
+                    ? 'bg-gray-600'
+                    : 'bg-gray-300'
                 }`}
               >
                 <div
                   className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform ${
                     requireSignIn
-                      ? 'translate-x-6 bg-gray-900'
-                      : 'translate-x-0.5 bg-gray-300'
+                      ? isDarkMode
+                        ? 'translate-x-6 bg-gray-900'
+                        : 'translate-x-6 bg-white'
+                      : isDarkMode
+                      ? 'translate-x-0.5 bg-gray-300'
+                      : 'translate-x-0.5 bg-gray-500'
                   }`}
                 />
               </button>
@@ -323,17 +406,26 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
         ) : (
           <div>
             {/* Permission Options */}
-            <h3 className='text-white font-semibold mb-4'>
+            <h3 className={`font-semibold mb-4 ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
               Permission Options
             </h3>
 
             {/* Email Input */}
             <div
-              className='flex items-center gap-3 px-4 py-3 rounded-lg mb-4'
-              style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-              }}
+              className='flex items-center gap-3 px-4 py-3 rounded-lg mb-4 border'
+              style={
+                isDarkMode
+                  ? {
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                    }
+                  : {
+                      background: 'rgba(241, 203, 104, 0.2)',
+                      border: '1px solid rgba(0, 0, 0, 0.1)',
+                    }
+              }
             >
               <Image
                 src='/icons/user-icon.svg'
@@ -347,7 +439,11 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                 onChange={e => setEmailInput(e.target.value)}
                 onKeyPress={e => e.key === 'Enter' && handleAddEmail()}
                 placeholder='Enter email addresses...'
-                className='flex-1 bg-transparent text-white text-sm outline-none placeholder:text-gray-500'
+                className={`flex-1 bg-transparent text-sm outline-none ${
+                  isDarkMode
+                    ? 'text-white placeholder:text-gray-500'
+                    : 'text-gray-900 placeholder:text-gray-400'
+                }`}
               />
               <button
                 onClick={handleAddEmail}
@@ -367,16 +463,20 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                   <div key={user.id} className='flex items-center gap-3'>
                     {/* Avatar */}
                     <div
-                      className='w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0'
+                      className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}
                       style={{
-                        background: '#333333',
+                        background: isDarkMode ? '#333333' : '#E5E7EB',
                       }}
                     >
                       {user.initials}
                     </div>
 
                     {/* Email */}
-                    <span className='flex-1 text-white text-sm'>
+                    <span className={`flex-1 text-sm ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
                       {user.email}
                     </span>
 
@@ -455,7 +555,11 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                     {/* Remove Button */}
                     <button
                       onClick={() => handleRemoveUser(user.id)}
-                      className='text-gray-400 hover:text-white transition-colors cursor-pointer'
+                      className={`transition-colors cursor-pointer ${
+                        isDarkMode
+                          ? 'text-gray-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
                     >
                       <Image
                         src='/icons/close-icon.svg'
@@ -472,7 +576,11 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
             {/* Checkboxes */}
             <div
               className='space-y-4 pt-4'
-              style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}
+              style={{
+                borderTop: isDarkMode
+                  ? '1px solid rgba(255, 255, 255, 0.1)'
+                  : '1px solid rgba(0, 0, 0, 0.1)',
+              }}
             >
               {/* View Only Checkbox */}
               <div className='flex items-center gap-3'>
@@ -486,7 +594,9 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                   style={{
                     border: viewOnly
                       ? 'none'
-                      : '2px solid rgba(255, 255, 255, 0.3)',
+                      : isDarkMode
+                      ? '2px solid rgba(255, 255, 255, 0.3)'
+                      : '2px solid rgba(0, 0, 0, 0.3)',
                   }}
                 >
                   {viewOnly && (
@@ -498,7 +608,9 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                     />
                   )}
                 </button>
-                <span className='text-white text-sm'>View only</span>
+                <span className={`text-sm ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>View only</span>
               </div>
 
               {/* Restrict Download Checkbox */}
@@ -513,7 +625,9 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                   style={{
                     border: restrictDownload
                       ? 'none'
-                      : '2px solid rgba(255, 255, 255, 0.3)',
+                      : isDarkMode
+                      ? '2px solid rgba(255, 255, 255, 0.3)'
+                      : '2px solid rgba(0, 0, 0, 0.3)',
                   }}
                 >
                   {restrictDownload && (
@@ -525,7 +639,9 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                     />
                   )}
                 </button>
-                <span className='text-white text-sm'>Restrict Download</span>
+                <span className={`text-sm ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>Restrict Download</span>
               </div>
 
               {/* Require Sign-in Checkbox */}
@@ -540,7 +656,9 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                   style={{
                     border: requireSignIn
                       ? 'none'
-                      : '2px solid rgba(255, 255, 255, 0.3)',
+                      : isDarkMode
+                      ? '2px solid rgba(255, 255, 255, 0.3)'
+                      : '2px solid rgba(0, 0, 0, 0.3)',
                   }}
                 >
                   {requireSignIn && (
@@ -553,18 +671,29 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                   )}
                 </button>
                 <div className='flex items-center gap-2'>
-                  <span className='text-white text-sm'>
+                  <span className={`text-sm ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
                     Require sign-in to view
                   </span>
                   <button
                     className='w-4 h-4 rounded-full flex items-center justify-center cursor-pointer'
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                    }}
+                    style={
+                      isDarkMode
+                        ? {
+                            background: 'rgba(255, 255, 255, 0.1)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                          }
+                        : {
+                            background: 'rgba(0, 0, 0, 0.1)',
+                            border: '1px solid rgba(0, 0, 0, 0.2)',
+                          }
+                    }
                     title='Users must sign in to view the document'
                   >
-                    <span className='text-white text-xs'>i</span>
+                    <span className={`text-xs ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>i</span>
                   </button>
                 </div>
               </div>
@@ -577,12 +706,18 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
       <div
         className='flex justify-end gap-3 px-6 py-4'
         style={{
-          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          borderTop: isDarkMode
+            ? '1px solid rgba(255, 255, 255, 0.1)'
+            : '1px solid rgba(0, 0, 0, 0.1)',
         }}
       >
         <button
           onClick={() => setIsOpen(false)}
-          className='px-6 py-2.5 rounded-full text-sm font-medium text-white transition-colors cursor-pointer hover:bg-white/10'
+          className={`px-6 py-2.5 rounded-full text-sm font-medium transition-colors cursor-pointer ${
+            isDarkMode
+              ? 'text-white hover:bg-white/10'
+              : 'text-gray-900 hover:bg-gray-100'
+          }`}
         >
           Cancel
         </button>

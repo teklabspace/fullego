@@ -8,7 +8,20 @@ export default function AssetSearchBar({
   isDarkMode,
 }) {
   return (
-    <div className='mb-6 rounded-4xl border border-[#FFFFFF14] bg-gradient-to-r from-[#222126] to-[#111116] p-6'>
+    <div
+      className={`mb-6 rounded-4xl border p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}
+      style={
+        isDarkMode
+          ? {
+              background: 'linear-gradient(to right, #222126 0%, #111116 100%)',
+            }
+          : {
+              background: 'transparent',
+            }
+      }
+    >
       {/* Asset Class & Search */}
       <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
         {/* Asset Class */}

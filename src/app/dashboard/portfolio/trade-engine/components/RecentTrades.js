@@ -7,7 +7,20 @@ export default function RecentTrades({
   isDarkMode,
 }) {
   return (
-    <div className='mb-6 rounded-4xl border border-[#FFFFFF14] bg-gradient-to-r from-[#222126] to-[#111116] p-6'>
+    <div
+      className={`mb-6 rounded-4xl border p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}
+      style={
+        isDarkMode
+          ? {
+              background: 'linear-gradient(to right, #222126 0%, #111116 100%)',
+            }
+          : {
+              background: 'transparent',
+            }
+      }
+    >
       <div className='flex items-center justify-between mb-4'>
         <h3
           className={`text-lg font-semibold ${
@@ -30,12 +43,14 @@ export default function RecentTrades({
           <button
             key={index}
             onClick={() => setSelectedStock(trade.symbol)}
-            className={`p-4 rounded-xl transition-all text-left ${
+            className={`p-4 rounded-xl transition-all text-left border ${
               selectedStock === trade.symbol
-                ? 'bg-[#101014]'
+                ? isDarkMode
+                  ? 'bg-[#101014] border-[#D4AF37]'
+                  : 'bg-white border-[#D4AF37]'
                 : isDarkMode
                 ? 'border-[#FFFFFF14] bg-[#101014] hover:border-[#D4AF37]/50'
-                : 'bg-[#101014]'
+                : 'border-gray-200 bg-white hover:border-[#D4AF37]/50'
             }`}
           >
             <div className='flex items-center gap-2 mb-2'>

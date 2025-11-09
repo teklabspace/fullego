@@ -128,7 +128,9 @@ export default function Navbar({ onMenuClick }) {
               <img
                 src='/icons/hamburger.svg'
                 alt='Menu'
-                className={`w-10 h-10 ${isDarkMode ? 'brightness-0 invert' : ''}`}
+                className={`w-10 h-10 ${
+                  isDarkMode ? 'brightness-0 invert' : ''
+                }`}
               />
             </button>
           </div>

@@ -243,7 +243,7 @@ export default function AssetsPage() {
         <div className='relative h-full flex flex-col justify-center px-8'>
           <h1
             className={`text-3xl md:text-4xl font-bold mb-3 ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
+              isDarkMode ? 'text-white' : 'text-white'
             }`}
           >
             Manage Your Luxury Portfolio

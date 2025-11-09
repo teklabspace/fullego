@@ -1,9 +1,11 @@
 'use client';
+import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useState } from 'react';
 import Modal from '../ui/Modal';
 
 const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
+  const { isDarkMode } = useTheme();
   const [selectedFile, setSelectedFile] = useState(null);
   const [tags, setTags] = useState(['Bank Statements', 'Bond List']);
   const [tagInput, setTagInput] = useState('');
@@ -69,22 +71,32 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
       <div
         className='flex justify-between items-center px-4 md:px-6 py-3 md:py-4'
         style={{
-          borderBottom: '1px solid rgba(212, 175, 55, 0.2)',
+          borderBottom: isDarkMode
+            ? '1px solid rgba(212, 175, 55, 0.2)'
+            : '1px solid rgba(0, 0, 0, 0.1)',
         }}
       >
-        <h2 className='text-xl md:text-2xl font-bold text-white'>
+        <h2
+          className={`text-xl md:text-2xl font-bold ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}
+        >
           File Upload
         </h2>
         <button
           onClick={handleClose}
-          className='text-white hover:text-gray-300 transition-colors cursor-pointer'
+          className={`transition-colors cursor-pointer ${
+            isDarkMode
+              ? 'text-white hover:text-gray-300'
+              : 'text-gray-900 hover:text-gray-600'
+          }`}
         >
           <Image
             src='/icons/close-x.svg'
             alt='Close'
             width={24}
             height={24}
-            style={{ filter: 'brightness(0) invert(1)' }}
+            style={{ filter: isDarkMode ? 'brightness(0) invert(1)' : 'none' }}
           />
         </button>
       </div>
@@ -120,7 +132,9 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
           className={`border-2 border-dashed rounded-2xl p-8 md:p-12 mb-4 transition-all cursor-pointer ${
             isDragging
               ? 'border-[#D4AF37] bg-[#D4AF37]/10'
-              : 'border-gray-600 hover:border-[#D4AF37]/50'
+              : isDarkMode
+              ? 'border-gray-600 hover:border-[#D4AF37]/50'
+              : 'border-gray-300 hover:border-[#D4AF37]/50'
           }`}
           onClick={() => document.getElementById('fileInput').click()}
         >
@@ -142,26 +156,46 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
               />
             </div>
             {selectedFile ? (
-              <p className='text-white font-medium mb-2 text-sm md:text-base'>
+              <p
+                className={`font-medium mb-2 text-sm md:text-base ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
                 Selected: {selectedFile.name}
               </p>
             ) : (
-              <p className='text-white font-medium mb-2 text-sm md:text-base'>
+              <p
+                className={`font-medium mb-2 text-sm md:text-base ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
                 Click or drag file to this area to upload
               </p>
             )}
           </div>
         </div>
-        <p className='text-gray-400 text-xs md:text-sm mb-4'>
+        <p
+          className={`text-xs md:text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}
+        >
           Formats accepted are .doc(x), .pdf, .xls(x), .csv
         </p>
 
         {/* Download Template */}
         <div
           className='mb-6 pb-6'
-          style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}
+          style={{
+            borderBottom: isDarkMode
+              ? '1px solid rgba(255, 255, 255, 0.08)'
+              : '1px solid rgba(0, 0, 0, 0.1)',
+          }}
         >
-          <p className='text-gray-300 text-xs md:text-sm mb-3'>
+          <p
+            className={`text-xs md:text-sm mb-3 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}
+          >
             If you do not have a file, you can use the template below:
           </p>
           <button
@@ -185,10 +219,18 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
         {/* Add Tags */}
         <div className='mb-6'>
           <div className='flex justify-between items-center mb-3'>
-            <label className='text-white font-medium text-sm md:text-base'>
+            <label
+              className={`font-medium text-sm md:text-base ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}
+            >
               Add Tags (optional)
             </label>
-            <span className='text-gray-400 text-xs md:text-sm'>
+            <span
+              className={`text-xs md:text-sm ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
               {5 - tags.length} tags remaining
             </span>
           </div>
@@ -199,16 +241,29 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
             onChange={e => setTagInput(e.target.value)}
             onKeyDown={handleAddTag}
             disabled={tags.length >= 5}
-            className='w-full px-4 py-3 rounded-full text-white text-sm placeholder-gray-500 focus:outline-none transition-all mb-3 cursor-text'
-            style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-            }}
+            className={`w-full px-4 py-3 rounded-full text-sm focus:outline-none transition-all mb-3 cursor-text ${
+              isDarkMode
+                ? 'text-white placeholder-gray-500'
+                : 'text-gray-900 placeholder-gray-400'
+            }`}
+            style={
+              isDarkMode
+                ? {
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                  }
+                : {
+                    background: 'rgba(241, 203, 104, 0.2)',
+                    border: '1px solid rgba(0, 0, 0, 0.1)',
+                  }
+            }
             onFocus={e =>
               (e.target.style.borderColor = 'rgba(212, 175, 55, 0.3)')
             }
             onBlur={e =>
-              (e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)')
+              (e.target.style.borderColor = isDarkMode
+                ? 'rgba(255, 255, 255, 0.1)'
+                : 'rgba(0, 0, 0, 0.1)')
             }
           />
           <div className='flex flex-wrap gap-2'>
@@ -225,14 +280,18 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
                 <span>{tag}</span>
                 <button
                   onClick={() => handleRemoveTag(tag)}
-                  className='hover:text-gray-300 transition-colors cursor-pointer'
+                  className={`transition-colors cursor-pointer ${
+                    isDarkMode ? 'hover:text-gray-300' : 'hover:text-gray-600'
+                  }`}
                 >
                   <Image
                     src='/icons/tag-close.svg'
                     alt='Remove'
                     width={14}
                     height={14}
-                    style={{ filter: 'brightness(0) invert(1)' }}
+                    style={{
+                      filter: isDarkMode ? 'brightness(0) invert(1)' : 'none',
+                    }}
                   />
                 </button>
               </div>
@@ -272,4 +331,3 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
 };
 
 export default FileUploadModal;
-

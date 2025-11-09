@@ -518,7 +518,21 @@ export default function CryptoPortfolioPage() {
                 </h2>
 
                 {/* Tabs */}
-                <div className='flex gap-2 ms-5 bg-gradient-to-r from-[#222126] to-[#111116] p-2 rounded-full overflow-x-auto'>
+                <div
+                  className={`flex gap-2 ms-5 p-2 rounded-full overflow-x-auto ${
+                    isDarkMode ? '' : 'bg-transparent'
+                  }`}
+                  style={
+                    isDarkMode
+                      ? {
+                          background:
+                            'linear-gradient(to right, #222126 0%, #111116 100%)',
+                        }
+                      : {
+                          background: 'rgba(241, 203, 104, 0.2)',
+                        }
+                  }
+                >
                   <TabButton
                     active={performanceTab === 'value-over-time'}
                     onClick={() => setPerformanceTab('value-over-time')}
@@ -642,31 +656,73 @@ export default function CryptoPortfolioPage() {
               <div className='flex gap-2 mb-6'>
                 <button
                   onClick={() => setPortfolioBreakdownTab('value')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all`}
-                  style={{
-                    background:
-                      portfolioBreakdownTab === 'value'
-                        ? 'linear-gradient(94.02deg, #222126 0%, #111116 100%)'
-                        : 'transparent',
-                    color:
-                      portfolioBreakdownTab === 'value' ? '#fff' : '#313035',
-                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                    portfolioBreakdownTab === 'value'
+                      ? isDarkMode
+                        ? ''
+                        : 'text-black'
+                      : isDarkMode
+                      ? ''
+                      : 'text-black'
+                  }`}
+                  style={
+                    portfolioBreakdownTab === 'value'
+                      ? isDarkMode
+                        ? {
+                            background:
+                              'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                            color: '#fff',
+                          }
+                        : {
+                            background: 'rgba(241, 203, 104, 0.2)',
+                            color: '#000',
+                          }
+                      : isDarkMode
+                      ? {
+                          background: 'transparent',
+                          color: '#313035',
+                        }
+                      : {
+                          background: 'transparent',
+                          color: '#000',
+                        }
+                  }
                 >
                   Value
                 </button>
                 <button
                   onClick={() => setPortfolioBreakdownTab('returnRate')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all`}
-                  style={{
-                    background:
-                      portfolioBreakdownTab === 'returnRate'
-                        ? 'linear-gradient(94.02deg, #222126 0%, #111116 100%)'
-                        : 'transparent',
-                    color:
-                      portfolioBreakdownTab === 'returnRate'
-                        ? '#fff'
-                        : '#313035',
-                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                    portfolioBreakdownTab === 'returnRate'
+                      ? isDarkMode
+                        ? ''
+                        : 'text-black'
+                      : isDarkMode
+                      ? ''
+                      : 'text-black'
+                  }`}
+                  style={
+                    portfolioBreakdownTab === 'returnRate'
+                      ? isDarkMode
+                        ? {
+                            background:
+                              'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                            color: '#fff',
+                          }
+                        : {
+                            background: 'rgba(241, 203, 104, 0.2)',
+                            color: '#000',
+                          }
+                      : isDarkMode
+                      ? {
+                          background: 'transparent',
+                          color: '#313035',
+                        }
+                      : {
+                          background: 'transparent',
+                          color: '#000',
+                        }
+                  }
                 >
                   Return Rate
                 </button>
@@ -1048,7 +1104,9 @@ function TabButton({ active, onClick, children, isDarkMode }) {
     return (
       <button
         onClick={onClick}
-        className='px-4 py-2 text-xs bg-[#313035] font-medium rounded-full text-white transition-all whitespace-nowrap'
+        className={`px-4 py-2 text-xs font-medium rounded-full transition-all whitespace-nowrap ${
+          isDarkMode ? 'bg-[#313035] text-white' : 'bg-[#D4AF37] text-black'
+        }`}
       >
         {children}
       </button>
@@ -1058,10 +1116,18 @@ function TabButton({ active, onClick, children, isDarkMode }) {
   return (
     <button
       onClick={onClick}
-      className='px-4 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap'
-      style={{
-        color: '#313035',
-      }}
+      className={`px-4 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap ${
+        isDarkMode ? '' : 'text-black'
+      }`}
+      style={
+        isDarkMode
+          ? {
+              color: '#313035',
+            }
+          : {
+              color: '#000',
+            }
+      }
     >
       {children}
     </button>

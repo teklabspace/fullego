@@ -1,183 +1,318 @@
 'use client';
-import { useState } from 'react';
+import { useTheme } from '@/context/ThemeContext';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
-import GlassCard from '@/components/ui/GlassCard';
-import GradientButton from '@/components/ui/GradientButton';
 
 export default function SupportPage() {
-  const [message, setMessage] = useState('');
+  const { isDarkMode } = useTheme();
 
-  const faqs = [
+  const helpSections = [
     {
-      question: 'How do I make my first investment?',
-      answer: 'Navigate to the Marketplace, choose an investment opportunity that matches your risk profile, and click "Invest Now". Follow the prompts to complete your investment.',
+      title: 'Account',
+      items: [
+        {
+          id: 'kyc-review',
+          title: 'Request KYC Review',
+          description:
+            'lorem ipsum lorem ipsum lorem ipsum lorem ipsum lorem ipsum lorem ipsum',
+          icon: 'KYCReview',
+        },
+        {
+          id: 'unconfirmed-deposit',
+          title: 'Unconfirmed Deposit',
+          description:
+            'lorem ipsum lorem ipsum lorem ipsum lorem ipsum lorem ipsum',
+          icon: 'UnconfirmedDeposit',
+        },
+        {
+          id: 'recover-account',
+          title: 'Recover my Account',
+          description:
+            'lorem ipsum lorem ipsum lorem ipsum lorem ipsum lorem ipsum',
+          icon: 'RecoverAccount',
+        },
+      ],
     },
     {
-      question: 'How long does verification take?',
-      answer: 'Account verification typically takes 24-48 hours. You\'ll receive an email notification once your account is verified.',
+      title: 'Trading',
+      items: [
+        {
+          id: 'real-trading',
+          title: 'Fulle go Real Tradeing',
+          description:
+            'lorem ipsum lorem ipsum lorem ipsum lorem ipsum lorem ipsum',
+          icon: 'RealTrading',
+        },
+        {
+          id: 'trading-bots',
+          title: 'Smart Trading Bots for Every Strategy',
+          description:
+            'lorem ipsum lorem ipsum lorem ipsum lorem ipsum lorem ipsum',
+          icon: 'TradingBots',
+        },
+        {
+          id: 'trading-skills',
+          title: 'Essential Skills for Future Trading',
+          description:
+            'Risk management, market analysis, discipline, and strategic planning drive success',
+          icon: 'TradingSkills',
+        },
+      ],
     },
     {
-      question: 'What are the fees for transactions?',
-      answer: 'We charge a flat 0.5% transaction fee for all trades. There are no hidden fees or monthly charges.',
-    },
-    {
-      question: 'How do I withdraw funds?',
-      answer: 'Go to Settings > Billing, select "Withdraw Funds", enter the amount, and choose your preferred withdrawal method. Funds typically arrive within 3-5 business days.',
+      title: 'Platform',
+      items: [
+        {
+          id: 'earn-trade',
+          title: 'Earn While You Trade',
+          description:
+            'lorem ipsum lorem ipsum lorem ipsum lorem ipsum lorem ipsum',
+          icon: 'EarnTrade',
+        },
+        {
+          id: 'wallet-control',
+          title: 'Your Wallet, Your Keys, Your Control',
+          description:
+            'lorem ipsum lorem ipsum lorem ipsum lorem ipsum lorem ipsum lorem ipsum',
+          icon: 'WalletControl',
+        },
+        {
+          id: 'market-insights',
+          title: 'Real-Time Market Insights',
+          description:
+            'lorem ipsum lorem ipsum lorem ipsum lorem ipsum lorem ipsum lorem ipsum',
+          icon: 'MarketInsights',
+        },
+      ],
     },
   ];
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log('Support message:', message);
-    alert('Message sent! We\'ll get back to you within 24 hours.');
-    setMessage('');
-  };
-
   return (
     <DashboardLayout>
-      <div className='mb-8'>
-        <h1 className='text-2xl md:text-3xl font-bold text-white mb-2'>
-          Support Center
-        </h1>
-        <p className='text-gray-400'>We're here to help you succeed</p>
-      </div>
-
-      <div className='grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8'>
-        {/* Quick Actions */}
-        <GlassCard className='p-6 hover:bg-white/5 transition-colors cursor-pointer'>
-          <div className='w-12 h-12 bg-fullego-gold/20 rounded-lg flex items-center justify-center mb-4'>
-            <MessageIcon />
-          </div>
-          <h3 className='text-white font-semibold mb-2'>Live Chat</h3>
-          <p className='text-gray-400 text-sm'>Chat with our support team in real-time</p>
-        </GlassCard>
-
-        <GlassCard className='p-6 hover:bg-white/5 transition-colors cursor-pointer'>
-          <div className='w-12 h-12 bg-fullego-gold/20 rounded-lg flex items-center justify-center mb-4'>
-            <PhoneIcon />
-          </div>
-          <h3 className='text-white font-semibold mb-2'>Phone Support</h3>
-          <p className='text-gray-400 text-sm'>Call us at +1 (800) 123-4567</p>
-        </GlassCard>
-
-        <GlassCard className='p-6 hover:bg-white/5 transition-colors cursor-pointer'>
-          <div className='w-12 h-12 bg-fullego-gold/20 rounded-lg flex items-center justify-center mb-4'>
-            <BookIcon />
-          </div>
-          <h3 className='text-white font-semibold mb-2'>Help Center</h3>
-          <p className='text-gray-400 text-sm'>Browse our knowledge base</p>
-        </GlassCard>
-      </div>
-
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-        {/* Contact Form */}
-        <GlassCard className='p-6'>
-          <h2 className='text-lg font-semibold text-white mb-6'>Send us a message</h2>
-          <form onSubmit={handleSubmit}>
-            <div className='space-y-4'>
-              <div>
-                <label className='block text-gray-400 text-sm mb-2'>Subject</label>
-                <select className='w-full px-4 py-2 bg-white/5 border border-fullego-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-fullego-gold'>
-                  <option>General Inquiry</option>
-                  <option>Technical Issue</option>
-                  <option>Account Question</option>
-                  <option>Investment Help</option>
-                  <option>Billing Question</option>
-                </select>
-              </div>
-              <div>
-                <label className='block text-gray-400 text-sm mb-2'>Message</label>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows='6'
-                  placeholder='Describe your issue or question...'
-                  className='w-full px-4 py-2 bg-white/5 border border-fullego-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-fullego-gold resize-none'
-                />
-              </div>
-              <GradientButton className='w-full'>Send Message</GradientButton>
-            </div>
-          </form>
-        </GlassCard>
-
-        {/* FAQs */}
-        <GlassCard className='p-6'>
-          <h2 className='text-lg font-semibold text-white mb-6'>Frequently Asked Questions</h2>
-          <div className='space-y-4'>
-            {faqs.map((faq, index) => (
-              <FAQItem key={index} question={faq.question} answer={faq.answer} />
-            ))}
-          </div>
-        </GlassCard>
-      </div>
-
-      {/* Support Hours */}
-      <GlassCard className='p-6 mt-6'>
-        <div className='flex flex-col md:flex-row items-start md:items-center justify-between'>
-          <div>
-            <h3 className='text-white font-semibold mb-2'>Support Hours</h3>
-            <p className='text-gray-400 text-sm'>Monday - Friday: 8:00 AM - 8:00 PM EST</p>
-            <p className='text-gray-400 text-sm'>Saturday - Sunday: 10:00 AM - 6:00 PM EST</p>
-          </div>
-          <div className='mt-4 md:mt-0'>
-            <p className='text-gray-400 text-sm mb-2'>Average Response Time</p>
-            <p className='text-fullego-gold text-2xl font-bold'>2.5 hours</p>
-          </div>
+      <div className='p-4 md:p-6 lg:p-8'>
+        {/* Page Header */}
+        <div className='mb-8'>
+          <h1
+            className={`text-3xl md:text-4xl font-bold mb-2 ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}
+          >
+            Help Center
+          </h1>
         </div>
-      </GlassCard>
+
+        {/* Help Sections */}
+        <div className='space-y-12'>
+          {helpSections.map((section, sectionIndex) => (
+            <div key={sectionIndex}>
+              {/* Section Title */}
+              <h2
+                className={`text-xl font-semibold mb-6 ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                {section.title}
+              </h2>
+
+              {/* Cards Grid */}
+              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+                {section.items.map(item => (
+                  <HelpCard key={item.id} item={item} isDarkMode={isDarkMode} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </DashboardLayout>
   );
 }
 
-function FAQItem({ question, answer }) {
-  const [isOpen, setIsOpen] = useState(false);
-
+// Help Card Component
+function HelpCard({ item, isDarkMode }) {
   return (
-    <div className='border-b border-fullego-border last:border-0 pb-4'>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className='w-full flex items-start justify-between text-left'
+    <div
+      className={`rounded-2xl border p-6 transition-all hover:shadow-lg ${
+        isDarkMode
+          ? 'bg-[#1A1A1D] border-[#FFFFFF14] hover:border-[#D4AF37]/50'
+          : 'bg-white border-gray-200 hover:border-[#D4AF37]/50'
+      }`}
+    >
+      {/* Icon */}
+      <div className='mb-4'>
+        <HelpIcon name={item.icon} isDarkMode={isDarkMode} />
+      </div>
+
+      {/* Title */}
+      <h3
+        className={`text-lg font-semibold mb-3 ${
+          isDarkMode ? 'text-white' : 'text-gray-900'
+        }`}
       >
-        <span className='text-white font-medium pr-4'>{question}</span>
-        <ChevronIcon className={`transform transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-      {isOpen && (
-        <p className='text-gray-400 text-sm mt-3 leading-relaxed'>{answer}</p>
-      )}
+        {item.title}
+      </h3>
+
+      {/* Description */}
+      <p
+        className={`text-sm mb-4 leading-relaxed ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}
+      >
+        {item.description}
+      </p>
+
+      {/* Learn More Link */}
+      <a
+        href='#'
+        className='text-[#D4AF37] text-sm font-medium hover:text-[#E5C158] transition-colors inline-flex items-center gap-1'
+      >
+        Learn more{' '}
+        <svg
+          width='16'
+          height='16'
+          viewBox='0 0 24 24'
+          fill='none'
+          stroke='currentColor'
+          strokeWidth='2'
+        >
+          <path d='M5 12h14M12 5l7 7-7 7' />
+        </svg>
+      </a>
     </div>
   );
 }
 
-function MessageIcon() {
-  return (
-    <svg width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
-      <path d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' />
-    </svg>
-  );
-}
+// Help Icon Component
+function HelpIcon({ name, isDarkMode }) {
+  const iconColor = isDarkMode ? '#FFFFFF' : '#1F2937';
+  const iconSize = 48;
 
-function PhoneIcon() {
-  return (
-    <svg width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
-      <path d='M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z' />
-    </svg>
-  );
-}
+  const icons = {
+    KYCReview: (
+      <svg
+        width={iconSize}
+        height={iconSize}
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke={iconColor}
+        strokeWidth='1.5'
+      >
+        <circle cx='12' cy='8' r='4' />
+        <path d='M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2' />
+        <path d='M16 11h4M18 9v4' />
+      </svg>
+    ),
+    UnconfirmedDeposit: (
+      <svg
+        width={iconSize}
+        height={iconSize}
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke={iconColor}
+        strokeWidth='1.5'
+      >
+        <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+        <path d='M14 2v6h6M12 18v-6M9 15l3-3 3 3' />
+      </svg>
+    ),
+    RecoverAccount: (
+      <svg
+        width={iconSize}
+        height={iconSize}
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke={iconColor}
+        strokeWidth='1.5'
+      >
+        <circle cx='12' cy='8' r='4' />
+        <path d='M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2' />
+        <rect x='8' y='12' width='8' height='4' rx='1' />
+        <path d='M10 12v-2M14 12v-2' />
+      </svg>
+    ),
+    RealTrading: (
+      <svg
+        width={iconSize}
+        height={iconSize}
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke={iconColor}
+        strokeWidth='1.5'
+      >
+        <circle cx='12' cy='12' r='3' />
+        <path d='M12 1v6M12 17v6M5.64 5.64l4.24 4.24M14.12 14.12l4.24 4.24M1 12h6M17 12h6M5.64 18.36l4.24-4.24M14.12 9.88l4.24-4.24' />
+        <path d='M12 8v2M12 14v2M8 12h2M14 12h2' />
+      </svg>
+    ),
+    TradingBots: (
+      <svg
+        width={iconSize}
+        height={iconSize}
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke={iconColor}
+        strokeWidth='1.5'
+      >
+        <rect x='3' y='3' width='18' height='18' rx='2' />
+        <circle cx='9' cy='9' r='2' />
+        <circle cx='15' cy='9' r='2' />
+        <path d='M9 15h6M12 12v6' />
+      </svg>
+    ),
+    TradingSkills: (
+      <svg
+        width={iconSize}
+        height={iconSize}
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke={iconColor}
+        strokeWidth='1.5'
+      >
+        <path d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5' />
+        <path d='M12 8v4M12 14v4' />
+      </svg>
+    ),
+    EarnTrade: (
+      <svg
+        width={iconSize}
+        height={iconSize}
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke={iconColor}
+        strokeWidth='1.5'
+      >
+        <path d='M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' />
+        <path d='M12 6l3-3M12 18l3 3' />
+      </svg>
+    ),
+    WalletControl: (
+      <svg
+        width={iconSize}
+        height={iconSize}
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke={iconColor}
+        strokeWidth='1.5'
+      >
+        <rect x='2' y='7' width='20' height='14' rx='2' />
+        <path d='M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16' />
+        <path d='M12 11h.01' />
+      </svg>
+    ),
+    MarketInsights: (
+      <svg
+        width={iconSize}
+        height={iconSize}
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke={iconColor}
+        strokeWidth='1.5'
+      >
+        <path d='M3 3v18h18' />
+        <path d='M7 16l4-4 4 4 6-6' />
+        <path d='M21 12h-6' />
+      </svg>
+    ),
+  };
 
-function BookIcon() {
-  return (
-    <svg width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
-      <path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20' />
-      <path d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z' />
-    </svg>
-  );
+  return icons[name] || null;
 }
-
-function ChevronIcon({ className }) {
-  return (
-    <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className={className}>
-      <polyline points='6 9 12 15 18 9' />
-    </svg>
-  );
-}
-

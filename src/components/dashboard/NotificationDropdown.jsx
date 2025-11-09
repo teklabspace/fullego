@@ -75,18 +75,17 @@ export default function NotificationDropdown() {
     );
   }
 
+  const bellIconSrc = isDarkMode
+    ? '/icons/bell.svg'
+    : '/icons/belliconslightmode.svg';
+
   return (
     <div className='relative' ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className='flex items-center justify-center rounded-full relative cursor-pointer hover:opacity-80 transition-opacity'
       >
-        <Image
-          src='/icons/bell.svg'
-          alt='Notifications'
-          width={55}
-          height={55}
-        />
+        <Image src={bellIconSrc} alt='Notifications' width={55} height={55} />
       </button>
 
       {/* Notification Dropdown Panel */}
@@ -217,7 +216,7 @@ export default function NotificationDropdown() {
                     {/* Bell Icon */}
                     <div className=' flex items-center justify-center shrink-0'>
                       <Image
-                        src='/icons/bell.svg'
+                        src={bellIconSrc}
                         alt='Bell'
                         width={20}
                         height={20}

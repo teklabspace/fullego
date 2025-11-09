@@ -133,19 +133,32 @@ export default function CashFlowPage() {
 
             {/* Time Period Tabs */}
             <div
-              className='flex items-center gap-2 p-2 rounded-full overflow-x-auto scrollbar-hide border'
-              style={{
-                background:
-                  'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
-                borderColor: '#29292E',
-              }}
+              className={`flex items-center gap-2 p-2 rounded-full overflow-x-auto scrollbar-hide border ${
+                isDarkMode ? '' : 'bg-transparent'
+              }`}
+              style={
+                isDarkMode
+                  ? {
+                      background:
+                        'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                      borderColor: '#29292E',
+                    }
+                  : {
+                      background: 'rgba(241, 203, 104, 0.2)',
+                      borderColor: 'rgba(0, 0, 0, 0.1)',
+                    }
+              }
             >
               <button
                 onClick={() => setActiveTab('last30')}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
                   activeTab === 'last30'
-                    ? 'bg-[#30333B] text-white'
-                    : 'text-gray-400 hover:text-white'
+                    ? isDarkMode
+                      ? 'bg-[#30333B] text-white'
+                      : 'bg-[#D4AF37] text-black'
+                    : isDarkMode
+                    ? 'text-gray-400 hover:text-white'
+                    : 'text-black'
                 }`}
               >
                 Last 30 Days
@@ -154,8 +167,12 @@ export default function CashFlowPage() {
                 onClick={() => setActiveTab('thisMonth')}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
                   activeTab === 'thisMonth'
-                    ? 'bg-[#30333B] text-white'
-                    : 'text-gray-400 hover:text-white'
+                    ? isDarkMode
+                      ? 'bg-[#30333B] text-white'
+                      : 'bg-[#D4AF37] text-black'
+                    : isDarkMode
+                    ? 'text-gray-400 hover:text-white'
+                    : 'text-black'
                 }`}
               >
                 This Month
@@ -164,8 +181,12 @@ export default function CashFlowPage() {
                 onClick={() => setActiveTab('custom')}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
                   activeTab === 'custom'
-                    ? 'bg-[#30333B] text-white'
-                    : 'text-gray-400 hover:text-white'
+                    ? isDarkMode
+                      ? 'bg-[#30333B] text-white'
+                      : 'bg-[#D4AF37] text-black'
+                    : isDarkMode
+                    ? 'text-gray-400 hover:text-white'
+                    : 'text-black'
                 }`}
               >
                 Custom
@@ -239,18 +260,27 @@ export default function CashFlowPage() {
 
               {/* Chart Tabs */}
               <div
-                className='flex items-center gap-2 p-2 rounded-full overflow-x-auto scrollbar-hide border'
-                style={{
-                  background:
-                    'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
-                  borderColor: '#29292E',
-                }}
+                className={`flex items-center gap-2 p-2 rounded-full overflow-x-auto scrollbar-hide border ${
+                  isDarkMode ? '' : 'bg-transparent'
+                }`}
+                style={
+                  isDarkMode
+                    ? {
+                        background:
+                          'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                        borderColor: '#29292E',
+                      }
+                    : {
+                        background: 'rgba(241, 203, 104, 0.2)',
+                        borderColor: 'rgba(0, 0, 0, 0.1)',
+                      }
+                }
               >
                 <button
                   className={`px-4 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
                     isDarkMode
                       ? 'bg-[#30333B] text-white'
-                      : 'bg-gray-200 text-gray-900'
+                      : 'bg-[#D4AF37] text-black'
                   }`}
                 >
                   Daily
@@ -259,7 +289,7 @@ export default function CashFlowPage() {
                   className={`px-4 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
                     isDarkMode
                       ? 'text-gray-400 hover:text-white'
-                      : 'text-gray-600 hover:text-gray-900'
+                      : 'text-black'
                   }`}
                 >
                   Weekly
@@ -268,7 +298,7 @@ export default function CashFlowPage() {
                   className={`px-4 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
                     isDarkMode
                       ? 'text-gray-400 hover:text-white'
-                      : 'text-gray-600 hover:text-gray-900'
+                      : 'text-black'
                   }`}
                 >
                   Monthly

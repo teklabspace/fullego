@@ -1,7 +1,10 @@
 'use client';
+import { useTheme } from '@/context/ThemeContext';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const Modal = ({ isOpen, setIsOpen, children, maxWidth = 'max-w-2xl' }) => {
+  const { isDarkMode } = useTheme();
+  
   return (
     <AnimatePresence>
       {isOpen && (
@@ -33,11 +36,18 @@ const Modal = ({ isOpen, setIsOpen, children, maxWidth = 'max-w-2xl' }) => {
             exit={{ scale: 0, rotate: '0deg' }}
             onClick={e => e.stopPropagation()}
             className={`rounded-2xl w-full ${maxWidth} shadow-2xl cursor-default relative overflow-hidden my-auto`}
-            style={{
-              background:
-                'linear-gradient(135deg, rgba(34, 33, 38, 0.98) 0%, rgba(17, 17, 22, 0.98) 100%)',
-              border: '1px solid rgba(212, 175, 55, 0.3)',
-            }}
+            style={
+              isDarkMode
+                ? {
+                    background:
+                      'linear-gradient(135deg, rgba(34, 33, 38, 0.98) 0%, rgba(17, 17, 22, 0.98) 100%)',
+                    border: '1px solid rgba(212, 175, 55, 0.3)',
+                  }
+                : {
+                    background: 'white',
+                    border: '1px solid rgba(0, 0, 0, 0.1)',
+                  }
+            }
           >
             {children}
           </motion.div>

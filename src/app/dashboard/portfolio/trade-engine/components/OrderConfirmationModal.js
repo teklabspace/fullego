@@ -13,10 +13,25 @@ export default function OrderConfirmationModal({
   const [orderStatus, setOrderStatus] = useState('placed');
 
   return (
-    <div className='fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto'
-    onClick={onClose}
+    <div
+      className='fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto'
+      onClick={onClose}
     >
-      <div className='w-full max-w-2xl max-h-[96vh] my-auto bg-gradient-to-r from-[#1a1a1d] to-[#0d0d0f] rounded-2xl sm:rounded-3xl border border-[#FFFFFF14] shadow-2xl overflow-hidden'>
+      <div
+        className={`w-full max-w-2xl max-h-[96vh] my-auto rounded-2xl sm:rounded-3xl border shadow-2xl overflow-hidden ${
+          isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+        }`}
+        style={
+          isDarkMode
+            ? {
+                background:
+                  'linear-gradient(to right, #1a1a1d 0%, #0d0d0f 100%)',
+              }
+            : {
+                background: 'white',
+              }
+        }
+      >
         <div className='p-4 sm:p-6 md:p-8 max-h-[96vh] overflow-y-auto custom-scrollbar'>
           {/* Success Icon */}
           <div className='flex justify-center mb-4'>
@@ -40,7 +55,11 @@ export default function OrderConfirmationModal({
 
           {/* Title with underline */}
           <div className='text-center mb-6'>
-            <h2 className='text-xl sm:text-2xl font-bold text-white inline-block'>
+            <h2
+              className={`text-xl sm:text-2xl font-bold inline-block ${
+                isDarkMode ? 'text-white' : 'text-black'
+              }`}
+            >
               Order Confirmation
             </h2>
             <div className='h-1 w-28 sm:w-36 bg-[#F1CB68] mx-auto mt-2 rounded-full'></div>
@@ -49,19 +68,43 @@ export default function OrderConfirmationModal({
           {/* Order Details Card */}
           <div className=' rounded-2xl p-4 sm:p-5 mb-5'>
             {/* Header */}
-            <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5 pb-4 border-b border-[#FFFFFF14]'>
+            <div
+              className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5 pb-4 border-b ${
+                isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+              }`}
+            >
               <div>
-                <h3 className='text-base sm:text-lg font-bold text-white mb-2'>
+                <h3
+                  className={`text-base sm:text-lg font-bold mb-2 ${
+                    isDarkMode ? 'text-white' : 'text-black'
+                  }`}
+                >
                   {stock === 'AAPL' ? 'Apple Inc.' : stock} - Equity
                 </h3>
                 <div className='flex items-center gap-2'>
                   <div className='w-2 h-2 rounded-full bg-[#F1CB68]' />
-                  <span className='text-sm text-white'>Pending</span>
+                  <span
+                    className={`text-sm ${
+                      isDarkMode ? 'text-white' : 'text-black'
+                    }`}
+                  >
+                    Pending
+                  </span>
                 </div>
               </div>
               <div className='text-left sm:text-right'>
-                <p className='text-xs text-gray-400 mb-1'>Order ID</p>
-                <p className='text-sm font-semibold text-white'>
+                <p
+                  className={`text-xs mb-1 ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  Order ID
+                </p>
+                <p
+                  className={`text-sm font-semibold ${
+                    isDarkMode ? 'text-white' : 'text-black'
+                  }`}
+                >
                   #ORD-283947-59
                 </p>
               </div>
@@ -71,7 +114,13 @@ export default function OrderConfirmationModal({
             <div className='space-y-4'>
               <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                 <div>
-                  <p className='text-xs text-gray-400 mb-2'>Order Type</p>
+                  <p
+                    className={`text-xs mb-2 ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}
+                  >
+                    Order Type
+                  </p>
                   <p
                     className={`text-base font-semibold ${
                       orderType === 'buy' ? 'text-[#36D399]' : 'text-[#FF6B6B]'
@@ -81,8 +130,18 @@ export default function OrderConfirmationModal({
                   </p>
                 </div>
                 <div>
-                  <p className='text-xs text-gray-400 mb-2'>Date & Time</p>
-                  <p className='text-base font-semibold text-white'>
+                  <p
+                    className={`text-xs mb-2 ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}
+                  >
+                    Date & Time
+                  </p>
+                  <p
+                    className={`text-base font-semibold ${
+                      isDarkMode ? 'text-white' : 'text-black'
+                    }`}
+                  >
                     {new Date().toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
@@ -99,22 +158,52 @@ export default function OrderConfirmationModal({
 
               <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                 <div>
-                  <p className='text-xs text-gray-400 mb-2'>Quantity</p>
-                  <p className='text-base font-semibold text-white'>
+                  <p
+                    className={`text-xs mb-2 ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}
+                  >
+                    Quantity
+                  </p>
+                  <p
+                    className={`text-base font-semibold ${
+                      isDarkMode ? 'text-white' : 'text-black'
+                    }`}
+                  >
                     {quantity} Shares
                   </p>
                 </div>
                 <div>
-                  <p className='text-xs text-gray-400 mb-2'>Price Per Unit</p>
-                  <p className='text-base font-semibold text-white'>
+                  <p
+                    className={`text-xs mb-2 ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}
+                  >
+                    Price Per Unit
+                  </p>
+                  <p
+                    className={`text-base font-semibold ${
+                      isDarkMode ? 'text-white' : 'text-black'
+                    }`}
+                  >
                     ${pricePerUnit}
                   </p>
                 </div>
               </div>
 
-              <div className='pt-4 mt-2 border-t border-[#FFFFFF14]'>
+              <div
+                className={`pt-4 mt-2 border-t ${
+                  isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                }`}
+              >
                 <div className='flex justify-between items-center'>
-                  <span className='text-sm text-gray-400'>Total Value</span>
+                  <span
+                    className={`text-sm ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}
+                  >
+                    Total Value
+                  </span>
                   <span className='text-2xl sm:text-3xl font-bold text-[#F1CB68]'>
                     ${totalValue}
                   </span>
@@ -125,10 +214,18 @@ export default function OrderConfirmationModal({
 
           {/* Order Status Progress */}
           <div className='mb-5'>
-            <h4 className='text-sm font-semibold text-white mb-3'>
+            <h4
+              className={`text-sm font-semibold mb-3 ${
+                isDarkMode ? 'text-white' : 'text-black'
+              }`}
+            >
               Order Status
             </h4>
-            <div className='bg-[#1a1a1d] rounded-2xl p-3 sm:p-4'>
+            <div
+              className={`rounded-2xl p-3 sm:p-4 ${
+                isDarkMode ? 'bg-[#1a1a1d]' : 'bg-gray-50'
+              }`}
+            >
               <div className='flex items-center justify-between'>
                 {/* Placed */}
                 <div className='flex flex-col items-center flex-1'>
@@ -144,11 +241,21 @@ export default function OrderConfirmationModal({
                       <path d='M5 13l4 4L19 7' />
                     </svg>
                   </div>
-                  <p className='text-xs font-semibold text-white'>Placed</p>
+                  <p
+                    className={`text-xs font-semibold ${
+                      isDarkMode ? 'text-white' : 'text-black'
+                    }`}
+                  >
+                    Placed
+                  </p>
                 </div>
 
                 {/* Progress Line 1 */}
-                <div className='flex-1 h-1 bg-[#2a2a2d] mx-2 sm:mx-3 rounded-full overflow-hidden'>
+                <div
+                  className={`flex-1 h-1 mx-2 sm:mx-3 rounded-full overflow-hidden ${
+                    isDarkMode ? 'bg-[#2a2a2d]' : 'bg-gray-200'
+                  }`}
+                >
                   <div className='h-full bg-[#F1CB68] w-1/2' />
                 </div>
 
@@ -174,18 +281,40 @@ export default function OrderConfirmationModal({
                       />
                     </svg>
                   </div>
-                  <p className='text-xs font-semibold text-white'>Processing</p>
+                  <p
+                    className={`text-xs font-semibold ${
+                      isDarkMode ? 'text-white' : 'text-black'
+                    }`}
+                  >
+                    Processing
+                  </p>
                 </div>
 
                 {/* Progress Line 2 */}
-                <div className='flex-1 h-1 bg-[#2a2a2d] mx-2 sm:mx-3 rounded-full' />
+                <div
+                  className={`flex-1 h-1 mx-2 sm:mx-3 rounded-full ${
+                    isDarkMode ? 'bg-[#2a2a2d]' : 'bg-gray-200'
+                  }`}
+                />
 
                 {/* Completed */}
                 <div className='flex flex-col items-center flex-1'>
-                  <div className='w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#2a2a2d] flex items-center justify-center mb-2'>
-                    <div className='w-2.5 h-2.5 rounded-full bg-gray-500' />
+                  <div
+                    className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-2 ${
+                      isDarkMode ? 'bg-[#2a2a2d]' : 'bg-gray-200'
+                    }`}
+                  >
+                    <div
+                      className={`w-2.5 h-2.5 rounded-full ${
+                        isDarkMode ? 'bg-gray-500' : 'bg-gray-400'
+                      }`}
+                    />
                   </div>
-                  <p className='text-xs font-semibold text-gray-500'>
+                  <p
+                    className={`text-xs font-semibold ${
+                      isDarkMode ? 'text-gray-500' : 'text-gray-600'
+                    }`}
+                  >
                     Completed
                   </p>
                 </div>
@@ -205,4 +334,3 @@ export default function OrderConfirmationModal({
     </div>
   );
 }
-

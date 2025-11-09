@@ -25,29 +25,33 @@ export default function OrderSummary({
         </h3>
 
         {/* Limit Price Label */}
-        <p className='text-sm text-gray-400 mb-4'>Limit Price</p>
+        <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Limit Price</p>
 
         {/* Order Details Card */}
-        <div className='bg-[#1a1a1d] rounded-2xl p-5 mb-6 space-y-3'>
+        <div
+          className={`rounded-2xl p-5 mb-6 space-y-3 border ${
+            isDarkMode ? 'bg-[#1a1a1d] border-[#FFFFFF14]' : 'bg-gray-50 border-gray-200'
+          }`}
+        >
           <div className='flex justify-between items-center'>
-            <span className='text-sm text-gray-400'>Quantity</span>
-            <span className='text-base font-semibold text-white'>
+            <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Quantity</span>
+            <span className={`text-base font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
               {quantity} shares
             </span>
           </div>
           <div className='flex justify-between items-center'>
-            <span className='text-sm text-gray-400'>Price per share</span>
-            <span className='text-base font-semibold text-white'>
+            <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Price per share</span>
+            <span className={`text-base font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
               ${limitPrice}
             </span>
           </div>
           <div className='flex justify-between items-center'>
-            <span className='text-sm text-gray-400'>Estimated Commission</span>
-            <span className='text-base font-semibold text-white'>$0.00</span>
+            <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Estimated Commission</span>
+            <span className={`text-base font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>$0.00</span>
           </div>
-          <div className='pt-3 mt-3 border-t border-[#FFFFFF14]'>
+          <div className={`pt-3 mt-3 border-t ${isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'}`}>
             <div className='flex justify-between items-center'>
-              <span className='text-base font-semibold text-white'>
+              <span className={`text-base font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
                 Total Cost
               </span>
               <span className='text-xl font-bold text-[#F1CB68]'>
@@ -60,7 +64,7 @@ export default function OrderSummary({
         {/* Asset Information */}
         <div className='mb-6'>
           <div className='flex items-center justify-between mb-4'>
-            <span className='text-sm text-gray-400'>Asset Information</span>
+            <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Asset Information</span>
             <button className='text-sm text-[#F1CB68] hover:underline flex items-center gap-1'>
               Full Details
               <svg
@@ -83,22 +87,22 @@ export default function OrderSummary({
           {/* Market Stats */}
           <div className='space-y-3'>
             <div className='flex justify-between items-center'>
-              <span className='text-sm text-gray-400'>Market Cap</span>
-              <span className='text-sm font-semibold text-white'>$2.87T</span>
+              <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Market Cap</span>
+              <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>$2.87T</span>
             </div>
             <div className='flex justify-between items-center'>
-              <span className='text-sm text-gray-400'>52-Week Range</span>
-              <span className='text-sm font-semibold text-white'>
+              <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>52-Week Range</span>
+              <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
                 $124.17 - $192.45
               </span>
             </div>
             <div className='flex justify-between items-center'>
-              <span className='text-sm text-gray-400'>Dividend Yield</span>
-              <span className='text-sm font-semibold text-white'>0.58%</span>
+              <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Dividend Yield</span>
+              <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>0.58%</span>
             </div>
             <div className='flex justify-between items-center'>
-              <span className='text-sm text-gray-400'>P/E Ratio</span>
-              <span className='text-sm font-semibold text-white'>30.64</span>
+              <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>P/E Ratio</span>
+              <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>30.64</span>
             </div>
           </div>
         </div>
@@ -115,7 +119,9 @@ export default function OrderSummary({
           {recentTrades.map((trade, index) => (
             <div
               key={index}
-              className='flex items-center gap-3 p-3 rounded-xl bg-[#1a1a1d] mb-2'
+              className={`flex items-center gap-3 p-3 rounded-xl mb-2 ${
+                isDarkMode ? 'bg-[#1a1a1d]' : 'bg-gray-50'
+              }`}
             >
               <div
                 className={`w-10 h-10 rounded-lg flex items-center justify-center ${
@@ -162,15 +168,19 @@ export default function OrderSummary({
                 >
                   {trade.type} {trade.shares} Shares
                 </p>
-                <p className='text-xs text-gray-400'>{trade.date}</p>
+                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{trade.date}</p>
               </div>
-              <p className='text-base font-bold text-white'>{trade.price}</p>
+              <p className={`text-base font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>{trade.price}</p>
             </div>
           ))}
         </div>
 
         {/* Market Volatility Notice */}
-        <div className='p-4 rounded-xl bg-[#1a1a1d] border-l-4 border-[#F1CB68] mb-6'>
+        <div
+          className={`p-4 rounded-xl border-l-4 border-[#F1CB68] mb-6 ${
+            isDarkMode ? 'bg-[#1a1a1d]' : 'bg-gray-50'
+          }`}
+        >
           <div className='flex items-start gap-3'>
             <div className='w-8 h-8 rounded-full bg-[#F1CB68]/20 flex items-center justify-center shrink-0 mt-0.5'>
               <svg
@@ -186,10 +196,10 @@ export default function OrderSummary({
               </svg>
             </div>
             <div>
-              <p className='text-sm font-semibold text-white mb-1'>
+              <p className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-black'}`}>
                 Market volatility notice
               </p>
-              <p className='text-xs text-gray-400 leading-relaxed'>
+              <p className={`text-xs leading-relaxed ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 AAPL has experienced higher than average volatility in the past
                 week. Consider using limit orders to control your entry price.
               </p>
@@ -199,45 +209,53 @@ export default function OrderSummary({
 
         {/* Order Execution Timeline */}
         <div>
-          <h4 className='text-sm font-semibold mb-4 text-gray-400'>
+          <h4 className={`text-sm font-semibold mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             Order Execution Timeline
           </h4>
-          <div className='bg-[#1a1a1d] rounded-xl p-4 space-y-4'>
+          <div
+            className={`rounded-xl p-4 space-y-4 ${
+              isDarkMode ? 'bg-[#1a1a1d]' : 'bg-gray-50'
+            }`}
+          >
             <div className='flex items-start gap-3'>
               <div className='w-8 h-8 rounded-full bg-[#F1CB68] flex items-center justify-center shrink-0'>
-                <div className='w-2.5 h-2.5 rounded-full bg-[#1a1a1d]' />
+                <div className={`w-2.5 h-2.5 rounded-full ${isDarkMode ? 'bg-[#1a1a1d]' : 'bg-white'}`} />
               </div>
               <div>
-                <p className='text-sm font-semibold text-white mb-1'>
+                <p className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-black'}`}>
                   Order Placement
                 </p>
-                <p className='text-xs text-gray-400'>
+                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                   Market order will execute immediately
                 </p>
               </div>
             </div>
             <div className='flex items-start gap-3'>
-              <div className='w-8 h-8 rounded-full bg-[#2a2a2d] flex items-center justify-center shrink-0'>
-                <div className='w-2.5 h-2.5 rounded-full bg-gray-500' />
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                isDarkMode ? 'bg-[#2a2a2d]' : 'bg-gray-200'
+              }`}>
+                <div className={`w-2.5 h-2.5 rounded-full ${isDarkMode ? 'bg-gray-500' : 'bg-gray-400'}`} />
               </div>
               <div>
-                <p className='text-sm font-semibold text-white mb-1'>
+                <p className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-black'}`}>
                   Order Execution
                 </p>
-                <p className='text-xs text-gray-400'>
+                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                   Filled at the best available price
                 </p>
               </div>
             </div>
             <div className='flex items-start gap-3'>
-              <div className='w-8 h-8 rounded-full bg-[#2a2a2d] flex items-center justify-center shrink-0'>
-                <div className='w-2.5 h-2.5 rounded-full bg-gray-500' />
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                isDarkMode ? 'bg-[#2a2a2d]' : 'bg-gray-200'
+              }`}>
+                <div className={`w-2.5 h-2.5 rounded-full ${isDarkMode ? 'bg-gray-500' : 'bg-gray-400'}`} />
               </div>
               <div>
-                <p className='text-sm font-semibold text-white mb-1'>
+                <p className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-black'}`}>
                   Settlement
                 </p>
-                <p className='text-xs text-gray-400'>T+2 days (09/17/2023)</p>
+                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>T+2 days (09/17/2023)</p>
               </div>
             </div>
           </div>

@@ -156,12 +156,21 @@ export default function PortfolioOverviewPage() {
 
             {/* Time Range Selector */}
             <div
-              className='flex items-center gap-2 p-2 rounded-full border'
-              style={{
-                background:
-                  'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
-                borderColor: '#29292E',
-              }}
+              className={`flex items-center gap-2 p-2 rounded-full border ${
+                isDarkMode ? '' : 'bg-transparent'
+              }`}
+              style={
+                isDarkMode
+                  ? {
+                      background:
+                        'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                      borderColor: '#29292E',
+                    }
+                  : {
+                      background: 'rgba(241, 203, 104, 0.2)',
+                      borderColor: 'rgba(0, 0, 0, 0.1)',
+                    }
+              }
             >
               {['1D', '1W', '1M', '3M', '1Y', 'ALL'].map(range => (
                 <button
@@ -169,8 +178,12 @@ export default function PortfolioOverviewPage() {
                   onClick={() => setTimeRange(range)}
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                     timeRange === range
-                      ? 'bg-[#30333B] text-white'
-                      : 'text-gray-400 hover:text-white'
+                      ? isDarkMode
+                        ? 'bg-[#30333B] text-white'
+                        : 'bg-[#D4AF37] text-black'
+                      : isDarkMode
+                      ? 'text-gray-400 hover:text-white'
+                      : 'text-black'
                   }`}
                 >
                   {range}

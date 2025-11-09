@@ -1,9 +1,10 @@
 'use client';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
-import FileUploadModal from '@/components/documents/FileUploadModal';
 import DocumentPreviewModal from '@/components/documents/DocumentPreviewModal';
-import UploadSuccessModal from '@/components/documents/UploadSuccessModal';
+import FileUploadModal from '@/components/documents/FileUploadModal';
 import ShareDocumentModal from '@/components/documents/ShareDocumentModal';
+import UploadSuccessModal from '@/components/documents/UploadSuccessModal';
+import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 
@@ -117,6 +118,7 @@ const getDocumentIcon = type => {
 };
 
 export default function DocumentsPage() {
+  const { isDarkMode } = useTheme();
   const [activeTab, setActiveTab] = useState('Identity');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
@@ -307,7 +309,7 @@ export default function DocumentsPage() {
     setCurrentTags([]);
   };
 
-  const handleShareDocument = (file) => {
+  const handleShareDocument = file => {
     setIsShareModalOpen(true);
   };
 
@@ -321,10 +323,14 @@ export default function DocumentsPage() {
     <DashboardLayout>
       {/* Header */}
       <div className='mb-8'>
-        <h1 className='text-3xl md:text-4xl font-bold text-white mb-2'>
+        <h1
+          className={`text-3xl md:text-4xl font-bold mb-2 ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}
+        >
           Documents Vault
         </h1>
-        <p className='text-gray-400'>
+        <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
           Manage and organize your important documents
         </p>
       </div>
@@ -334,18 +340,35 @@ export default function DocumentsPage() {
         {stats.map((stat, index) => (
           <div
             key={index}
-            className='relative rounded-2xl p-6'
-            style={{
-              background:
-                'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              backdropFilter: 'blur(10px)',
-            }}
+            className='relative rounded-2xl p-6 border'
+            style={
+              isDarkMode
+                ? {
+                    background:
+                      'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    backdropFilter: 'blur(10px)',
+                  }
+                : {
+                    background: 'transparent',
+                    border: '1px solid rgba(0, 0, 0, 0.1)',
+                  }
+            }
           >
             <div className='flex justify-between items-start mb-4'>
               <div className='flex-1'>
-                <p className='text-gray-400 text-sm mb-2'>{stat.title}</p>
-                <h3 className='text-3xl font-bold text-white mb-1'>
+                <p
+                  className={`text-sm mb-2 ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  {stat.title}
+                </p>
+                <h3
+                  className={`text-3xl font-bold mb-1 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
                   {stat.value}
                 </h3>
                 <p className='text-[#D4AF37] text-sm'>{stat.subtitle}</p>
@@ -368,7 +391,9 @@ export default function DocumentsPage() {
         <div
           className='flex gap-2 flex-wrap pb-4'
           style={{
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            borderBottom: isDarkMode
+              ? '1px solid rgba(255, 255, 255, 0.08)'
+              : '1px solid rgba(0, 0, 0, 0.1)',
           }}
         >
           {tabs.map(tab => (
@@ -393,16 +418,24 @@ export default function DocumentsPage() {
                 className='px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 cursor-pointer w-full h-full border'
                 style={
                   activeTab === tab.name
-                    ? {
-                        background:
-                          'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
-                        color: '#FFFFFF',
-                        borderColor: 'transparent',
-                      }
+                    ? isDarkMode
+                      ? {
+                          background:
+                            'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                          color: '#FFFFFF',
+                          borderColor: 'transparent',
+                        }
+                      : {
+                          background: 'transparent',
+                          color: '#000000',
+                          borderColor: 'transparent',
+                        }
                     : {
                         background: 'transparent',
-                        color: '#9CA3AF',
-                        borderColor: 'rgba(156, 163, 175, 0.3)',
+                        color: isDarkMode ? '#9CA3AF' : '#6B7280',
+                        borderColor: isDarkMode
+                          ? 'rgba(156, 163, 175, 0.3)'
+                          : 'rgba(0, 0, 0, 0.1)',
                       }
                 }
               >
@@ -429,16 +462,29 @@ export default function DocumentsPage() {
             placeholder='Search documents...'
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className='w-full pl-12 pr-4 py-3 rounded-full text-white text-sm placeholder-gray-500 focus:outline-none transition-all cursor-text'
-            style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-            }}
+            className={`w-full pl-12 pr-4 py-3 rounded-full text-sm focus:outline-none transition-all cursor-text ${
+              isDarkMode
+                ? 'text-white placeholder-gray-500'
+                : 'text-gray-900 placeholder-gray-400'
+            }`}
+            style={
+              isDarkMode
+                ? {
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                  }
+                : {
+                    background: 'transparent',
+                    border: '1px solid rgba(0, 0, 0, 0.1)',
+                  }
+            }
             onFocus={e =>
               (e.target.style.borderColor = 'rgba(212, 175, 55, 0.3)')
             }
             onBlur={e =>
-              (e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)')
+              (e.target.style.borderColor = isDarkMode
+                ? 'rgba(255, 255, 255, 0.1)'
+                : 'rgba(0, 0, 0, 0.1)')
             }
           />
         </div>
@@ -447,12 +493,22 @@ export default function DocumentsPage() {
           <div className='relative' ref={filterMenuRef}>
             <button
               onClick={() => setShowFilterMenu(!showFilterMenu)}
-              className='flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition-all cursor-pointer'
-              style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: '#9CA3AF',
-              }}
+              className={`flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition-all cursor-pointer border ${
+                isDarkMode ? '' : ''
+              }`}
+              style={
+                isDarkMode
+                  ? {
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      color: '#9CA3AF',
+                    }
+                  : {
+                      background: 'transparent',
+                      border: '1px solid rgba(0, 0, 0, 0.1)',
+                      color: '#6B7280',
+                    }
+              }
             >
               <Image
                 src='/icons/grid.svg'
@@ -464,40 +520,61 @@ export default function DocumentsPage() {
             </button>
             {showFilterMenu && (
               <div
-                className='absolute top-full mt-2 right-0 w-48 rounded-lg p-2 z-10'
-                style={{
-                  background:
-                    'linear-gradient(135deg, rgba(34, 33, 38, 0.95) 0%, rgba(17, 17, 22, 0.95) 100%)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  backdropFilter: 'blur(10px)',
-                }}
+                className={`absolute top-full mt-2 right-0 w-48 rounded-lg p-2 z-10 border ${
+                  isDarkMode ? '' : ''
+                }`}
+                style={
+                  isDarkMode
+                    ? {
+                        background:
+                          'linear-gradient(135deg, rgba(34, 33, 38, 0.95) 0%, rgba(17, 17, 22, 0.95) 100%)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        backdropFilter: 'blur(10px)',
+                      }
+                    : {
+                        background: '#fffffffF',
+                        border: '1px solid rgba(0, 0, 0, 0.1)',
+                      }
+                }
               >
                 <button
                   onClick={() => handleFilterSelect('date')}
-                  className={`w-full text-left px-4 py-2 text-sm hover:text-white hover:bg-white/5 rounded cursor-pointer ${
+                  className={`w-full text-left px-4 py-2 text-sm rounded cursor-pointer ${
                     sortBy === 'date'
-                      ? 'text-white bg-white/5'
-                      : 'text-gray-400'
+                      ? isDarkMode
+                        ? 'text-white bg-white/5'
+                        : 'text-black bg-black/5'
+                      : isDarkMode
+                      ? 'text-gray-400 hover:text-white hover:bg-white/5'
+                      : 'text-gray-600 hover:text-black hover:bg-black/5'
                   }`}
                 >
                   By Date
                 </button>
                 <button
                   onClick={() => handleFilterSelect('type')}
-                  className={`w-full text-left px-4 py-2 text-sm hover:text-white hover:bg-white/5 rounded cursor-pointer ${
+                  className={`w-full text-left px-4 py-2 text-sm rounded cursor-pointer ${
                     sortBy === 'type'
-                      ? 'text-white bg-white/5'
-                      : 'text-gray-400'
+                      ? isDarkMode
+                        ? 'text-white bg-white/5'
+                        : 'text-black bg-black/5'
+                      : isDarkMode
+                      ? 'text-gray-400 hover:text-white hover:bg-white/5'
+                      : 'text-gray-600 hover:text-black hover:bg-black/5'
                   }`}
                 >
                   By Type
                 </button>
                 <button
                   onClick={() => handleFilterSelect('size')}
-                  className={`w-full text-left px-4 py-2 text-sm hover:text-white hover:bg-white/5 rounded cursor-pointer ${
+                  className={`w-full text-left px-4 py-2 text-sm rounded cursor-pointer ${
                     sortBy === 'size'
-                      ? 'text-white bg-white/5'
-                      : 'text-gray-400'
+                      ? isDarkMode
+                        ? 'text-white bg-white/5'
+                        : 'text-black bg-black/5'
+                      : isDarkMode
+                      ? 'text-gray-400 hover:text-white hover:bg-white/5'
+                      : 'text-gray-600 hover:text-black hover:bg-black/5'
                   }`}
                 >
                   By Size
@@ -527,30 +604,57 @@ export default function DocumentsPage() {
 
       {/* Documents Table */}
       <div
-        className='rounded-2xl overflow-hidden'
-        style={{
-          background:
-            'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(10px)',
-        }}
+        className={`rounded-2xl overflow-hidden border ${isDarkMode ? '' : ''}`}
+        style={
+          isDarkMode
+            ? {
+                background:
+                  'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(10px)',
+              }
+            : {
+                background: 'transparent',
+                border: '1px solid rgba(0, 0, 0, 0.1)',
+              }
+        }
       >
         <div className='overflow-x-auto'>
           <table className='w-full'>
             <thead>
               <tr
-                style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}
+                style={{
+                  borderBottom: isDarkMode
+                    ? '1px solid rgba(255, 255, 255, 0.08)'
+                    : '1px solid rgba(0, 0, 0, 0.1)',
+                }}
               >
-                <th className='text-left px-6 py-4 text-sm font-semibold text-gray-400'>
+                <th
+                  className={`text-left px-6 py-4 text-sm font-semibold ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
                   Document Name
                 </th>
-                <th className='text-left px-6 py-4 text-sm font-semibold text-gray-400'>
+                <th
+                  className={`text-left px-6 py-4 text-sm font-semibold ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
                   Type
                 </th>
-                <th className='text-left px-6 py-4 text-sm font-semibold text-gray-400'>
+                <th
+                  className={`text-left px-6 py-4 text-sm font-semibold ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
                   Uploaded Date
                 </th>
-                <th className='text-right px-6 py-4 text-sm font-semibold text-gray-400'>
+                <th
+                  className={`text-right px-6 py-4 text-sm font-semibold ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
                   Actions
                 </th>
               </tr>
@@ -560,7 +664,9 @@ export default function DocumentsPage() {
                 <tr>
                   <td
                     colSpan='4'
-                    className='text-center px-6 py-12 text-gray-400'
+                    className={`text-center px-6 py-12 ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}
                   >
                     No documents found
                   </td>
@@ -569,24 +675,44 @@ export default function DocumentsPage() {
                 filteredDocuments.map(doc => (
                   <tr
                     key={doc.id}
-                    className='transition-all hover:bg-white/5'
+                    className={`transition-all ${
+                      isDarkMode ? 'hover:bg-white/5' : 'hover:bg-black/5'
+                    }`}
                     style={{
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                      borderBottom: isDarkMode
+                        ? '1px solid rgba(255, 255, 255, 0.05)'
+                        : '1px solid rgba(0, 0, 0, 0.05)',
                     }}
                   >
                     <td className='px-6 py-4'>
                       <div className='flex items-center gap-3'>
                         {getDocumentIcon(doc.type)}
-                        <span className='text-white font-medium'>
+                        <span
+                          className={`font-medium ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}
+                        >
                           {doc.name}
                         </span>
                       </div>
                     </td>
                     <td className='px-6 py-4'>
-                      <span className='text-gray-400'>{doc.type}</span>
+                      <span
+                        className={
+                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }
+                      >
+                        {doc.type}
+                      </span>
                     </td>
                     <td className='px-6 py-4'>
-                      <span className='text-gray-400'>{doc.uploadedDate}</span>
+                      <span
+                        className={
+                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }
+                      >
+                        {doc.uploadedDate}
+                      </span>
                     </td>
                     <td className='px-6 py-4'>
                       <div className='flex items-center justify-end gap-3'>

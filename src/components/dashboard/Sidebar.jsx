@@ -110,7 +110,7 @@ const menuSections = [
         id: 'help-center',
         label: 'Help Center',
         icon: 'HelpCircle',
-        href: '/help-center',
+        href: '/dashboard/Support',
       },
     ],
   },

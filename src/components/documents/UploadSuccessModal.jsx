@@ -1,8 +1,10 @@
 'use client';
+import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import Modal from '../ui/Modal';
 
 const UploadSuccessModal = ({ isOpen, setIsOpen, file, onReturnToDashboard, onShare }) => {
+  const { isDarkMode } = useTheme();
   const formatFileSize = bytes => {
     if (!bytes) return '0 Bytes';
     const k = 1024;
@@ -69,26 +71,39 @@ const UploadSuccessModal = ({ isOpen, setIsOpen, file, onReturnToDashboard, onSh
         </div>
 
         {/* Success Message */}
-        <h2 className="text-3xl font-bold text-white mb-3">Upload Complete</h2>
-        <p className="text-gray-400 text-center mb-8 max-w-md">
+        <h2 className={`text-3xl font-bold mb-3 ${
+          isDarkMode ? 'text-white' : 'text-gray-900'
+        }`}>Upload Complete</h2>
+        <p className={`text-center mb-8 max-w-md ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
           Your document has been successfully uploaded to our secure server and is
           now available for review.
         </p>
 
         {/* Document Info Card */}
         <div
-          className="w-full rounded-2xl p-6 mb-6"
-          style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
+          className="w-full rounded-2xl p-6 mb-6 border"
+          style={
+            isDarkMode
+              ? {
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                }
+              : {
+                  background: 'rgba(241, 203, 104, 0.2)',
+                  border: '1px solid rgba(0, 0, 0, 0.1)',
+                }
+          }
         >
           <div className="flex items-center gap-4">
             {/* File Icon */}
             <div
               className="w-16 h-16 rounded-lg flex items-center justify-center shrink-0"
               style={{
-                background: 'rgba(255, 255, 255, 0.05)',
+                background: isDarkMode
+                  ? 'rgba(255, 255, 255, 0.05)'
+                  : 'rgba(241, 203, 104, 0.2)',
               }}
             >
               <Image
@@ -101,10 +116,14 @@ const UploadSuccessModal = ({ isOpen, setIsOpen, file, onReturnToDashboard, onSh
 
             {/* File Details */}
             <div className="flex-1 min-w-0">
-              <h3 className="text-white font-semibold text-lg mb-2 truncate">
+              <h3 className={`font-semibold text-lg mb-2 truncate ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
                 {file?.name || 'document.pdf'}
               </h3>
-              <div className="flex flex-wrap gap-3 text-sm text-gray-400 mb-2">
+              <div className={`flex flex-wrap gap-3 text-sm mb-2 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
                 <span>Type: {getFileType(file?.name)}</span>
                 <span>Size: {file?.size ? formatFileSize(file.size) : '2.4 MB'}</span>
                 <span>
@@ -149,7 +168,11 @@ const UploadSuccessModal = ({ isOpen, setIsOpen, file, onReturnToDashboard, onSh
         {/* Return to Dashboard Link */}
         <button
           onClick={handleReturnToDashboard}
-          className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors cursor-pointer text-sm"
+          className={`flex items-center gap-2 transition-colors cursor-pointer text-sm ${
+            isDarkMode
+              ? 'text-gray-400 hover:text-white'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
         >
           <span>Return to dashboard</span>
           <Image

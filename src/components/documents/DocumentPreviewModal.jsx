@@ -1,4 +1,5 @@
 'use client';
+import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import Modal from '../ui/Modal';
@@ -10,6 +11,7 @@ const DocumentPreviewModal = ({
   tags,
   onContinue,
 }) => {
+  const { isDarkMode } = useTheme();
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(5);
@@ -90,26 +92,37 @@ const DocumentPreviewModal = ({
         {/* Close Button - Top Right Corner */}
         <button
           onClick={() => setIsOpen(false)}
-          className='absolute top-4 right-4 z-50 p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer'
+          className={`absolute top-4 right-4 z-50 p-2 rounded-lg transition-colors cursor-pointer ${
+            isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'
+          }`}
           title='Close'
-          style={{ background: 'rgba(0, 0, 0, 0.5)' }}
+          style={{
+            background: isDarkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.1)',
+          }}
         >
           <Image
             src='/icons/close-x.svg'
             alt='Close'
             width={24}
             height={24}
-            style={{ filter: 'brightness(0) invert(1)' }}
+            style={{ filter: isDarkMode ? 'brightness(0) invert(1)' : 'none' }}
           />
         </button>
 
         {/* Left Side - Document Preview */}
         <div
           className='flex-1 p-6 lg:p-8 overflow-y-auto custom-scroll'
-          style={{
-            background: 'rgba(20, 20, 25, 0.95)',
-            borderRight: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
+          style={
+            isDarkMode
+              ? {
+                  background: 'rgba(20, 20, 25, 0.95)',
+                  borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+                }
+              : {
+                  background: 'white',
+                  borderRight: '1px solid rgba(0, 0, 0, 0.1)',
+                }
+          }
         >
           <style jsx>{`
             .custom-scroll::-webkit-scrollbar {
@@ -130,11 +143,19 @@ const DocumentPreviewModal = ({
           {/* Document Header */}
           <div
             className='flex items-center gap-4 mb-6 pb-4'
-            style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}
+            style={{
+              borderBottom: isDarkMode
+                ? '1px solid rgba(255, 255, 255, 0.1)'
+                : '1px solid rgba(0, 0, 0, 0.1)',
+            }}
           >
             <div
               className='p-2 rounded-lg'
-              style={{ background: 'rgba(255, 255, 255, 0.05)' }}
+              style={{
+                background: isDarkMode
+                  ? 'rgba(255, 255, 255, 0.05)'
+                  : 'rgba(241, 203, 104, 0.2)',
+              }}
             >
               <Image
                 src='/icons/file-text.svg'
@@ -144,10 +165,14 @@ const DocumentPreviewModal = ({
               />
             </div>
             <div className='flex-1'>
-              <h3 className='text-white font-semibold text-lg'>
+              <h3 className={`font-semibold text-lg ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
                 {file?.name || 'document.pdf'}
               </h3>
-              <p className='text-gray-400 text-sm'>
+              <p className={`text-sm ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
                 {getFileType(file?.name)} •{' '}
                 {file?.size ? formatFileSize(file.size) : '2.4 MB'}
               </p>
@@ -160,7 +185,11 @@ const DocumentPreviewModal = ({
                   onClick={handleZoomOut}
                   disabled={zoom <= 50}
                   className='p-2 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed'
-                  style={{ background: 'rgba(255, 255, 255, 0.1)' }}
+                  style={{
+                    background: isDarkMode
+                      ? 'rgba(255, 255, 255, 0.1)'
+                      : 'rgba(241, 203, 104, 0.2)',
+                  }}
                   title='Zoom Out'
                 >
                   <Image
@@ -168,14 +197,20 @@ const DocumentPreviewModal = ({
                     alt='Zoom Out'
                     width={16}
                     height={16}
-                    style={{ filter: 'brightness(0) invert(1)' }}
+                    style={{ filter: isDarkMode ? 'brightness(0) invert(1)' : 'none' }}
                   />
                 </button>
                 <div
                   className='flex items-center justify-center gap-2 px-3 py-2 rounded-lg min-w-[80px]'
-                  style={{ background: 'rgba(255, 255, 255, 0.05)' }}
+                  style={{
+                    background: isDarkMode
+                      ? 'rgba(255, 255, 255, 0.05)'
+                      : 'rgba(241, 203, 104, 0.2)',
+                  }}
                 >
-                  <span className='text-white text-sm font-medium'>
+                  <span className={`text-sm font-medium ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
                     {zoom}%
                   </span>
                 </div>
@@ -183,7 +218,11 @@ const DocumentPreviewModal = ({
                   onClick={handleZoomIn}
                   disabled={zoom >= 200}
                   className='p-2 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed'
-                  style={{ background: 'rgba(255, 255, 255, 0.1)' }}
+                  style={{
+                    background: isDarkMode
+                      ? 'rgba(255, 255, 255, 0.1)'
+                      : 'rgba(241, 203, 104, 0.2)',
+                  }}
                   title='Zoom In'
                 >
                   <Image
@@ -191,7 +230,7 @@ const DocumentPreviewModal = ({
                     alt='Zoom In'
                     width={16}
                     height={16}
-                    style={{ filter: 'brightness(0) invert(1)' }}
+                    style={{ filter: isDarkMode ? 'brightness(0) invert(1)' : 'none' }}
                   />
                 </button>
               </div>
@@ -240,14 +279,25 @@ const DocumentPreviewModal = ({
             ) : (
               <div
                 className='rounded-2xl p-8 mb-4'
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  transform: `scale(${zoom / 100})`,
-                  transformOrigin: 'top center',
-                  transition: 'transform 0.3s ease',
-                  maxWidth: '800px',
-                }}
+                style={
+                  isDarkMode
+                    ? {
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        transform: `scale(${zoom / 100})`,
+                        transformOrigin: 'top center',
+                        transition: 'transform 0.3s ease',
+                        maxWidth: '800px',
+                      }
+                    : {
+                        background: 'rgba(241, 203, 104, 0.2)',
+                        border: '1px solid rgba(0, 0, 0, 0.1)',
+                        transform: `scale(${zoom / 100})`,
+                        transformOrigin: 'top center',
+                        transition: 'transform 0.3s ease',
+                        maxWidth: '800px',
+                      }
+                }
               >
                 <div className='text-center mb-6'>
                   <div className='flex justify-center mb-4'>
@@ -258,13 +308,19 @@ const DocumentPreviewModal = ({
                       height={64}
                     />
                   </div>
-                  <h1 className='text-2xl font-bold text-white mb-2'>
+                  <h1 className={`text-2xl font-bold mb-2 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
                     {file?.name}
                   </h1>
-                  <p className='text-gray-400 text-sm mb-4'>
+                  <p className={`text-sm mb-4 ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
                     {getFileType(file?.name)}
                   </p>
-                  <p className='text-gray-300 text-sm'>
+                  <p className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
                     Preview not available for this file type.
                     <br />
                     Click download to view the document.
@@ -273,7 +329,9 @@ const DocumentPreviewModal = ({
 
                 {tags && tags.length > 0 && (
                   <div className='mt-6'>
-                    <p className='text-gray-400 text-sm mb-3'>Tags:</p>
+                    <p className={`text-sm mb-3 ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>Tags:</p>
                     <div className='flex flex-wrap gap-2'>
                       {tags.map((tag, index) => (
                         <span
@@ -301,7 +359,9 @@ const DocumentPreviewModal = ({
               <button
                 onClick={handlePrevPage}
                 disabled={currentPage === 1}
-                className='p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed'
+                className={`p-2 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                  isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'
+                }`}
               >
                 <Image
                   src='/icons/chevron-down.svg'
@@ -310,17 +370,21 @@ const DocumentPreviewModal = ({
                   height={20}
                   style={{
                     transform: 'rotate(90deg)',
-                    filter: 'brightness(0) invert(1)',
+                    filter: isDarkMode ? 'brightness(0) invert(1)' : 'none',
                   }}
                 />
               </button>
-              <span className='text-gray-400 text-sm'>
+              <span className={`text-sm ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
                 Page {currentPage} of {totalPages}
               </span>
               <button
                 onClick={handleNextPage}
                 disabled={currentPage === totalPages}
-                className='p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed'
+                className={`p-2 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                  isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'
+                }`}
               >
                 <Image
                   src='/icons/chevron-down.svg'
@@ -329,7 +393,7 @@ const DocumentPreviewModal = ({
                   height={20}
                   style={{
                     transform: 'rotate(-90deg)',
-                    filter: 'brightness(0) invert(1)',
+                    filter: isDarkMode ? 'brightness(0) invert(1)' : 'none',
                   }}
                 />
               </button>
@@ -340,24 +404,40 @@ const DocumentPreviewModal = ({
         {/* Right Side - Document Details */}
         <div
           className='w-full lg:w-80 xl:w-96 p-6 flex flex-col overflow-y-auto custom-scroll'
-          style={{
-            background: 'rgba(17, 17, 22, 0.98)',
-          }}
+          style={
+            isDarkMode
+              ? {
+                  background: 'rgba(17, 17, 22, 0.98)',
+                }
+              : {
+                  background: 'white',
+                }
+          }
         >
-          <h2 className='text-xl font-bold text-white mb-6'>
+          <h2 className={`text-xl font-bold mb-6 ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
             Document Details
           </h2>
 
           {/* Details Grid */}
           <div className='space-y-5'>
             <div>
-              <p className='text-gray-400 text-sm mb-1'>Uploaded by</p>
-              <p className='text-white font-medium'>Olivia Benson</p>
+              <p className={`text-sm mb-1 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>Uploaded by</p>
+              <p className={`font-medium ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>Olivia Benson</p>
             </div>
 
             <div>
-              <p className='text-gray-400 text-sm mb-1'>Date</p>
-              <p className='text-white font-medium'>
+              <p className={`text-sm mb-1 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>Date</p>
+              <p className={`font-medium ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
                 {new Date().toLocaleDateString('en-US', {
                   month: 'long',
                   day: 'numeric',
@@ -367,15 +447,23 @@ const DocumentPreviewModal = ({
             </div>
 
             <div>
-              <p className='text-gray-400 text-sm mb-1'>File Type</p>
-              <p className='text-white font-medium'>
+              <p className={`text-sm mb-1 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>File Type</p>
+              <p className={`font-medium ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
                 {getFileType(file?.name)}
               </p>
             </div>
 
             <div>
-              <p className='text-gray-400 text-sm mb-1'>Size</p>
-              <p className='text-white font-medium'>
+              <p className={`text-sm mb-1 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>Size</p>
+              <p className={`font-medium ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
                 {file?.size ? formatFileSize(file.size) : '0 KB'}
               </p>
             </div>
@@ -383,7 +471,9 @@ const DocumentPreviewModal = ({
             {/* Show Tags */}
             {tags && tags.length > 0 && (
               <div>
-                <p className='text-gray-400 text-sm mb-2'>Tags</p>
+                <p className={`text-sm mb-2 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>Tags</p>
                 <div className='flex flex-wrap gap-2'>
                   {tags.map((tag, index) => (
                     <span
@@ -425,7 +515,9 @@ const DocumentPreviewModal = ({
           </div>
 
           {/* Confirmation Text */}
-          <p className='text-gray-400 text-sm mt-6 mb-6 leading-relaxed'>
+          <p className={`text-sm mt-6 mb-6 leading-relaxed ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
             By continuing, you confirm that this is the correct document for
             upload.
           </p>

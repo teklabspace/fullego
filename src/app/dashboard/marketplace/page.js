@@ -223,17 +223,21 @@ export default function MarketplacePage() {
                         activeCategory === category
                           ? isDarkMode
                             ? 'text-white'
-                            : 'text-white'
+                            : 'text-black'
                           : isDarkMode
                           ? 'text-gray-400 hover:text-white bg-white/5'
                           : 'text-gray-600 hover:text-gray-900 bg-gray-100'
                       }`}
                       style={
                         activeCategory === category
-                          ? {
-                              background:
-                                'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
-                            }
+                          ? isDarkMode
+                            ? {
+                                background:
+                                  'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                              }
+                            : {
+                                background: 'rgba(241, 203, 104, 0.2)',
+                              }
                           : {}
                       }
                     >

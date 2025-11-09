@@ -32,15 +32,30 @@ export default function OrderForm({
         }`}
       >
         {/* Buy/Sell Tabs */}
-        <div className='flex bg-gradient-to-r shadow-lg border border-[#FFFFFF1A] from-[#222126] to-[#111116] p-3 rounded-full gap-2 mb-6'>
+        <div
+          className={`flex shadow-lg border p-3 rounded-full gap-2 mb-6 ${
+            isDarkMode ? 'border-[#FFFFFF1A]' : 'border-gray-200'
+          }`}
+          style={
+            isDarkMode
+              ? {
+                  background: 'linear-gradient(to right, #222126 0%, #111116 100%)',
+                }
+              : {
+                  background: 'transparent',
+                }
+          }
+        >
           <button
             onClick={() => setOrderType('buy')}
             className={`flex-1 py-3 rounded-full font-semibold transition-all ${
               orderType === 'buy'
-                ? 'bg-[#101014] border border-[#D4AF37] text-white'
+                ? isDarkMode
+                  ? 'bg-[#101014] border border-[#D4AF37] text-white'
+                  : 'bg-[#D4AF37] border border-[#D4AF37] text-black'
                 : isDarkMode
-                ? 'bg-transparent text-white '
-                : 'bg-gray-100 text-gray-600 hover:text-gray-900'
+                ? 'bg-transparent text-white'
+                : 'bg-transparent text-black'
             }`}
           >
             Buy
@@ -49,10 +64,12 @@ export default function OrderForm({
             onClick={() => setOrderType('sell')}
             className={`flex-1 py-3 rounded-full font-semibold transition-all ${
               orderType === 'sell'
-                ? 'bg-[#101014] border border-[#D4AF37] text-white'
+                ? isDarkMode
+                  ? 'bg-[#101014] border border-[#D4AF37] text-white'
+                  : 'bg-[#D4AF37] border border-[#D4AF37] text-black'
                 : isDarkMode
-                ? 'bg-transparent text-gray-400  hover:text-white'
-                : 'bg-gray-100 text-gray-600 hover:text-gray-900'
+                ? 'bg-transparent text-gray-400 hover:text-white'
+                : 'bg-transparent text-black'
             }`}
           >
             Sell
@@ -60,17 +77,17 @@ export default function OrderForm({
         </div>
 
         {/* Stock Selection */}
-        <div className='flex items-start mb-6 '>
+          <div className='flex items-start mb-6 '>
           <div className='w-10 h-10 rounded-full bg-[#D4AF37]/20 flex items-center justify-center text-[#D4AF37] font-bold'>
             {selectedStock.charAt(0)}
           </div>
           <div className='flex'>
             <div className='ms-2'>
-              <p className='text-xs text-gray-400'>Apple Inc.</p>
-              <p className='text-sm font-bold text-white'>$185.92</p>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Apple Inc.</p>
+              <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>$185.92</p>
             </div>
             <div className='text-right ms-4'>
-              <p className='text-sm font-bold text-white'>{selectedStock}</p>
+              <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>{selectedStock}</p>
               <p className='text-xs text-[#36D399]'>+1.2%</p>
             </div>
           </div>
@@ -78,33 +95,45 @@ export default function OrderForm({
 
         {/* Market/Limit/Stop-Limit Tabs */}
         <div className='mb-6'>
-          <div className='flex  gap-1 p-2 rounded-full  mb-4'>
+          <div className='flex gap-1 p-2 rounded-full mb-4'>
             <button
               onClick={() => setOrderMode('market')}
-              className={`flex-1  pb-2  text-sm font-medium transition-all ${
+              className={`flex-1 pb-2 text-sm font-medium transition-all ${
                 orderMode === 'market'
-                  ? 'border-b border-b-[#F1CB68] text-white'
-                  : 'text-gray-400 hover:text-white'
+                  ? isDarkMode
+                    ? 'border-b border-b-[#F1CB68] text-white'
+                    : 'border-b border-b-[#D4AF37] text-black'
+                  : isDarkMode
+                  ? 'text-gray-400 hover:text-white'
+                  : 'text-black'
               }`}
             >
               Market
             </button>
             <button
               onClick={() => setOrderMode('limit')}
-              className={`flex-1  pb-2  text-sm font-medium transition-all ${
+              className={`flex-1 pb-2 text-sm font-medium transition-all ${
                 orderMode === 'limit'
-                  ? 'border-b border-b-[#F1CB68] text-white'
-                  : 'text-gray-400 hover:text-white'
+                  ? isDarkMode
+                    ? 'border-b border-b-[#F1CB68] text-white'
+                    : 'border-b border-b-[#D4AF37] text-black'
+                  : isDarkMode
+                  ? 'text-gray-400 hover:text-white'
+                  : 'text-black'
               }`}
             >
               Limit
             </button>
             <button
               onClick={() => setOrderMode('stop-limit')}
-              className={`flex-1 pb-2  text-sm font-medium transition-all ${
+              className={`flex-1 pb-2 text-sm font-medium transition-all ${
                 orderMode === 'stop-limit'
-                  ? 'border-b border-b-[#F1CB68]  text-white'
-                  : 'text-gray-400 hover:text-white'
+                  ? isDarkMode
+                    ? 'border-b border-b-[#F1CB68] text-white'
+                    : 'border-b border-b-[#D4AF37] text-black'
+                  : isDarkMode
+                  ? 'text-gray-400 hover:text-white'
+                  : 'text-black'
               }`}
             >
               Stop-Limit
@@ -168,20 +197,33 @@ export default function OrderForm({
           </div>
 
           {/* Current Price Info */}
-          <div className='grid grid-cols-3 gap-4 p-4 rounded-lg bg-gradiend-to-r from-[#222126] border-[#FFFFFF14] to-[#111116]'>
+          <div
+            className={`grid grid-cols-3 gap-4 p-4 rounded-lg border ${
+              isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+            }`}
+            style={
+              isDarkMode
+                ? {
+                    background: 'linear-gradient(to right, #222126 0%, #111116 100%)',
+                  }
+                : {
+                    background: 'transparent',
+                  }
+            }
+          >
             <div>
-              <p className='text-xs text-gray-400 mb-1'>Current Price</p>
-              <p className='text-sm font-semibold text-white'>$185.92</p>
+              <p className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Current Price</p>
+              <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>$185.92</p>
             </div>
             <div>
-              <p className='text-xs text-gray-400 mb-1'>Bid-Bid/Ask</p>
-              <p className='text-sm font-semibold text-white'>
+              <p className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Bid-Bid/Ask</p>
+              <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
                 $185.90 / $185.95
               </p>
             </div>
             <div>
-              <p className='text-xs text-gray-400 mb-1'>Ask-Bid/Ask</p>
-              <p className='text-sm font-semibold text-white'>Ask-$185.95</p>
+              <p className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Ask-Bid/Ask</p>
+              <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>Ask-$185.95</p>
             </div>
           </div>
 
@@ -250,7 +292,7 @@ export default function OrderForm({
               <option value='****4321'>Brokerage Account (****4321)</option>
               <option value='****5678'>Brokerage Account (****5678)</option>
             </select>
-            <p className='text-xs text-gray-400 mt-1'>
+            <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               Available balance: $125,789.65
             </p>
           </div>
@@ -269,11 +311,24 @@ export default function OrderForm({
                 onClick={() => setOrderDuration('day-only')}
                 className={`p-3 rounded-lg border-2 text-left transition-all ${
                   orderDuration === 'day-only'
-                    ? 'border-[#D4AF37] bg-gradiend-to-r  from-[#222126] to-[#111116]'
+                    ? isDarkMode
+                      ? 'border-[#D4AF37]'
+                      : 'border-[#D4AF37]'
                     : isDarkMode
                     ? 'border-[#FFFFFF14] hover:border-[#D4AF37]/50'
                     : 'border-gray-200 hover:border-[#D4AF37]/50'
                 }`}
+                style={
+                  orderDuration === 'day-only'
+                    ? isDarkMode
+                      ? {
+                        background: 'linear-gradient(to right, #222126 0%, #111116 100%)',
+                      }
+                      : {
+                        background: 'transparent',
+                      }
+                    : {}
+                }
               >
                 <p
                   className={`text-sm font-semibold ${
@@ -282,17 +337,30 @@ export default function OrderForm({
                 >
                   Day Only
                 </p>
-                <p className='text-xs text-gray-400'>Expires at market close</p>
+                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Expires at market close</p>
               </button>
               <button
                 onClick={() => setOrderDuration('gtc')}
                 className={`p-3 rounded-lg border-2 text-left transition-all ${
                   orderDuration === 'gtc'
-                    ? 'border-[#D4AF37] bg-gradiend-to-r  from-[#222126] to-[#111116]'
+                    ? isDarkMode
+                      ? 'border-[#D4AF37]'
+                      : 'border-[#D4AF37]'
                     : isDarkMode
                     ? 'border-[#FFFFFF14] hover:border-[#D4AF37]/50'
                     : 'border-gray-200 hover:border-[#D4AF37]/50'
                 }`}
+                style={
+                  orderDuration === 'gtc'
+                    ? isDarkMode
+                      ? {
+                        background: 'linear-gradient(to right, #222126 0%, #111116 100%)',
+                      }
+                      : {
+                        background: 'transparent',
+                      }
+                    : {}
+                }
               >
                 <p
                   className={`text-sm font-semibold ${
@@ -301,17 +369,30 @@ export default function OrderForm({
                 >
                   GTC
                 </p>
-                <p className='text-xs text-gray-400'>Good till cancel</p>
+                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Good till cancel</p>
               </button>
               <button
                 onClick={() => setOrderDuration('gtd')}
                 className={`p-3 rounded-lg border-2 text-left transition-all ${
                   orderDuration === 'gtd'
-                    ? 'border-[#D4AF37] bg-gradiend-to-r  from-[#222126] to-[#111116]'
+                    ? isDarkMode
+                      ? 'border-[#D4AF37]'
+                      : 'border-[#D4AF37]'
                     : isDarkMode
                     ? 'border-[#FFFFFF14] hover:border-[#D4AF37]/50'
                     : 'border-gray-200 hover:border-[#D4AF37]/50'
                 }`}
+                style={
+                  orderDuration === 'gtd'
+                    ? isDarkMode
+                      ? {
+                        background: 'linear-gradient(to right, #222126 0%, #111116 100%)',
+                      }
+                      : {
+                        background: 'transparent',
+                      }
+                    : {}
+                }
               >
                 <p
                   className={`text-sm font-semibold ${
@@ -320,7 +401,7 @@ export default function OrderForm({
                 >
                   GTD
                 </p>
-                <p className='text-xs text-gray-400'>Good till date</p>
+                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Good till date</p>
               </button>
             </div>
           </div>
