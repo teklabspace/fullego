@@ -26,22 +26,38 @@ export default function ProfileDropdown() {
       const pathWithoutQuery = pathname.split('?')[0];
       const normalized = pathWithoutQuery.replace(/\/$/, '') || '/';
       setNormalizedPathname(normalized);
+    } else {
+      // Initialize with current window location if pathname is not available (static export)
+      if (typeof window !== 'undefined') {
+        const currentPath = window.location.pathname;
+        const pathWithoutQuery = currentPath.split('?')[0];
+        const normalized = pathWithoutQuery.replace(/\/$/, '') || '/';
+        setNormalizedPathname(normalized);
+      }
     }
   }, [pathname]);
 
   // Helper function to check if pathname matches href
   const isActive = (href) => {
-    if (!normalizedPathname) return false;
+    // Get current pathname - try normalizedPathname first, then fallback to window.location
+    let currentPath = normalizedPathname;
+    if (!currentPath && typeof window !== 'undefined') {
+      const pathWithoutQuery = window.location.pathname.split('?')[0];
+      currentPath = pathWithoutQuery.replace(/\/$/, '') || '/';
+    }
+    
+    if (!currentPath) return false;
+    
     // Handle query params in href
     const hrefWithoutQuery = href.split('?')[0];
     const normalizedHref = hrefWithoutQuery.replace(/\/$/, '') || '/';
     
     // For exact match
-    if (normalizedPathname === normalizedHref) return true;
+    if (currentPath === normalizedHref) return true;
     
     // For hrefs with query params, check if base path matches
     if (href.includes('?')) {
-      return normalizedPathname === normalizedHref;
+      return currentPath === normalizedHref;
     }
     
     return false;

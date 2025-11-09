@@ -128,6 +128,13 @@ export default function Sidebar({ isOpen, onClose }) {
       // Remove trailing slash and normalize
       const normalized = pathname.replace(/\/$/, '') || '/';
       setNormalizedPathname(normalized);
+    } else {
+      // Initialize with current window location if pathname is not available (static export)
+      if (typeof window !== 'undefined') {
+        const currentPath = window.location.pathname;
+        const normalized = currentPath.replace(/\/$/, '') || '/';
+        setNormalizedPathname(normalized);
+      }
     }
   }, [pathname]);
 
@@ -137,16 +144,28 @@ export default function Sidebar({ isOpen, onClose }) {
 
   // Helper function to check if pathname matches href
   const isActive = (href) => {
-    if (!normalizedPathname) return false;
+    // Get current pathname - try normalizedPathname first, then fallback to window.location
+    let currentPath = normalizedPathname;
+    if (!currentPath && typeof window !== 'undefined') {
+      currentPath = window.location.pathname.replace(/\/$/, '') || '/';
+    }
+    
+    if (!currentPath) return false;
     const normalizedHref = href.replace(/\/$/, '') || '/';
-    return normalizedPathname === normalizedHref;
+    return currentPath === normalizedHref;
   };
 
   // Helper function to check if pathname starts with href (for submenu parents)
   const isActiveParent = (href) => {
-    if (!normalizedPathname) return false;
+    // Get current pathname - try normalizedPathname first, then fallback to window.location
+    let currentPath = normalizedPathname;
+    if (!currentPath && typeof window !== 'undefined') {
+      currentPath = window.location.pathname.replace(/\/$/, '') || '/';
+    }
+    
+    if (!currentPath) return false;
     const normalizedHref = href.replace(/\/$/, '') || '/';
-    return normalizedPathname.startsWith(normalizedHref) && normalizedPathname !== normalizedHref;
+    return currentPath.startsWith(normalizedHref) && currentPath !== normalizedHref;
   };
 
   return (
