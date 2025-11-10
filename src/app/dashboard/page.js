@@ -146,12 +146,12 @@ function NetWorthCard() {
               <linearGradient id='netWorthGradient' x1='0' y1='0' x2='0' y2='1'>
                 <stop
                   offset='5%'
-                  stopColor='rgba(212, 175, 55, 0.301961)'
+                  stopColor='rgba(241, 203, 104, 0.301961)'
                   stopOpacity={1}
                 />
                 <stop
                   offset='95%'
-                  stopColor='rgba(212, 175, 55, 0)'
+                  stopColor='rgba(241, 203, 104, 0)'
                   stopOpacity={1}
                 />
               </linearGradient>
@@ -159,7 +159,7 @@ function NetWorthCard() {
             <Area
               type='monotone'
               dataKey='value'
-              stroke='#D4AF37'
+              stroke='#F1CB68'
               strokeWidth={2}
               fill='url(#netWorthGradient)'
             />
@@ -177,7 +177,7 @@ function NetWorthCard() {
 function AssetAllocationCard() {
   const { isDarkMode } = useTheme();
   const data = [
-    { name: 'Stocks', value: 45, color: '#D4AF37' },
+    { name: 'Stocks', value: 45, color: '#F1CB68' },
     { name: 'Real Estate', value: 25, color: '#BF9B30' },
     { name: 'Bonds', value: 15, color: '#977A20' },
     { name: 'Alternatives', value: 10, color: '#EACE6F' },
@@ -301,7 +301,7 @@ function LiabilitiesCard() {
             </div>
             <div className='w-full h-1.5 bg-[#2A2A2D] rounded-full overflow-hidden'>
               <div
-                className='h-full bg-[#D4AF37] rounded-full'
+                className='h-full bg-[#F1CB68] rounded-full'
                 style={{ width: `${item.percentage}%` }}
               />
             </div>
@@ -349,12 +349,12 @@ function AvailableLiquidityCard() {
             Cash & Cash Equivalents
           </p>
           <div className='w-full h-1.5 bg-[#2A2A2D] rounded-full overflow-hidden'>
-            <div className='h-full bg-[#D4AF37] rounded-full w-[70%]' />
+            <div className='h-full bg-[#F1CB68] rounded-full w-[70%]' />
           </div>
         </div>
 
         {/* Liquidity Target */}
-        <div className='bg-[#D4AF371A] rounded-lg p-2'>
+        <div className='bg-[#F1CB681A] rounded-lg p-2'>
           <div className='flex items-center justify-between mb-0.5'>
             <span className='text-gray-400 text-xs'>Liquidity Target:</span>
             <span
@@ -369,19 +369,19 @@ function AvailableLiquidityCard() {
         </div>
 
         {/* Credit Available */}
-        <div className='flex items-center gap-1.5 bg-[#D4AF371A] rounded-lg p-2'>
+        <div className='flex items-center gap-1.5 bg-[#F1CB681A] rounded-lg p-2'>
           <svg
             width='12'
             height='12'
             viewBox='0 0 24 24'
             fill='none'
-            stroke='#D4AF37'
+            stroke='#F1CB68'
             strokeWidth='2'
           >
             <rect x='1' y='4' width='22' height='16' rx='2' ry='2' />
             <line x1='1' y1='10' x2='23' y2='10' />
           </svg>
-          <span className='text-[#D4AF37] text-xs font-medium'>
+          <span className='text-[#F1CB68] text-xs font-medium'>
             $5M Credit Available
           </span>
         </div>
@@ -454,7 +454,7 @@ function PerformanceAnalyticsCard() {
           {/* Legend */}
           <div className='flex items-center gap-4'>
             <div className='flex items-center gap-2'>
-              <div className='w-8 h-1 bg-[#D4AF37] rounded' />
+              <div className='w-8 h-1 bg-[#F1CB68] rounded' />
               <span className='text-gray-400 text-sm'>Your Portfolio</span>
             </div>
             <div className='flex items-center gap-2'>
@@ -523,7 +523,7 @@ function PerformanceAnalyticsCard() {
             <Line
               type='monotone'
               dataKey='portfolio'
-              stroke='#D4AF37'
+              stroke='#F1CB68'
               strokeWidth={2}
               dot={false}
             />
@@ -568,7 +568,7 @@ function TimeButton({ children, active, onClick, isDarkMode }) {
         px-3 py-1 rounded text-sm font-medium transition-all
         ${
           active
-            ? 'bg-[#D4AF37] text-[#101014]'
+            ? 'bg-[#F1CB68] text-[#101014]'
             : isDarkMode
             ? 'text-gray-400 dark:hover:text-white hover:text-gray-900'
             : 'text-gray-900'

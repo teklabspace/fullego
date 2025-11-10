@@ -249,7 +249,7 @@ export default function MarketplacePage() {
                       onClick={() => setIsFilterOpen(!isFilterOpen)}
                       className={`p-2 rounded-lg shrink-0 transition-all ${
                         isFilterOpen
-                          ? 'bg-[#D4AF37] text-white'
+                          ? 'bg-[#F1CB68] text-white'
                           : isDarkMode
                           ? 'bg-white/5 text-gray-400 hover:text-white'
                           : 'bg-gray-100 text-gray-600 hover:text-gray-900'
@@ -315,7 +315,7 @@ export default function MarketplacePage() {
                       >
                         Market Highlights
                       </h3>
-                      <button className='text-[#D4AF37] text-sm'>→</button>
+                      <button className='text-[#F1CB68] text-sm'>→</button>
                     </div>
 
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
@@ -353,7 +353,7 @@ export default function MarketplacePage() {
                             <Line
                               type='monotone'
                               dataKey='value'
-                              stroke='#D4AF37'
+                              stroke='#F1CB68'
                               strokeWidth={2}
                               dot={false}
                             />
@@ -378,7 +378,7 @@ export default function MarketplacePage() {
                       >
                         Your Watchlist
                       </h3>
-                      <button className='text-[#D4AF37] text-sm'>→</button>
+                      <button className='text-[#F1CB68] text-sm'>→</button>
                     </div>
 
                     <div className='space-y-3'>
@@ -455,7 +455,7 @@ export default function MarketplacePage() {
         }
 
         .filter-panel-scroll::-webkit-scrollbar-thumb {
-          background: #d4af37;
+          background: #f1cb68;
           border-radius: 3px;
         }
 
@@ -530,7 +530,7 @@ function HeroSection({ isDarkMode }) {
           className='w-[256px]  h-px mb-4'
           style={{
             background:
-              'linear-gradient(90deg, rgba(212, 175, 55, 0.1) 0%, #D4AF37 50%, rgba(212, 175, 55, 0.1) 100%)',
+              'linear-gradient(90deg, rgba(241, 203, 104, 0.1) 0%, #F1CB68 50%, rgba(241, 203, 104, 0.1) 100%)',
           }}
         />
 
@@ -545,19 +545,19 @@ function HeroSection({ isDarkMode }) {
           <button
             className='px-4 py-1.5 text-sm rounded-full font-medium transition-all relative overflow-hidden group'
             style={{
-              background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+              background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
               border: '2px solid transparent',
-              borderImage: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+              borderImage: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               borderImageSlice: 1,
             }}
           >
             <span
               className='relative z-10'
               style={{
-                background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
@@ -616,19 +616,19 @@ function InvestmentCard({ fund, isDarkMode }) {
     <div
       className={`relative rounded-xl border p-3 transition-all hover:shadow-lg ${
         isDarkMode
-          ? 'bg-[#1A1A1D] border-[#FFFFFF14] hover:border-[#D4AF37]'
-          : 'bg-white border-gray-200 hover:border-[#D4AF37]'
+          ? 'bg-[#1A1A1D] border-[#FFFFFF14] hover:border-[#F1CB68]'
+          : 'bg-white border-gray-200 hover:border-[#F1CB68]'
       }`}
     >
       {/* Golden Corner Triangle with Icon */}
       <div className='absolute top-0 right-0 w-12 h-12 overflow-hidden'>
-        <div className='absolute top-0 right-0 w-0 h-0 border-t-[45px] border-t-[#D4AF37] border-l-[45px] border-l-transparent' />
+        <div className='absolute top-0 right-0 w-0 h-0 border-t-[45px] border-t-[#F1CB68] border-l-[45px] border-l-transparent' />
       </div>
 
       {/* Icon */}
       <div
         className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${
-          isDarkMode ? 'bg-[#D4AF37]/10' : 'bg-[#D4AF37]/10'
+          isDarkMode ? 'bg-[#F1CB68]/10' : 'bg-[#F1CB68]/10'
         }`}
       >
         <svg
@@ -636,7 +636,7 @@ function InvestmentCard({ fund, isDarkMode }) {
           height='18'
           viewBox='0 0 24 24'
           fill='none'
-          stroke='#D4AF37'
+          stroke='#F1CB68'
           strokeWidth='2'
         >
           <rect x='3' y='3' width='18' height='18' rx='2' />
@@ -696,7 +696,7 @@ function InvestmentCard({ fund, isDarkMode }) {
           >
             Target IRR
           </p>
-          <p className='text-xs font-semibold text-[#D4AF37]'>
+          <p className='text-xs font-semibold text-[#F1CB68]'>
             {fund.targetIRR}
           </p>
         </div>
@@ -718,7 +718,7 @@ function InvestmentCard({ fund, isDarkMode }) {
                 ? 'text-red-500'
                 : fund.riskLevel === 'Low'
                 ? 'text-green-500'
-                : 'text-[#D4AF37]'
+                : 'text-[#F1CB68]'
             }`}
           >
             {fund.riskLevel}
@@ -836,14 +836,14 @@ function FilterPanel({
                     <div
                       className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                         sortBy === option.value
-                          ? 'border-[#D4AF37]'
+                          ? 'border-[#F1CB68]'
                           : isDarkMode
                           ? 'border-gray-600'
                           : 'border-gray-300'
                       }`}
                     >
                       {sortBy === option.value && (
-                        <div className='w-2.5 h-2.5 rounded-full bg-[#D4AF37]' />
+                        <div className='w-2.5 h-2.5 rounded-full bg-[#F1CB68]' />
                       )}
                     </div>
                   </div>
@@ -878,7 +878,7 @@ function FilterPanel({
                     type='checkbox'
                     checked={assetTypes[type]}
                     onChange={() => toggleAssetType(type)}
-                    className='w-5 h-5 rounded border-2 border-gray-600 bg-transparent checked:bg-[#D4AF37] checked:border-[#D4AF37] appearance-none cursor-pointer relative'
+                    className='w-5 h-5 rounded border-2 border-gray-600 bg-transparent checked:bg-[#F1CB68] checked:border-[#F1CB68] appearance-none cursor-pointer relative'
                     style={{
                       backgroundImage: assetTypes[type]
                         ? "url(\"data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e\")"
@@ -921,7 +921,7 @@ function FilterPanel({
                 }
                 className='w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb-gold'
                 style={{
-                  background: `linear-gradient(to right, #D4AF37 0%, #D4AF37 ${
+                  background: `linear-gradient(to right, #F1CB68 0%, #F1CB68 ${
                     ((priceRange[1] - 100) / (10000 - 100)) * 100
                   }%, ${isDarkMode ? '#374151' : '#E5E7EB'} ${
                     ((priceRange[1] - 100) / (10000 - 100)) * 100
@@ -971,7 +971,7 @@ function FilterPanel({
                 }
                 className='w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb-gold'
                 style={{
-                  background: `linear-gradient(to right, #D4AF37 0%, #D4AF37 ${
+                  background: `linear-gradient(to right, #F1CB68 0%, #F1CB68 ${
                     ((returnRange[1] - 1) / (30 - 1)) * 100
                   }%, ${isDarkMode ? '#374151' : '#E5E7EB'} ${
                     ((returnRange[1] - 1) / (30 - 1)) * 100
@@ -1005,7 +1005,7 @@ function FilterPanel({
           width: 20px;
           height: 20px;
           border-radius: 50%;
-          background: #d4af37;
+          background: #f1cb68;
           cursor: pointer;
           border: none;
         }
@@ -1014,7 +1014,7 @@ function FilterPanel({
           width: 20px;
           height: 20px;
           border-radius: 50%;
-          background: #d4af37;
+          background: #f1cb68;
           cursor: pointer;
           border: none;
         }

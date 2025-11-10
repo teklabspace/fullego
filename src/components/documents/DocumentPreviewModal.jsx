@@ -132,11 +132,11 @@ const DocumentPreviewModal = ({
               background: transparent;
             }
             .custom-scroll::-webkit-scrollbar-thumb {
-              background: rgba(212, 175, 55, 0.3);
+              background: rgba(241, 203, 104, 0.3);
               border-radius: 3px;
             }
             .custom-scroll::-webkit-scrollbar-thumb:hover {
-              background: rgba(212, 175, 55, 0.5);
+              background: rgba(241, 203, 104, 0.5);
             }
           `}</style>
 
@@ -269,7 +269,7 @@ const DocumentPreviewModal = ({
                   className='w-full rounded-2xl'
                   style={{
                     height: '70vh',
-                    border: '1px solid rgba(212, 175, 55, 0.3)',
+                    border: '1px solid rgba(241, 203, 104, 0.3)',
                     background: 'rgba(30, 30, 35, 0.5)',
                     filter: 'invert(0.9) hue-rotate(180deg)',
                   }}
@@ -338,9 +338,9 @@ const DocumentPreviewModal = ({
                           key={index}
                           className='px-3 py-1 rounded-full text-sm'
                           style={{
-                            background: 'rgba(212, 175, 55, 0.1)',
-                            border: '1px solid rgba(212, 175, 55, 0.3)',
-                            color: '#D4AF37',
+                            background: 'rgba(241, 203, 104, 0.1)',
+                            border: '1px solid rgba(241, 203, 104, 0.3)',
+                            color: '#F1CB68',
                           }}
                         >
                           {tag}
@@ -480,9 +480,9 @@ const DocumentPreviewModal = ({
                       key={index}
                       className='px-3 py-1 rounded-full text-xs'
                       style={{
-                        background: 'rgba(212, 175, 55, 0.1)',
-                        border: '1px solid rgba(212, 175, 55, 0.3)',
-                        color: '#D4AF37',
+                        background: 'rgba(241, 203, 104, 0.1)',
+                        border: '1px solid rgba(241, 203, 104, 0.3)',
+                        color: '#F1CB68',
                       }}
                     >
                       {tag}
@@ -497,19 +497,19 @@ const DocumentPreviewModal = ({
           <div
             className='mt-6 p-4 rounded-lg flex gap-3'
             style={{
-              background: 'rgba(212, 175, 55, 0.1)',
-              border: '1px solid rgba(212, 175, 55, 0.3)',
+              background: 'rgba(241, 203, 104, 0.1)',
+              border: '1px solid rgba(241, 203, 104, 0.3)',
             }}
           >
             <div className='shrink-0'>
               <div
                 className='w-6 h-6 rounded-full flex items-center justify-center'
-                style={{ background: '#D4AF37' }}
+                style={{ background: '#F1CB68' }}
               >
                 <span className='text-black font-bold text-sm'>!</span>
               </div>
             </div>
-            <p className='text-[#D4AF37] text-sm'>
+            <p className='text-[#F1CB68] text-sm'>
               This document requires approval
             </p>
           </div>
@@ -527,7 +527,7 @@ const DocumentPreviewModal = ({
             onClick={handleContinue}
             className='mt-auto w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full text-sm font-bold transition-all hover:opacity-90 cursor-pointer'
             style={{
-              background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+              background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               color: '#000000',
             }}
           >

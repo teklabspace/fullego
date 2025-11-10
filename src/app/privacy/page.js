@@ -1,9 +1,9 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import Layout from '../../components/layout/Layout';
+import Layout from '@/components/layout/Layout';
 
-const SecurityPage = () => {
+const PrivacyPage = () => {
   return (
     <Layout>
       <div className='min-h-screen bg-[#000000] text-white relative'>
@@ -62,17 +62,14 @@ const SecurityPage = () => {
                 fontWeight: 700,
               }}
             >
+              <span className='text-white'>Privacy</span>{' '}
               <span
-                className='text-white'
+                className='text-[#F1CB68]'
                 style={{
-                  background:
-                    'linear-gradient(180deg, #FFFFFF 0%, #F1CB68 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
+                  color: '#F1CB68',
                 }}
               >
-                Security
+                Policy
               </span>
             </h1>
             <motion.p
@@ -85,8 +82,10 @@ const SecurityPage = () => {
                 fontWeight: 400,
               }}
             >
-              We take your security seriously. Fullego is designed to safeguard
-              your data and protect you from unauthorized access.
+              We value your trust. At Fullego, protecting your privacy isn&apos;t
+              just a compliance box — it&apos;s core to how we do business. This
+              policy explains what we collect, why we collect it, and how you can
+              control your information.
             </motion.p>
           </motion.div>
 
@@ -95,9 +94,9 @@ const SecurityPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3 }}
-            className='grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 lg:gap-16 mt-12 md:mt-16 mb-16 md:mb-20'
+            className='grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 lg:gap-16 mt-12 md:mt-16'
           >
-            {/* Column 1: What We Do */}
+            {/* Column 1: What We Collect */}
             <div className='space-y-4'>
               <h2
                 className='text-2xl md:text-3xl font-bold text-white mb-6'
@@ -106,7 +105,7 @@ const SecurityPage = () => {
                   fontWeight: 700,
                 }}
               >
-                What We Do
+                What We Collect
               </h2>
               <div
                 className='space-y-4 text-base md:text-lg text-white leading-relaxed'
@@ -116,21 +115,21 @@ const SecurityPage = () => {
                 }}
               >
                 <p>
-                  Encrypt all sensitive data – both in transit and at rest
+                  Details you give us, like your name, email, phone number, and
+                  documents you upload
                 </p>
                 <p>
-                  Require multi-factor authentication (MFA) for account access
+                  Data about your financial assets, portfolio preferences, and
+                  usage patterns
                 </p>
                 <p>
-                  Monitor systems 24/7 for unusual activity or potential threats
-                </p>
-                <p>
-                  Perform regular security audits and penetration testing
+                  Cookies that help us personalize your experience and improve
+                  performance
                 </p>
               </div>
             </div>
 
-            {/* Column 2: What You Can Do */}
+            {/* Column 2: How We Use It */}
             <div className='space-y-4'>
               <h2
                 className='text-2xl md:text-3xl font-bold text-white mb-6'
@@ -139,7 +138,7 @@ const SecurityPage = () => {
                   fontWeight: 700,
                 }}
               >
-                What You Can Do
+                How We Use It:
               </h2>
               <div
                 className='space-y-4 text-base md:text-lg text-white leading-relaxed'
@@ -149,96 +148,63 @@ const SecurityPage = () => {
                 }}
               >
                 <p>
-                  Create strong, unique passwords and change them periodically
+                  To help you organize and track your assets securely
                 </p>
                 <p>
-                  Report anything suspicious to{' '}
+                  To improve your experience with personalized recommendations and
+                  dashboard updates
+                </p>
+                <p>
+                  To comply with financial and legal obligations
+                </p>
+              </div>
+            </div>
+
+            {/* Column 3: Your Rights */}
+            <div className='space-y-4'>
+              <h2
+                className='text-2xl md:text-3xl font-bold text-white mb-6'
+                style={{
+                  fontFamily: 'Poppins',
+                  fontWeight: 700,
+                }}
+              >
+                Your Rights
+              </h2>
+              <div
+                className='space-y-4 text-base md:text-lg text-white leading-relaxed'
+                style={{
+                  fontFamily: 'Outfit',
+                  fontWeight: 400,
+                }}
+              >
+                <p>
+                  You can access, edit, or delete your personal data anytime
+                </p>
+                <p>
+                  You can opt out of promotional communications or data sharing
+                </p>
+                <p>
+                  You can request complete deletion of your profile and stored data
+                </p>
+                <p>
+                  We do not sell your data to third parties. Ever.
+                </p>
+                <p>
+                  If you&apos;re unsure about how your data is handled, email us at{' '}
                   <a
-                    href='mailto:security@fullego.com'
+                    href='mailto:privacy@fullego.com'
                     className='text-[#F1CB68] hover:text-[#F1CB68] transition-colors duration-300 underline'
                     style={{
                       color: '#F1CB68',
                     }}
                   >
-                    security@fullego.com
+                    privacy@fullego.com
                   </a>{' '}
-                  right away
-                </p>
-                <p>Log out of shared devices after use</p>
-              </div>
-            </div>
-
-            {/* Column 3: Secure */}
-            <div className='space-y-4'>
-              <h2
-                className='text-2xl md:text-3xl font-bold text-white mb-6'
-                style={{
-                  fontFamily: 'Poppins',
-                  fontWeight: 700,
-                }}
-              >
-                Secure
-              </h2>
-              <div
-                className='space-y-4 text-base md:text-lg text-white leading-relaxed'
-                style={{
-                  fontFamily: 'Outfit',
-                  fontWeight: 400,
-                }}
-              >
-                <p>
-                  While we do everything possible to secure your information, no
-                  platform is 100% immune to risk. By using Fullego, you
-                  acknowledge that no system can guarantee absolute protection
-                  and agree to use it at your discretion.
-                </p>
-                <p>
-                  If you ever feel something&apos;s off, contact our security team
-                  immediately. We&apos;re here to help.
+                  and we&apos;ll clarify.
                 </p>
               </div>
             </div>
-          </motion.div>
-
-          {/* Important Note Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className='max-w-4xl mx-auto mt-16 md:mt-20 pt-12 md:pt-16 border-t border-white/10'
-          >
-            <h2
-              className='text-3xl md:text-4xl font-bold mb-6'
-              style={{
-                fontFamily: 'Poppins',
-                fontWeight: 700,
-              }}
-            >
-              <span className='text-white'>Important</span>{' '}
-              <span
-                className='text-[#F1CB68]'
-                style={{
-                  color: '#F1CB68',
-                }}
-              >
-                Note
-              </span>
-            </h2>
-            <p
-              className='text-base md:text-lg text-white leading-relaxed'
-              style={{
-                fontFamily: 'Outfit',
-                fontWeight: 400,
-              }}
-            >
-              This content does not constitute legal, financial, or investment
-              advice. Fullego is a wealth management platform intended to
-              support – not replace – the advice of qualified professionals. By
-              using Fullego, you agree that you are solely responsible for your
-              financial decisions and that Fullego and its team are not liable
-              for losses, damages, or regulatory issues resulting from your use
-              of the platform.
-            </p>
           </motion.div>
         </div>
       </div>
@@ -246,4 +212,5 @@ const SecurityPage = () => {
   );
 };
 
-export default SecurityPage;
+export default PrivacyPage;
+

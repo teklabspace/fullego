@@ -79,7 +79,7 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
                     setFormData({ ...formData, subject: e.target.value })
                   }
                   placeholder='Enter ticket subject'
-                  className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37] transition-colors'
+                  className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
                 />
               </div>
 
@@ -96,7 +96,7 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
                     onChange={e =>
                       setFormData({ ...formData, category: e.target.value })
                     }
-                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#D4AF37] transition-colors cursor-pointer'
+                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors cursor-pointer'
                     style={{
                       backgroundImage: 'url(/icons/chevron-down.svg)',
                       backgroundRepeat: 'no-repeat',
@@ -136,7 +136,7 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
                     onChange={e =>
                       setFormData({ ...formData, priority: e.target.value })
                     }
-                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#D4AF37] transition-colors cursor-pointer'
+                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors cursor-pointer'
                     style={{
                       backgroundImage: 'url(/icons/chevron-down.svg)',
                       backgroundRepeat: 'no-repeat',
@@ -176,7 +176,7 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
                     setFormData({ ...formData, description: e.target.value })
                   }
                   placeholder='Describe your issue in detail...'
-                  className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37] transition-colors resize-none'
+                  className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors resize-none'
                 />
               </div>
 
@@ -186,7 +186,7 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
                   Attachment (optional)
                 </label>
                 <div
-                  className='border-2 border-dashed border-white/10 rounded-lg p-8 text-center hover:border-[#D4AF37] transition-colors cursor-pointer'
+                  className='border-2 border-dashed border-white/10 rounded-lg p-8 text-center hover:border-[#F1CB68] transition-colors cursor-pointer'
                   onClick={() => document.getElementById('file-upload').click()}
                 >
                   <input
@@ -225,7 +225,7 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
                   type='submit'
                   className='px-8 py-2.5 md:py-3 rounded-full text-sm font-bold transition-all hover:opacity-90 cursor-pointer order-1 sm:order-2'
                   style={{
-                    background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                    background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                     color: '#000000',
                   }}
                 >
@@ -244,11 +244,11 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
               background: transparent;
             }
             .custom-scrollbar::-webkit-scrollbar-thumb {
-              background: rgba(212, 175, 55, 0.3);
+              background: rgba(241, 203, 104, 0.3);
               border-radius: 3px;
             }
             .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-              background: rgba(212, 175, 55, 0.5);
+              background: rgba(241, 203, 104, 0.5);
             }
           `}</style>
         </motion.div>

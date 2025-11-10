@@ -152,7 +152,7 @@ const UploadSuccessModal = ({ isOpen, setIsOpen, file, onReturnToDashboard, onSh
           onClick={handleShare}
           className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full text-base font-bold transition-all hover:opacity-90 cursor-pointer mb-4"
           style={{
-            background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+            background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
             color: '#000000',
           }}
         >

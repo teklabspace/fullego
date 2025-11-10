@@ -294,10 +294,10 @@ export default function AssetsPage() {
               px-4 py-2.5 text-sm rounded-lg font-medium whitespace-nowrap transition-all flex items-center gap-2 w-auto
               ${
                 selectedCategory === category.id
-                  ? 'bg-[#D4AF37] text-[#101014]'
+                  ? 'bg-[#F1CB68] text-[#101014]'
                   : isDarkMode
-                  ? 'bg-transparent border border-[#FFFFFF14] text-gray-400 hover:text-white hover:border-[#D4AF37]/50'
-                  : 'bg-transparent border border-gray-300 text-gray-600 hover:text-gray-900 hover:border-[#D4AF37]/50'
+                  ? 'bg-transparent border border-[#FFFFFF14] text-gray-400 hover:text-white hover:border-[#F1CB68]/50'
+                  : 'bg-transparent border border-gray-300 text-gray-600 hover:text-gray-900 hover:border-[#F1CB68]/50'
               }
             `}
           >
@@ -497,7 +497,7 @@ function AssetCard({
   };
 
   return (
-    <div className='bg-transparent border border-[#FFFFFF14] rounded-2xl overflow-hidden hover:border-[#D4AF37]/50 transition-all group'>
+    <div className='bg-transparent border border-[#FFFFFF14] rounded-2xl overflow-hidden hover:border-[#F1CB68]/50 transition-all group'>
       {/* Image */}
       <div className='relative h-48 overflow-hidden'>
         {asset.image ? (
@@ -575,7 +575,7 @@ function AssetCard({
         <div className='space-y-2'>
           <button
             onClick={onViewDetails}
-            className='w-full bg-[#D4AF37] hover:bg-[#BF9B30] text-[#101014] py-2.5 rounded-lg font-semibold transition-colors'
+            className='w-full bg-[#F1CB68] hover:bg-[#BF9B30] text-[#101014] py-2.5 rounded-lg font-semibold transition-colors'
           >
             View Details
           </button>
@@ -652,7 +652,7 @@ function SellModal({
               </div>
               <div>
                 <p className='text-xs text-gray-500 mb-1'>Current Value</p>
-                <p className='text-[#D4AF37] font-semibold'>
+                <p className='text-[#F1CB68] font-semibold'>
                   {asset.estimatedValue}
                 </p>
               </div>
@@ -678,7 +678,7 @@ function SellModal({
                   onChange({ ...formData, targetPrice: e.target.value })
                 }
                 placeholder='Enter your target price'
-                className={`w-full rounded-lg px-4 py-3 placeholder-gray-500 focus:outline-none focus:border-[#D4AF37] transition-colors border ${
+                className={`w-full rounded-lg px-4 py-3 placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors border ${
                   isDarkMode
                     ? 'bg-white/5 border-[#FFFFFF14] text-white'
                     : 'bg-gray-50 border-gray-300 text-gray-900'
@@ -697,7 +697,7 @@ function SellModal({
                 }
                 placeholder='Add any additional information about the sale...'
                 rows={4}
-                className={`w-full rounded-lg px-4 py-3 placeholder-gray-500 focus:outline-none focus:border-[#D4AF37] transition-colors resize-none border ${
+                className={`w-full rounded-lg px-4 py-3 placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors resize-none border ${
                   isDarkMode
                     ? 'bg-white/5 border-[#FFFFFF14] text-white'
                     : 'bg-gray-50 border-gray-300 text-gray-900'
@@ -707,8 +707,8 @@ function SellModal({
           </div>
 
           {/* Info Box */}
-          <div className='bg-[#D4AF37]/10 border border-[#D4AF37]/30 rounded-lg p-4 mb-6'>
-            <p className='text-[#D4AF37] text-sm'>
+          <div className='bg-[#F1CB68]/10 border border-[#F1CB68]/30 rounded-lg p-4 mb-6'>
+            <p className='text-[#F1CB68] text-sm'>
               <strong>Note:</strong> Our team will review your request and
               contact you within 24-48 hours with next steps and potential
               buyers.
@@ -725,7 +725,7 @@ function SellModal({
             </button>
             <button
               onClick={onSubmit}
-              className='flex-1 bg-[#D4AF37] hover:bg-[#BF9B30] text-[#101014] py-3 rounded-lg font-semibold transition-colors'
+              className='flex-1 bg-[#F1CB68] hover:bg-[#BF9B30] text-[#101014] py-3 rounded-lg font-semibold transition-colors'
             >
               Submit Request
             </button>
@@ -785,7 +785,7 @@ function AppraisalModal({
               <p className='text-gray-400 text-sm'>
                 {asset.category} • {asset.location}
               </p>
-              <p className='text-[#D4AF37] font-semibold mt-1'>
+              <p className='text-[#F1CB68] font-semibold mt-1'>
                 Current Value: {asset.estimatedValue}
               </p>
             </div>
@@ -805,17 +805,17 @@ function AppraisalModal({
                   text-left p-5 rounded-xl border-2 transition-all
                   ${
                     selectedType === 'Concierge'
-                      ? 'border-[#D4AF37] bg-[#D4AF37]/10'
-                      : 'border-[#FFFFFF14] hover:border-[#D4AF37]/50 bg-white/5'
+                      ? 'border-[#F1CB68] bg-[#F1CB68]/10'
+                      : 'border-[#FFFFFF14] hover:border-[#F1CB68]/50 bg-white/5'
                   }
                 `}
               >
                 <div className='flex items-start justify-between mb-3'>
-                  <div className='w-12 h-12 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center'>
+                  <div className='w-12 h-12 bg-[#F1CB68]/20 rounded-lg flex items-center justify-center'>
                     <span className='text-2xl'>👨‍💼</span>
                   </div>
                   {selectedType === 'Concierge' && (
-                    <div className='w-6 h-6 bg-[#D4AF37] rounded-full flex items-center justify-center'>
+                    <div className='w-6 h-6 bg-[#F1CB68] rounded-full flex items-center justify-center'>
                       <span className='text-white text-sm'>✓</span>
                     </div>
                   )}
@@ -828,7 +828,7 @@ function AppraisalModal({
                   recommendations.
                 </p>
                 <div className='flex items-center gap-2 text-xs'>
-                  <span className='text-[#D4AF37]'>⏱ 3-5 business days</span>
+                  <span className='text-[#F1CB68]'>⏱ 3-5 business days</span>
                   <span className='text-gray-500'>•</span>
                   <span className='text-gray-400'>Premium</span>
                 </div>
@@ -841,17 +841,17 @@ function AppraisalModal({
                   text-left p-5 rounded-xl border-2 transition-all
                   ${
                     selectedType === 'API'
-                      ? 'border-[#D4AF37] bg-[#D4AF37]/10'
-                      : 'border-[#FFFFFF14] hover:border-[#D4AF37]/50 bg-white/5'
+                      ? 'border-[#F1CB68] bg-[#F1CB68]/10'
+                      : 'border-[#FFFFFF14] hover:border-[#F1CB68]/50 bg-white/5'
                   }
                 `}
               >
                 <div className='flex items-start justify-between mb-3'>
-                  <div className='w-12 h-12 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center'>
+                  <div className='w-12 h-12 bg-[#F1CB68]/20 rounded-lg flex items-center justify-center'>
                     <span className='text-2xl'>🤖</span>
                   </div>
                   {selectedType === 'API' && (
-                    <div className='w-6 h-6 bg-[#D4AF37] rounded-full flex items-center justify-center'>
+                    <div className='w-6 h-6 bg-[#F1CB68] rounded-full flex items-center justify-center'>
                       <span className='text-white text-sm'>✓</span>
                     </div>
                   )}
@@ -874,8 +874,8 @@ function AppraisalModal({
 
           {/* Selected Type Info */}
           {selectedType && (
-            <div className='bg-[#D4AF37]/10 border border-[#D4AF37]/30 rounded-lg p-4 mb-6'>
-              <p className='text-[#D4AF37] text-sm'>
+            <div className='bg-[#F1CB68]/10 border border-[#F1CB68]/30 rounded-lg p-4 mb-6'>
+              <p className='text-[#F1CB68] text-sm'>
                 {selectedType === 'Concierge' ? (
                   <>
                     <strong>Concierge Service:</strong> A certified appraiser
@@ -908,7 +908,7 @@ function AppraisalModal({
                 flex-1 py-3 rounded-lg font-semibold transition-colors
                 ${
                   selectedType
-                    ? 'bg-[#D4AF37] hover:bg-[#BF9B30] text-[#101014]'
+                    ? 'bg-[#F1CB68] hover:bg-[#BF9B30] text-[#101014]'
                     : 'bg-gray-700 text-gray-500 cursor-not-allowed'
                 }
               `}

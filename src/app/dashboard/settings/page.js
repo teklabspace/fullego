@@ -111,7 +111,7 @@ function ProfileSettings({
             <input
               type='text'
               defaultValue='John Doe'
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4AF37] ${
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                 isDarkMode
                   ? 'bg-white/5 border-[#FFFFFF14] text-white'
                   : 'bg-gray-50 border-gray-300 text-gray-900'
@@ -123,7 +123,7 @@ function ProfileSettings({
             <input
               type='email'
               defaultValue='john.doe@email.com'
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4AF37] ${
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                 isDarkMode
                   ? 'bg-white/5 border-[#FFFFFF14] text-white'
                   : 'bg-gray-50 border-gray-300 text-gray-900'
@@ -135,7 +135,7 @@ function ProfileSettings({
             <input
               type='tel'
               defaultValue='+1 (555) 123-4567'
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4AF37] ${
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                 isDarkMode
                   ? 'bg-white/5 border-[#FFFFFF14] text-white'
                   : 'bg-gray-50 border-gray-300 text-gray-900'
@@ -145,7 +145,7 @@ function ProfileSettings({
           <div>
             <label className='block text-gray-400 text-sm mb-2'>Country</label>
             <select
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4AF37] ${
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                 isDarkMode
                   ? 'bg-white/5 border-[#FFFFFF14] text-white'
                   : 'bg-gray-50 border-gray-300 text-gray-900'
@@ -159,7 +159,7 @@ function ProfileSettings({
           </div>
         </div>
         <div className='flex flex-col sm:flex-row gap-3 mt-6'>
-          <button className='px-6 py-3 bg-[#D4AF37] text-[#101014] rounded-lg font-semibold hover:bg-[#BF9B30] transition-colors'>
+          <button className='px-6 py-3 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#BF9B30] transition-colors'>
             Save Changes
           </button>
           <button
@@ -345,7 +345,7 @@ function LinkedAccounts({ isDarkMode }) {
         >
           Connected Services
         </h2>
-        <button className='px-4 py-2.5 bg-[#D4AF37] text-[#101014] rounded-lg font-medium hover:bg-[#BF9B30] transition-colors flex items-center gap-2 justify-center sm:w-auto'>
+        <button className='px-4 py-2.5 bg-[#F1CB68] text-[#101014] rounded-lg font-medium hover:bg-[#BF9B30] transition-colors flex items-center gap-2 justify-center sm:w-auto'>
           <span className='text-lg'>+</span>
           Link New Account
         </button>
@@ -450,8 +450,8 @@ function ServiceCard({ service, isDarkMode }) {
         <button
           className={`flex-1 px-4  py-2 rounded-lg font-medium border transition-all ${
             isDarkMode
-              ? 'border-[#D4AF37] text-white hover:bg-[#D4AF37]/10'
-              : 'border-[#D4AF37] text-gray-900 hover:bg-[#D4AF37]/10'
+              ? 'border-[#F1CB68] text-white hover:bg-[#F1CB68]/10'
+              : 'border-[#F1CB68] text-gray-900 hover:bg-[#F1CB68]/10'
           }`}
         >
           Manage
@@ -485,7 +485,7 @@ function ToggleRow({ label, description, checked, onChange, isDarkMode }) {
         onClick={onChange}
         className={`
           relative w-12 h-6 rounded-full transition-colors shrink-0 ml-4
-          ${checked ? 'bg-[#D4AF37]' : 'bg-gray-600'}
+          ${checked ? 'bg-[#F1CB68]' : 'bg-gray-600'}
         `}
       >
         <span

@@ -369,7 +369,7 @@ export default function Plans() {
                 className="relative w-14 h-8 rounded-full transition-colors"
                 style={{
                   background: billingCycle === 'monthly' 
-                    ? 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)'
+                    ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
                     : 'rgba(255, 255, 255, 0.1)',
                 }}
               >
@@ -420,7 +420,7 @@ export default function Plans() {
                     transition={{ delay: 0.3, type: 'spring' }}
                     className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-semibold text-[#0B0D12]"
                     style={{
-                      background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                      background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                     }}
                   >
                     Most Popular
@@ -489,8 +489,8 @@ export default function Plans() {
                   }`}
                   style={{
                     background: plan.popular
-                      ? 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)'
-                      : 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                      ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
+                      : 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                   }}
                 >
                   {plan.isCustom ? 'Contact Sales' : 'Get Started'}
@@ -516,7 +516,7 @@ export default function Plans() {
               whileTap={{ scale: 0.95 }}
               className="inline-flex items-center gap-2 rounded-full px-8 py-3 text-[#0B0D12] font-semibold hover:brightness-110 transition-all shadow-lg"
               style={{
-                background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               }}
             >
               Contact Sales Team

@@ -117,7 +117,7 @@ export default function ProfileDropdown() {
       id: 'referral',
       label: 'Referral',
       icon: '/icons/users.svg',
-      href: '/settings?tab=tasks',
+      href: '/dashboard/referral',
     },
     {
       id: 'support',
@@ -286,8 +286,8 @@ export default function ProfileDropdown() {
                     isActive(item.href)
                       ? {
                           borderLeft: isDarkMode
-                            ? '3px solid #D4AF37'
-                            : '3px solid #D4AF37',
+                            ? '3px solid #F1CB68'
+                            : '3px solid #F1CB68',
                         }
                       : {}
                   }

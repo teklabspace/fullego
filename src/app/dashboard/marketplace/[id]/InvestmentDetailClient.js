@@ -60,7 +60,7 @@ export default function InvestmentDetailClient() {
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-medium ${
                     isDarkMode
-                      ? 'bg-gradient-to-r from-[#222126] to-[#111116] text-[#D4AF37]'
+                      ? 'bg-gradient-to-r from-[#222126] to-[#111116] text-[#F1CB68]'
                       : 'bg-gray-100 text-gray-700'
                   }`}
                 >
@@ -68,7 +68,7 @@ export default function InvestmentDetailClient() {
                 </span>
                 <button
                   onClick={() => setIsOfferModalOpen(true)}
-                  className='px-6 py-2 bg-[#D4AF37] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all flex items-center gap-2'
+                  className='px-6 py-2 bg-[#F1CB68] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all flex items-center gap-2'
                 >
                   Trade Now
                   <svg
@@ -231,7 +231,7 @@ export default function InvestmentDetailClient() {
                     {tab.charAt(0).toUpperCase() + tab.slice(1)}
                   </span>
                   {activeTab === tab && (
-                    <div className='absolute bottom-0 left-0 right-0 h-0.5 bg-[#D4AF37]' />
+                    <div className='absolute bottom-0 left-0 right-0 h-0.5 bg-[#F1CB68]' />
                   )}
                 </button>
               ))}
@@ -482,7 +482,7 @@ function StatCard({ icon, label, value, isDarkMode, highlight = false }) {
       <p
         className={`text-lg font-bold ${
           highlight
-            ? 'text-[#D4AF37]'
+            ? 'text-[#F1CB68]'
             : isDarkMode
             ? 'text-white'
             : 'text-gray-900'
@@ -514,7 +514,7 @@ function RationaleItem({ text, isDarkMode }) {
 function ObjectiveItem({ icon, text, isDarkMode }) {
   return (
     <div className='flex items-center gap-3'>
-      <div className='w-8 h-8 rounded-lg bg-[#D4AF37]/10 flex items-center justify-center shrink-0'>
+      <div className='w-8 h-8 rounded-lg bg-[#F1CB68]/10 flex items-center justify-center shrink-0'>
         <img src={`/icons/${icon}`} alt={text} className='w-5 h-5' />
       </div>
       <p
@@ -582,7 +582,7 @@ function MakeOfferModal({
           {/* Header */}
           <div
             className={`flex items-center justify-between p-6 border-b ${
-              isDarkMode ? 'border-[#D4AF37]' : 'border-gray-200'
+              isDarkMode ? 'border-[#F1CB68]' : 'border-gray-200'
             }`}
           >
             <h2
@@ -618,7 +618,7 @@ function MakeOfferModal({
 
           <div className='p-6'>
             {/* Investment Image */}
-            <div className='mb-6 rounded-xl overflow-hidden bg-gradient-to-br from-[#D4AF37] to-[#8B7355] h-40 flex items-center justify-center'>
+            <div className='mb-6 rounded-xl overflow-hidden bg-gradient-to-br from-[#F1CB68] to-[#8B7355] h-40 flex items-center justify-center'>
               <div className='text-6xl opacity-20'>
                 <svg
                   width='80'
@@ -668,7 +668,7 @@ function MakeOfferModal({
                 >
                   Return Rate
                 </span>
-                <span className='px-3 py-1 bg-[#D4AF37] text-white text-xs font-semibold rounded-full'>
+                <span className='px-3 py-1 bg-[#F1CB68] text-white text-xs font-semibold rounded-full'>
                   +{returnRate}%
                 </span>
               </div>
@@ -699,10 +699,10 @@ function MakeOfferModal({
                     isDarkMode
                       ? 'bg-[#2C2C2E] border-gray-700 text-white'
                       : 'bg-white border-gray-300 text-gray-900'
-                  } focus:outline-none focus:border-[#D4AF37]`}
+                  } focus:outline-none focus:border-[#F1CB68]`}
                 />
               </div>
-              <p className='text-xs text-[#D4AF37] mt-1'>
+              <p className='text-xs text-[#F1CB68] mt-1'>
                 {percentageBelow}% below listing price
               </p>
             </div>
@@ -726,7 +726,7 @@ function MakeOfferModal({
                   isDarkMode
                     ? 'bg-[#2C2C2E] border-gray-700 text-white placeholder-gray-500'
                     : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                } focus:outline-none focus:border-[#D4AF37] resize-none`}
+                } focus:outline-none focus:border-[#F1CB68] resize-none`}
               />
               <div className='flex justify-end mt-1'>
                 <span
@@ -816,7 +816,7 @@ function MakeOfferModal({
             <div className='space-y-3'>
               <button
                 onClick={handleSendOffer}
-                className='w-full py-3 bg-[#D4AF37] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all'
+                className='w-full py-3 bg-[#F1CB68] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all'
               >
                 Send Offer
               </button>

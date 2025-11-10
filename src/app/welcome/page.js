@@ -141,7 +141,7 @@ export default function WelcomePage() {
               onClick={handleBeginJourney}
               className='text-[#0B0D12] cursor-pointer font-semibold px-8 md:px-10 lg:px-12 py-3 md:py-4 rounded-full transition-colors text-base md:text-lg shadow-lg'
               style={{
-                background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               }}
             >
               Begin Journey

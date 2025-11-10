@@ -2,9 +2,11 @@
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import Image from 'next/image';
 import { useTheme } from '@/context/ThemeContext';
+import { useRouter } from 'next/navigation';
 
 export default function KYCPage() {
   const { isDarkMode } = useTheme();
+  const router = useRouter();
   return (
     <DashboardLayout>
       <div className='min-h-screen'>
@@ -44,9 +46,10 @@ export default function KYCPage() {
               please complete your KYC verification.
             </p>
             <button
+              onClick={() => router.push('/choose-profile')}
               className='px-8 py-3 rounded-full text-base font-bold transition-all hover:opacity-90 cursor-pointer'
               style={{
-                background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                 color: '#000000',
               }}
             >

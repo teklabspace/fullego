@@ -10,6 +10,7 @@ import {
   getCategoriesByGroup,
   getCategoryGroups,
 } from '@/config/assetConfig';
+import { getCategoryIcon } from '@/utils/categoryIcons';
 
 const steps = [
   { id: 1, title: 'Basic Information' },
@@ -67,6 +68,7 @@ export default function AddAssetPage() {
   const [selectedCategoryGroup, setSelectedCategoryGroup] = useState(null);
   const [expandedGroups, setExpandedGroups] = useState({});
   const [formData, setFormData] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
   const [assetPhotos, setAssetPhotos] = useState([]);
   const [supportingDocs, setSupportingDocs] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -81,6 +83,25 @@ export default function AddAssetPage() {
       categories: getCategoriesByGroup(group),
     }));
   }, []);
+
+  // Filter categories based on search query
+  const filteredCategoriesByGroup = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return categoriesByGroup;
+    }
+    const query = searchQuery.toLowerCase();
+    return categoriesByGroup
+      .map(({ groupName, categories }) => ({
+        groupName,
+        categories: categories.filter(
+          cat =>
+            cat.name.toLowerCase().includes(query) ||
+            cat.description.toLowerCase().includes(query) ||
+            groupName.toLowerCase().includes(query)
+        ),
+      }))
+      .filter(({ categories }) => categories.length > 0);
+  }, [categoriesByGroup, searchQuery]);
 
   // Get form fields for selected category
   const formFields = useMemo(() => {
@@ -571,57 +592,94 @@ export default function AddAssetPage() {
 
         {/* Form Content */}
         {currentStep === 1 && (
-          <div className='max-w-4xl mx-auto'>
-            <div className='bg-gradient-to-r from-[#222126] to-[#111116] border border-[#FFFFFF14] rounded-2xl p-6 md:p-8'>
-              {/* Select Category Group and Category */}
+          <div className='max-w-7xl mx-auto'>
+            {/* Header Section */}
               <div className='mb-8'>
-                <label className='block text-sm font-medium text-white mb-4'>
-                  Select Asset Category
-                </label>
-                
-                {/* Category Groups with Dropdown */}
-                <div className='space-y-3'>
-                  {categoriesByGroup.map(({ groupName, categories }) => {
-                    const isExpanded = expandedGroups[groupName];
+              <h2 className='text-4xl md:text-5xl font-bold text-white mb-2 leading-tight'>
+                Discover More.
+                <br />
+                Browse Smarter.
+              </h2>
+              
+              {/* Search Bar and Add Button */}
+              <div className='flex flex-col sm:flex-row gap-4 mt-6'>
+                <div className='flex-1 relative'>
+                  <div className='absolute left-4 top-1/2 -translate-y-1/2'>
+                    <svg
+                      width='20'
+                      height='20'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='#9CA3AF'
+                      strokeWidth='2'
+                    >
+                      <circle cx='11' cy='11' r='8' />
+                      <path d='m21 21-4.35-4.35' />
+                    </svg>
+                  </div>
+                  <input
+                    type='text'
+                    placeholder='Search Category......'
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className='w-full pl-12 pr-4 py-3 rounded-xl bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+                  />
+                </div>
+                <button className='px-6 py-3 rounded-xl bg-[#F1CB68] text-[#0B0D12] font-semibold hover:bg-[#d4b55a] transition-colors flex items-center gap-2 justify-center'>
+                  <svg
+                    width='20'
+                    height='20'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeWidth='2'
+                  >
+                    <path d='M12 5v14M5 12h14' />
+                  </svg>
+                  Add New Asset
+                </button>
+              </div>
+            </div>
+
+            {/* Main Content Container */}
+            <div className='bg-gradient-to-r from-[#222126] to-[#111116] border border-[#FFFFFF14] rounded-2xl p-6 md:p-8 max-h-[calc(100vh-300px)] overflow-y-auto custom-scrollbar'>
+              {/* Category Groups */}
+              {filteredCategoriesByGroup.map(({ groupName, categories }) => {
+                const isExpanded = expandedGroups[groupName] ?? true; // Default to expanded
                     const hasSelectedCategory = categories.some(
                       cat => cat.id === selectedCategory
                     );
 
+                // Get group display name
+                const getGroupDisplayName = (name) => {
+                  const groupMap = {
+                    'Assets': 'Physical, Alternative, Lifestyle',
+                    'Portfolio': 'Financial, Digital, Structured',
+                    'Liabilities': 'Liabilities & Debts',
+                    'Shadow Wealth': 'Shadow & Anticipated Wealth',
+                    'Philanthropy': 'Philanthropy & Impact',
+                    'Lifestyle': 'Lifestyle & Concierge',
+                    'Governance': 'Compliance & Governance',
+                  };
+                  return groupMap[name] || name;
+                };
+
                     return (
-                      <div
-                        key={groupName}
-                        className='bg-[#2A2A2D] border border-[#FFFFFF14] rounded-xl overflow-hidden'
-                      >
-                        {/* Category Group Header */}
-                        <button
-                          onClick={() => toggleGroup(groupName)}
-                          className={`w-full px-5 py-4 flex items-center justify-between transition-colors ${
-                            hasSelectedCategory
-                              ? 'bg-[#F1CB68]/10 border-b border-[#F1CB68]/30'
-                              : 'hover:bg-[#FFFFFF08]'
-                          }`}
-                        >
+                  <div key={groupName} className='mb-8 last:mb-0'>
+                    {/* Group Header */}
+                    <div className='flex items-center justify-between mb-4'>
                           <div className='flex items-center gap-3'>
-                            <div
-                              className={`w-2 h-2 rounded-full ${
-                                hasSelectedCategory
-                                  ? 'bg-[#F1CB68]'
-                                  : 'bg-gray-500'
-                              }`}
-                            />
-                            <h3 className='text-base font-semibold text-white'>
+                        <h3 className='text-2xl font-bold text-white'>
                               {groupName}
                             </h3>
-                            <span className='text-xs text-gray-400'>
-                              ({categories.length} categories)
+                        <span className='text-sm text-gray-400'>
+                          {getGroupDisplayName(groupName)}
                             </span>
                           </div>
-                          <div className='flex items-center gap-2'>
-                            {hasSelectedCategory && (
-                              <span className='text-xs text-[#F1CB68] font-medium px-2 py-1 bg-[#F1CB68]/20 rounded'>
-                                Selected
-                              </span>
-                            )}
+                      <button
+                        onClick={() => toggleGroup(groupName)}
+                        className='text-gray-400 hover:text-white transition-colors p-1'
+                      >
                             <svg
                               width='20'
                               height='20'
@@ -629,82 +687,104 @@ export default function AddAssetPage() {
                               fill='none'
                               stroke='currentColor'
                               strokeWidth='2'
-                              className={`text-gray-400 transition-transform ${
+                          className={`transition-transform ${
                                 isExpanded ? 'rotate-180' : ''
                               }`}
                             >
                               <path d='M6 9l6 6 6-6' />
                             </svg>
-                          </div>
                         </button>
+                    </div>
 
-                        {/* Sub-categories Dropdown */}
+                    {/* Category Cards Grid */}
                         {isExpanded && (
-                          <div className='p-4 bg-[#1a1a1d] border-t border-[#FFFFFF14]'>
-                            <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3'>
+                      <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
                               {categories.map(category => (
                                 <button
                                   key={category.id}
                                   onClick={() => handleCategorySelect(category.id)}
-                                  className={`p-4 rounded-lg border-2 transition-all text-center flex flex-col items-center justify-center min-h-[90px] group ${
+                            className={`group relative p-6 rounded-xl border-2 transition-all text-left ${
                                     selectedCategory === category.id
-                                      ? 'bg-[#F1CB68] border-[#F1CB68] text-[#0B0D12] shadow-lg shadow-[#F1CB68]/20'
-                                      : 'bg-[#2A2A2D] border-[#FFFFFF14] text-white hover:border-[#F1CB68]/50 hover:bg-[#2A2A2D]/80'
+                                ? 'bg-[#2A2A2D] border-[#F1CB68] shadow-lg shadow-[#F1CB68]/20'
+                                : 'bg-[#2A2A2D] border-[#FFFFFF14] hover:border-[#F1CB68]/50 hover:bg-[#2A2A2D]/80'
                                   }`}
                                 >
+                            {/* Icon - Yellow icon at top center */}
+                            <div className='flex justify-center mb-4'>
                                   {category.iconFile ? (
                                     <img
                                       src={`/${category.iconFile}`}
                                       alt={category.name}
-                                      className={`w-8 h-8 mb-2 object-contain transition-transform ${
-                                        selectedCategory === category.id
-                                          ? 'scale-110'
-                                          : 'group-hover:scale-105'
-                                      }`}
+                                  className='w-12 h-12 object-contain'
+                                  style={{
+                                    filter: 'brightness(0) saturate(100%) invert(77%) sepia(48%) saturate(1352%) hue-rotate(358deg) brightness(101%) contrast(96%)',
+                                  }}
                                     />
                                   ) : (
-                                    <span
-                                      className={`text-2xl mb-2 ${
-                                        selectedCategory === category.id
-                                          ? 'scale-110'
-                                          : 'group-hover:scale-105'
-                                      } transition-transform`}
-                                    >
-                                      {category.icon}
-                                    </span>
+                                <div className='w-12 h-12 flex items-center justify-center text-[#F1CB68] transition-transform group-hover:scale-110'>
+                                  {(() => {
+                                    const IconComponent = getCategoryIcon(category.id);
+                                    return <IconComponent className='w-12 h-12' />;
+                                  })()}
+                                </div>
                                   )}
-                                  <div
-                                    className={`text-xs font-medium text-center leading-tight ${
+                            </div>
+
+                            {/* Category Title */}
+                            <h4
+                              className={`text-lg font-bold mb-2 ${
                                       selectedCategory === category.id
-                                        ? 'font-semibold'
-                                        : ''
+                                  ? 'text-[#F1CB68]'
+                                  : 'text-white'
                                     }`}
                                   >
                                     {category.name}
-                                  </div>
+                            </h4>
+
+                            {/* Description */}
+                            <p className='text-sm text-gray-400 leading-relaxed line-clamp-2'>
+                              {category.description}
+                            </p>
+
+                            {/* Selected Indicator */}
                                   {selectedCategory === category.id && (
-                                    <div className='mt-1'>
+                              <div className='absolute top-4 right-4'>
+                                <div className='w-6 h-6 rounded-full bg-[#F1CB68] flex items-center justify-center'>
                                       <svg
-                                        width='16'
-                                        height='16'
+                                    width='14'
+                                    height='14'
                                         viewBox='0 0 24 24'
                                         fill='none'
-                                        stroke='currentColor'
+                                    stroke='#0B0D12'
                                         strokeWidth='3'
-                                        className='text-[#0B0D12]'
                                       >
                                         <path d='M20 6L9 17l-5-5' />
                                       </svg>
+                                </div>
                                     </div>
                                   )}
                                 </button>
                               ))}
-                            </div>
                           </div>
                         )}
                       </div>
                     );
                   })}
+
+              {/* No Results Message */}
+              {filteredCategoriesByGroup.length === 0 && (
+                <div className='text-center py-12'>
+                  <p className='text-gray-400 text-lg'>
+                    No categories found matching &quot;{searchQuery}&quot;
+                  </p>
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className='mt-4 text-[#F1CB68] hover:text-[#d4b55a] transition-colors'
+                  >
+                    Clear search
+                  </button>
+                </div>
+              )}
                 </div>
 
                 {/* Selected Category Display */}
@@ -712,22 +792,21 @@ export default function AddAssetPage() {
                   <div className='mt-6 p-4 bg-[#F1CB68]/10 border border-[#F1CB68]/30 rounded-xl'>
                     <div className='flex items-center gap-3'>
                       <div className='w-10 h-10 rounded-lg bg-[#F1CB68]/20 flex items-center justify-center'>
-                        {allCategories.find(c => c.id === selectedCategory)
-                          ?.iconFile ? (
+                    {(() => {
+                      const category = allCategories.find(c => c.id === selectedCategory);
+                      if (category?.iconFile) {
+                        return (
                           <img
-                            src={`/${
-                              allCategories.find(c => c.id === selectedCategory)
-                                ?.iconFile
-                            }`}
+                            src={`/${category.iconFile}`}
                             alt='Selected category'
                             className='w-6 h-6 object-contain'
                           />
-                        ) : (
-                          <span className='text-lg'>
-                            {allCategories.find(c => c.id === selectedCategory)
-                              ?.icon || '📦'}
-                          </span>
-                        )}
+                        );
+                      } else {
+                        const IconComponent = getCategoryIcon(selectedCategory);
+                        return <IconComponent className='w-6 h-6 text-[#F1CB68]' />;
+                      }
+                    })()}
                       </div>
                       <div className='flex-1'>
                         <p className='text-xs text-gray-400 mb-1'>
@@ -768,17 +847,14 @@ export default function AddAssetPage() {
                     </div>
                   </div>
                 )}
-              </div>
 
               {/* Dynamic Form Fields */}
               {selectedCategory && formFields.length > 0 && (
-                <div className='mt-8 pt-8 border-t border-[#FFFFFF14]'>
+              <div className='mt-8 bg-gradient-to-r from-[#222126] to-[#111116] border border-[#FFFFFF14] rounded-2xl p-6 md:p-8'>
                   <h3 className='text-xl font-semibold text-white mb-6'>
                     Asset Details
                   </h3>
                   {formFields.map(field => renderFormField(field))}
-                </div>
-              )}
 
               {/* Action Buttons */}
               <div className='flex flex-col sm:flex-row gap-4 justify-end mt-8'>
@@ -801,6 +877,19 @@ export default function AddAssetPage() {
                 </button>
               </div>
             </div>
+            )}
+
+            {/* Action Buttons - Show when no category selected */}
+            {!selectedCategory && (
+              <div className='flex flex-col sm:flex-row gap-4 justify-end mt-6'>
+                <button
+                  onClick={handleCancel}
+                  className='px-6 py-3 rounded-lg border border-[#FFFFFF14] text-white hover:bg-white/5 transition-colors'
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
         )}
 

@@ -35,7 +35,7 @@ export default function ReportsPage() {
             <div
               className='rounded-full p-px'
               style={{
-                background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               }}
             >
               <button
@@ -65,7 +65,7 @@ export default function ReportsPage() {
             <div
               className='rounded-full p-px'
               style={{
-                background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               }}
             >
               <button

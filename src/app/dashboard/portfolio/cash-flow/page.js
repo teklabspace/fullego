@@ -155,7 +155,7 @@ export default function CashFlowPage() {
                   activeTab === 'last30'
                     ? isDarkMode
                       ? 'bg-[#30333B] text-white'
-                      : 'bg-[#D4AF37] text-black'
+                      : 'bg-[#F1CB68] text-black'
                     : isDarkMode
                     ? 'text-gray-400 hover:text-white'
                     : 'text-black'
@@ -169,7 +169,7 @@ export default function CashFlowPage() {
                   activeTab === 'thisMonth'
                     ? isDarkMode
                       ? 'bg-[#30333B] text-white'
-                      : 'bg-[#D4AF37] text-black'
+                      : 'bg-[#F1CB68] text-black'
                     : isDarkMode
                     ? 'text-gray-400 hover:text-white'
                     : 'text-black'
@@ -183,7 +183,7 @@ export default function CashFlowPage() {
                   activeTab === 'custom'
                     ? isDarkMode
                       ? 'bg-[#30333B] text-white'
-                      : 'bg-[#D4AF37] text-black'
+                      : 'bg-[#F1CB68] text-black'
                     : isDarkMode
                     ? 'text-gray-400 hover:text-white'
                     : 'text-black'
@@ -236,7 +236,7 @@ export default function CashFlowPage() {
               title='Cash Flow Forecast'
               value='+$22,500'
               subtitle='Next 30 days'
-              gradientBorder='linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #D4AF37 50%, rgba(0, 0, 0, 0) 100%)'
+              gradientBorder='linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #F1CB68 50%, rgba(0, 0, 0, 0) 100%)'
               isDarkMode={isDarkMode}
             />
           </div>
@@ -280,7 +280,7 @@ export default function CashFlowPage() {
                   className={`px-4 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
                     isDarkMode
                       ? 'bg-[#30333B] text-white'
-                      : 'bg-[#D4AF37] text-black'
+                      : 'bg-[#F1CB68] text-black'
                   }`}
                 >
                   Daily
@@ -434,7 +434,7 @@ export default function CashFlowPage() {
                   className='relative px-4 py-2 rounded-lg text-sm font-medium overflow-hidden group'
                   style={{
                     background:
-                      'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                      'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                   }}
                 >
                   <span className='flex items-center gap-2 text-[#111116]'>
@@ -464,7 +464,7 @@ export default function CashFlowPage() {
                       isDarkMode
                         ? 'bg-[#2C2C2E] text-white placeholder-gray-500 border-gray-700'
                         : 'bg-gray-100 text-gray-900 placeholder-gray-400 border-gray-300'
-                    } border focus:outline-none focus:border-[#D4AF37]`}
+                    } border focus:outline-none focus:border-[#F1CB68]`}
                   />
                   <svg
                     className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${
@@ -516,7 +516,7 @@ export default function CashFlowPage() {
                     isDarkMode
                       ? 'bg-[#2C2C2E] text-white border-gray-700'
                       : 'bg-gray-100 text-gray-900 border-gray-300'
-                  } border focus:outline-none focus:border-[#D4AF37]`}
+                  } border focus:outline-none focus:border-[#F1CB68]`}
                 >
                   <option>Type: All</option>
                   <option>Inflow</option>
@@ -528,7 +528,7 @@ export default function CashFlowPage() {
                     isDarkMode
                       ? 'bg-[#2C2C2E] text-white border-gray-700'
                       : 'bg-gray-100 text-gray-900 border-gray-300'
-                  } border focus:outline-none focus:border-[#D4AF37]`}
+                  } border focus:outline-none focus:border-[#F1CB68]`}
                 >
                   <option>Amount: $10,000</option>
                   <option>$0 - $5,000</option>
@@ -897,10 +897,10 @@ function TransferModal({
                   onClick={() => onTransferTypeChange('internal')}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${
                     transferType === 'internal'
-                      ? 'border-[#D4AF37] bg-[#D4AF37]/10'
+                      ? 'border-[#F1CB68] bg-[#F1CB68]/10'
                       : isDarkMode
-                      ? 'border-[#FFFFFF14] hover:border-[#D4AF37]/50'
-                      : 'border-gray-200 hover:border-[#D4AF37]/50'
+                      ? 'border-[#FFFFFF14] hover:border-[#F1CB68]/50'
+                      : 'border-gray-200 hover:border-[#F1CB68]/50'
                   }`}
                 >
                   <div className='flex items-center gap-3 mb-2'>
@@ -910,7 +910,7 @@ function TransferModal({
                       viewBox='0 0 24 24'
                       fill='none'
                       stroke='currentColor'
-                      className='text-[#D4AF37]'
+                      className='text-[#F1CB68]'
                     >
                       <path
                         d='M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4'
@@ -946,10 +946,10 @@ function TransferModal({
                   onClick={() => onTransferTypeChange('external')}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${
                     transferType === 'external'
-                      ? 'border-[#D4AF37] bg-[#D4AF37]/10'
+                      ? 'border-[#F1CB68] bg-[#F1CB68]/10'
                       : isDarkMode
-                      ? 'border-[#FFFFFF14] hover:border-[#D4AF37]/50'
-                      : 'border-gray-200 hover:border-[#D4AF37]/50'
+                      ? 'border-[#FFFFFF14] hover:border-[#F1CB68]/50'
+                      : 'border-gray-200 hover:border-[#F1CB68]/50'
                   }`}
                 >
                   <div className='flex items-center gap-3 mb-2'>
@@ -959,7 +959,7 @@ function TransferModal({
                       viewBox='0 0 24 24'
                       fill='none'
                       stroke='currentColor'
-                      className='text-[#D4AF37]'
+                      className='text-[#F1CB68]'
                     >
                       <path
                         d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
@@ -1022,7 +1022,7 @@ function TransferModal({
                       isDarkMode
                         ? 'bg-[#2C2C2E] border-gray-700 text-white'
                         : 'bg-white border-gray-300 text-gray-900'
-                    } focus:outline-none focus:border-[#D4AF37]`}
+                    } focus:outline-none focus:border-[#F1CB68]`}
                   >
                     <option value=''>Select Account</option>
                     <option value='checking'>
@@ -1059,7 +1059,7 @@ function TransferModal({
                         isDarkMode
                           ? 'bg-[#2C2C2E] border-gray-700 text-white'
                           : 'bg-white border-gray-300 text-gray-900'
-                      } focus:outline-none focus:border-[#D4AF37]`}
+                      } focus:outline-none focus:border-[#F1CB68]`}
                     >
                       <option value=''>Select Account</option>
                       <option value='investment'>Wallet - Investment</option>
@@ -1096,7 +1096,7 @@ function TransferModal({
                         isDarkMode
                           ? 'bg-[#2C2C2E] border-gray-700 text-white placeholder-gray-500'
                           : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                      } focus:outline-none focus:border-[#D4AF37]`}
+                      } focus:outline-none focus:border-[#F1CB68]`}
                     />
                   </div>
                 )}
@@ -1129,7 +1129,7 @@ function TransferModal({
                         isDarkMode
                           ? 'bg-[#2C2C2E] border-gray-700 text-white'
                           : 'bg-white border-gray-300 text-gray-900'
-                      } focus:outline-none focus:border-[#D4AF37]`}
+                      } focus:outline-none focus:border-[#F1CB68]`}
                     />
                   </div>
                   <div className='flex items-center gap-2 mt-2'>
@@ -1170,7 +1170,7 @@ function TransferModal({
                         isDarkMode
                           ? 'bg-[#2C2C2E] border-gray-700 text-white'
                           : 'bg-white border-gray-300 text-gray-900'
-                      } focus:outline-none focus:border-[#D4AF37]`}
+                      } focus:outline-none focus:border-[#F1CB68]`}
                     />
                   </div>
 
@@ -1192,7 +1192,7 @@ function TransferModal({
                         isDarkMode
                           ? 'bg-[#2C2C2E] border-gray-700 text-white'
                           : 'bg-white border-gray-300 text-gray-900'
-                      } focus:outline-none focus:border-[#D4AF37]`}
+                      } focus:outline-none focus:border-[#F1CB68]`}
                     >
                       <option value='one-time'>One time transfer</option>
                       <option value='daily'>Daily</option>
@@ -1222,7 +1222,7 @@ function TransferModal({
                       isDarkMode
                         ? 'bg-[#2C2C2E] border-gray-700 text-white placeholder-gray-500'
                         : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                    } focus:outline-none focus:border-[#D4AF37] resize-none`}
+                    } focus:outline-none focus:border-[#F1CB68] resize-none`}
                   />
                   <p
                     className={`text-xs mt-1 ${
@@ -1255,7 +1255,7 @@ function TransferModal({
                   !transferData.amount ||
                   !transferData.transferDate
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-[#D4AF37] text-[#101014] hover:bg-[#C49D2E]'
+                    : 'bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E]'
                 }`}
               >
                 Next
@@ -1317,13 +1317,13 @@ function TransferModal({
               {/* From/To Transfer Visual */}
               <div className='flex items-center justify-between mb-6 p-4 rounded-xl bg-[#2C2C2E]'>
                 <div className='flex items-center gap-3'>
-                  <div className='w-12 h-12 rounded-full bg-[#D4AF37]/20 flex items-center justify-center'>
+                  <div className='w-12 h-12 rounded-full bg-[#F1CB68]/20 flex items-center justify-center'>
                     <svg
                       width='20'
                       height='20'
                       viewBox='0 0 24 24'
                       fill='none'
-                      stroke='#D4AF37'
+                      stroke='#F1CB68'
                     >
                       <path
                         d='M21 12H3M21 6H3M21 18H3'
@@ -1350,7 +1350,7 @@ function TransferModal({
                     height='24'
                     viewBox='0 0 24 24'
                     fill='none'
-                    stroke='#D4AF37'
+                    stroke='#F1CB68'
                   >
                     <path
                       d='M5 12h14M12 5l7 7-7 7'
@@ -1362,13 +1362,13 @@ function TransferModal({
                 </div>
 
                 <div className='flex items-center gap-3'>
-                  <div className='w-12 h-12 rounded-full bg-[#D4AF37]/20 flex items-center justify-center'>
+                  <div className='w-12 h-12 rounded-full bg-[#F1CB68]/20 flex items-center justify-center'>
                     <svg
                       width='20'
                       height='20'
                       viewBox='0 0 24 24'
                       fill='none'
-                      stroke='#D4AF37'
+                      stroke='#F1CB68'
                     >
                       <path
                         d='M21 12H3M21 6H3M21 18H3'
@@ -1446,7 +1446,7 @@ function TransferModal({
               </button>
               <button
                 onClick={onConfirm}
-                className='flex-1 py-3 bg-[#D4AF37] text-[#101014] rounded-lg font-semibold hover:bg-[#C49D2E] transition-all'
+                className='flex-1 py-3 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#C49D2E] transition-all'
               >
                 Confirm
               </button>
@@ -1622,7 +1622,7 @@ function TransferModal({
                 </button>
                 <button
                   onClick={onMakeAnother}
-                  className='flex-1 py-3 bg-[#D4AF37] text-[#101014] rounded-lg font-semibold hover:bg-[#C49D2E] transition-all'
+                  className='flex-1 py-3 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#C49D2E] transition-all'
                 >
                   Make Another Transfer
                 </button>

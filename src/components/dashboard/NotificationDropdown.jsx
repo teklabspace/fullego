@@ -118,7 +118,7 @@ export default function NotificationDropdown() {
                   className='w-2 h-8 rounded-full'
                   style={{
                     background:
-                      'linear-gradient(180deg, #FFFFFF 0%, #D4AF37 100%)',
+                      'linear-gradient(180deg, #FFFFFF 0%, #F1CB68 100%)',
                   }}
                 />
                 <h3
@@ -159,7 +159,7 @@ export default function NotificationDropdown() {
                 style={{
                   background:
                     activeTab === 'all'
-                      ? 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)'
+                      ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
                       : 'transparent',
                 }}
               >
@@ -177,7 +177,7 @@ export default function NotificationDropdown() {
                 style={{
                   background:
                     activeTab === 'unread'
-                      ? 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)'
+                      ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
                       : 'rgba(255, 255, 255, 0.05)',
                 }}
               >
@@ -276,7 +276,7 @@ export default function NotificationDropdown() {
                 className='w-full px-6 py-3 rounded-full text-sm font-bold transition-all hover:opacity-90 cursor-pointer'
                 style={{
                   background:
-                    'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                    'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                   color: '#000000',
                 }}
               >
@@ -296,11 +296,11 @@ export default function NotificationDropdown() {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(212, 175, 55, 0.3);
+          background: rgba(241, 203, 104, 0.3);
           border-radius: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(212, 175, 55, 0.5);
+          background: rgba(241, 203, 104, 0.5);
         }
       `}</style>
     </div>

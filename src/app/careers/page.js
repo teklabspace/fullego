@@ -99,7 +99,7 @@ const CareersPage = () => {
               opacity: 0.1,
             }}
           >
-            <div className='w-full h-full bg-gradient-to-br from-[#D4AF37]/10 to-transparent rounded-lg' />
+            <div className='w-full h-full bg-gradient-to-br from-[#F1CB68]/10 to-transparent rounded-lg' />
           </div>
 
           {/* Ellipse 2984 - Golden - Top Left (Current Openings) */}
@@ -204,7 +204,7 @@ const CareersPage = () => {
               className='px-6 py-3 rounded-full  text-black font-medium  transition-colors whitespace-nowrap w-full sm:w-auto'
               style={{
                 background:
-                  'linear-gradient(95.36deg, #FFFFFF 1.12%, #D4AF37 53.42%)',
+                  'linear-gradient(95.36deg, #FFFFFF 1.12%, #F1CB68 53.42%)',
               }}
             >
               View Open Roles
@@ -236,7 +236,7 @@ const CareersPage = () => {
                 className='w-full sm:w-auto rounded-full px-6 sm:px-5 py-3 text-sm font-medium text-black transition-all'
                 style={{
                   background:
-                    'linear-gradient(95.36deg, #FFFFFF 1.12%, #D4AF37 53.42%)',
+                    'linear-gradient(95.36deg, #FFFFFF 1.12%, #F1CB68 53.42%)',
                 }}
               >
                 Sign up
@@ -317,7 +317,7 @@ const CareersPage = () => {
                   className='rounded-full font-medium transition-colors flex items-center  px-10 py-4 justify-center gap-2'
                   style={{
                     background:
-                      'linear-gradient(95.36deg, #FFFFFF 1.12%, #D4AF37 53.42%)',
+                      'linear-gradient(95.36deg, #FFFFFF 1.12%, #F1CB68 53.42%)',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
 
                     color: '#101014',
@@ -346,7 +346,7 @@ const CareersPage = () => {
                   className='rounded-full font-medium transition-colors flex items-center px-10 py-4 justify-center gap-2'
                   style={{
                     background:
-                      'linear-gradient(95.36deg, #FFFFFF 1.12%, #D4AF37 53.42%)',
+                      'linear-gradient(95.36deg, #FFFFFF 1.12%, #F1CB68 53.42%)',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     fontFamily: 'Poppins',
                     fontWeight: 500,

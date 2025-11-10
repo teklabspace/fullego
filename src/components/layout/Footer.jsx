@@ -55,7 +55,7 @@ const Footer = () => {
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className='text-white hover:text-[#D4AF37] transition-colors duration-300 text-sm'
+                    className='text-white hover:text-[#F1CB68] transition-colors duration-300 text-sm'
                   >
                     {link.label}
                   </Link>
@@ -74,7 +74,7 @@ const Footer = () => {
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className='text-white hover:text-[#D4AF37] transition-colors duration-300 text-sm'
+                    className='text-white hover:text-[#F1CB68] transition-colors duration-300 text-sm'
                   >
                     {link.label}
                   </Link>
@@ -93,7 +93,7 @@ const Footer = () => {
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className='text-white hover:text-[#D4AF37] transition-colors duration-300 text-sm'
+                    className='text-white hover:text-[#F1CB68] transition-colors duration-300 text-sm'
                   >
                     {link.label}
                   </Link>
@@ -140,7 +140,7 @@ const Footer = () => {
                   placeholder='Your email'
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className='w-full px-4 py-2.5 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#D4AF37]/50 transition-colors text-sm'
+                  className='w-full px-4 py-2.5 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors text-sm'
                   required
                 />
                 <button

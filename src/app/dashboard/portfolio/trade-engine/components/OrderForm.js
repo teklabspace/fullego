@@ -51,8 +51,8 @@ export default function OrderForm({
             className={`flex-1 py-3 rounded-full font-semibold transition-all ${
               orderType === 'buy'
                 ? isDarkMode
-                  ? 'bg-[#101014] border border-[#D4AF37] text-white'
-                  : 'bg-[#D4AF37] border border-[#D4AF37] text-black'
+                  ? 'bg-[#101014] border border-[#F1CB68] text-white'
+                  : 'bg-[#F1CB68] border border-[#F1CB68] text-black'
                 : isDarkMode
                 ? 'bg-transparent text-white'
                 : 'bg-transparent text-black'
@@ -65,8 +65,8 @@ export default function OrderForm({
             className={`flex-1 py-3 rounded-full font-semibold transition-all ${
               orderType === 'sell'
                 ? isDarkMode
-                  ? 'bg-[#101014] border border-[#D4AF37] text-white'
-                  : 'bg-[#D4AF37] border border-[#D4AF37] text-black'
+                  ? 'bg-[#101014] border border-[#F1CB68] text-white'
+                  : 'bg-[#F1CB68] border border-[#F1CB68] text-black'
                 : isDarkMode
                 ? 'bg-transparent text-gray-400 hover:text-white'
                 : 'bg-transparent text-black'
@@ -78,7 +78,7 @@ export default function OrderForm({
 
         {/* Stock Selection */}
           <div className='flex items-start mb-6 '>
-          <div className='w-10 h-10 rounded-full bg-[#D4AF37]/20 flex items-center justify-center text-[#D4AF37] font-bold'>
+          <div className='w-10 h-10 rounded-full bg-[#F1CB68]/20 flex items-center justify-center text-[#F1CB68] font-bold'>
             {selectedStock.charAt(0)}
           </div>
           <div className='flex'>
@@ -102,7 +102,7 @@ export default function OrderForm({
                 orderMode === 'market'
                   ? isDarkMode
                     ? 'border-b border-b-[#F1CB68] text-white'
-                    : 'border-b border-b-[#D4AF37] text-black'
+                    : 'border-b border-b-[#F1CB68] text-black'
                   : isDarkMode
                   ? 'text-gray-400 hover:text-white'
                   : 'text-black'
@@ -116,7 +116,7 @@ export default function OrderForm({
                 orderMode === 'limit'
                   ? isDarkMode
                     ? 'border-b border-b-[#F1CB68] text-white'
-                    : 'border-b border-b-[#D4AF37] text-black'
+                    : 'border-b border-b-[#F1CB68] text-black'
                   : isDarkMode
                   ? 'text-gray-400 hover:text-white'
                   : 'text-black'
@@ -130,7 +130,7 @@ export default function OrderForm({
                 orderMode === 'stop-limit'
                   ? isDarkMode
                     ? 'border-b border-b-[#F1CB68] text-white'
-                    : 'border-b border-b-[#D4AF37] text-black'
+                    : 'border-b border-b-[#F1CB68] text-black'
                   : isDarkMode
                   ? 'text-gray-400 hover:text-white'
                   : 'text-black'
@@ -190,7 +190,7 @@ export default function OrderForm({
                     isDarkMode
                       ? 'bg-gradiend-to-r from-[#222126] to-[#111116] border-[#FFFFFF14] text-white'
                       : 'bg-white border-gray-300 text-gray-900'
-                  } focus:outline-none focus:border-[#D4AF37]`}
+                  } focus:outline-none focus:border-[#F1CB68]`}
                 />
               </div>
             </div>
@@ -245,7 +245,7 @@ export default function OrderForm({
                   isDarkMode
                     ? 'bg-gradiend-to-r from-[#222126] border-[#FFFFFF14] to-[#111116] text-white'
                     : 'bg-white border-gray-300 text-gray-900'
-                } focus:outline-none focus:border-[#D4AF37]`}
+                } focus:outline-none focus:border-[#F1CB68]`}
               />
             </div>
 
@@ -287,7 +287,7 @@ export default function OrderForm({
                 isDarkMode
                   ? 'bg-gradiend-to-r border-[#FFFFFF14] from-[#222126] to-[#111116] text-white'
                   : 'bg-white border-gray-300 text-gray-900'
-              } focus:outline-none focus:border-[#D4AF37]`}
+              } focus:outline-none focus:border-[#F1CB68]`}
             >
               <option value='****4321'>Brokerage Account (****4321)</option>
               <option value='****5678'>Brokerage Account (****5678)</option>
@@ -312,11 +312,11 @@ export default function OrderForm({
                 className={`p-3 rounded-lg border-2 text-left transition-all ${
                   orderDuration === 'day-only'
                     ? isDarkMode
-                      ? 'border-[#D4AF37]'
-                      : 'border-[#D4AF37]'
+                      ? 'border-[#F1CB68]'
+                      : 'border-[#F1CB68]'
                     : isDarkMode
-                    ? 'border-[#FFFFFF14] hover:border-[#D4AF37]/50'
-                    : 'border-gray-200 hover:border-[#D4AF37]/50'
+                    ? 'border-[#FFFFFF14] hover:border-[#F1CB68]/50'
+                    : 'border-gray-200 hover:border-[#F1CB68]/50'
                 }`}
                 style={
                   orderDuration === 'day-only'
@@ -344,11 +344,11 @@ export default function OrderForm({
                 className={`p-3 rounded-lg border-2 text-left transition-all ${
                   orderDuration === 'gtc'
                     ? isDarkMode
-                      ? 'border-[#D4AF37]'
-                      : 'border-[#D4AF37]'
+                      ? 'border-[#F1CB68]'
+                      : 'border-[#F1CB68]'
                     : isDarkMode
-                    ? 'border-[#FFFFFF14] hover:border-[#D4AF37]/50'
-                    : 'border-gray-200 hover:border-[#D4AF37]/50'
+                    ? 'border-[#FFFFFF14] hover:border-[#F1CB68]/50'
+                    : 'border-gray-200 hover:border-[#F1CB68]/50'
                 }`}
                 style={
                   orderDuration === 'gtc'
@@ -376,11 +376,11 @@ export default function OrderForm({
                 className={`p-3 rounded-lg border-2 text-left transition-all ${
                   orderDuration === 'gtd'
                     ? isDarkMode
-                      ? 'border-[#D4AF37]'
-                      : 'border-[#D4AF37]'
+                      ? 'border-[#F1CB68]'
+                      : 'border-[#F1CB68]'
                     : isDarkMode
-                    ? 'border-[#FFFFFF14] hover:border-[#D4AF37]/50'
-                    : 'border-gray-200 hover:border-[#D4AF37]/50'
+                    ? 'border-[#FFFFFF14] hover:border-[#F1CB68]/50'
+                    : 'border-gray-200 hover:border-[#F1CB68]/50'
                 }`}
                 style={
                   orderDuration === 'gtd'
@@ -424,7 +424,7 @@ export default function OrderForm({
                 isDarkMode
                   ? 'bg-gradiend-to-r  from-[#222126] to-[#111116] text-white placeholder-gray-500'
                   : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-              } focus:outline-none focus:border-[#D4AF37] resize-none`}
+              } focus:outline-none focus:border-[#F1CB68] resize-none`}
             />
           </div>
 

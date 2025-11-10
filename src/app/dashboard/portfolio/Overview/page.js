@@ -33,7 +33,7 @@ export default function PortfolioOverviewPage() {
 
   // Asset Allocation Data
   const allocationData = [
-    { name: 'Stocks', value: 125000, percentage: 42.3, color: '#D4AF37' },
+    { name: 'Stocks', value: 125000, percentage: 42.3, color: '#F1CB68' },
     { name: 'Crypto', value: 85000, percentage: 28.8, color: '#36D399' },
     { name: 'Real Estate', value: 45000, percentage: 15.2, color: '#60A5FA' },
     { name: 'Cash', value: 40420, percentage: 13.7, color: '#F1CB68' },
@@ -180,7 +180,7 @@ export default function PortfolioOverviewPage() {
                     timeRange === range
                       ? isDarkMode
                         ? 'bg-[#30333B] text-white'
-                        : 'bg-[#D4AF37] text-black'
+                        : 'bg-[#F1CB68] text-black'
                       : isDarkMode
                       ? 'text-gray-400 hover:text-white'
                       : 'text-black'
@@ -336,8 +336,8 @@ export default function PortfolioOverviewPage() {
                       x2='0'
                       y2='1'
                     >
-                      <stop offset='0%' stopColor='#D4AF37' stopOpacity={0.3} />
-                      <stop offset='100%' stopColor='#D4AF37' stopOpacity={0} />
+                      <stop offset='0%' stopColor='#F1CB68' stopOpacity={0.3} />
+                      <stop offset='100%' stopColor='#F1CB68' stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid
@@ -372,10 +372,10 @@ export default function PortfolioOverviewPage() {
                   <Area
                     type='monotone'
                     dataKey='value'
-                    stroke='#D4AF37'
+                    stroke='#F1CB68'
                     strokeWidth={2}
                     fill='url(#portfolioGradient)'
-                    dot={{ fill: '#D4AF37', r: 4 }}
+                    dot={{ fill: '#F1CB68', r: 4 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -477,7 +477,7 @@ export default function PortfolioOverviewPage() {
               </h3>
               <Link
                 href='/dashboard/portfolio/crypto'
-                className='text-sm text-[#D4AF37] hover:underline'
+                className='text-sm text-[#F1CB68] hover:underline'
               >
                 View All →
               </Link>
@@ -578,7 +578,7 @@ export default function PortfolioOverviewPage() {
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium ${
                           holding.type === 'Stock'
-                            ? 'bg-[#D4AF37]/10 text-[#D4AF37]'
+                            ? 'bg-[#F1CB68]/10 text-[#F1CB68]'
                             : 'bg-[#36D399]/10 text-[#36D399]'
                         }`}
                       >
@@ -650,7 +650,7 @@ export default function PortfolioOverviewPage() {
                 </h3>
                 <Link
                   href='/dashboard/portfolio/trade-engine'
-                  className='text-sm text-[#D4AF37] hover:underline'
+                  className='text-sm text-[#F1CB68] hover:underline'
                 >
                   View All →
                 </Link>
@@ -791,7 +791,7 @@ export default function PortfolioOverviewPage() {
               <div className='grid grid-cols-2 gap-3'>
                 <Link
                   href='/dashboard/portfolio/trade-engine'
-                  className={`p-4 rounded-xl border-2 transition-all hover:border-[#D4AF37] ${
+                  className={`p-4 rounded-xl border-2 transition-all hover:border-[#F1CB68] ${
                     isDarkMode
                       ? 'border-[#FFFFFF14] bg-[#2C2C2E]'
                       : 'border-gray-200 bg-gray-50'
@@ -821,7 +821,7 @@ export default function PortfolioOverviewPage() {
 
                 <Link
                   href='/dashboard/portfolio/cash-flow'
-                  className={`p-4 rounded-xl border-2 transition-all hover:border-[#D4AF37] ${
+                  className={`p-4 rounded-xl border-2 transition-all hover:border-[#F1CB68] ${
                     isDarkMode
                       ? 'border-[#FFFFFF14] bg-[#2C2C2E]'
                       : 'border-gray-200 bg-gray-50'
@@ -851,7 +851,7 @@ export default function PortfolioOverviewPage() {
 
                 <Link
                   href='/dashboard/marketplace'
-                  className={`p-4 rounded-xl border-2 transition-all hover:border-[#D4AF37] ${
+                  className={`p-4 rounded-xl border-2 transition-all hover:border-[#F1CB68] ${
                     isDarkMode
                       ? 'border-[#FFFFFF14] bg-[#2C2C2E]'
                       : 'border-gray-200 bg-gray-50'
@@ -881,19 +881,19 @@ export default function PortfolioOverviewPage() {
 
                 <Link
                   href='/dashboard/reports'
-                  className={`p-4 rounded-xl border-2 transition-all hover:border-[#D4AF37] ${
+                  className={`p-4 rounded-xl border-2 transition-all hover:border-[#F1CB68] ${
                     isDarkMode
                       ? 'border-[#FFFFFF14] bg-[#2C2C2E]'
                       : 'border-gray-200 bg-gray-50'
                   }`}
                 >
-                  <div className='w-10 h-10 rounded-lg bg-[#D4AF37]/20 flex items-center justify-center mb-3'>
+                  <div className='w-10 h-10 rounded-lg bg-[#F1CB68]/20 flex items-center justify-center mb-3'>
                     <svg
                       width='20'
                       height='20'
                       viewBox='0 0 24 24'
                       fill='none'
-                      stroke='#D4AF37'
+                      stroke='#F1CB68'
                       strokeWidth='2'
                     >
                       <path d='M9 17H7a2 2 0 01-2-2V7a2 2 0 012-2h6l4 4v8a2 2 0 01-2 2h-2M9 17v2a2 2 0 002 2h2a2 2 0 002-2v-2M9 17h6' />

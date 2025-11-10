@@ -122,7 +122,7 @@ const PressPage = () => {
               className='text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-clip-text text-transparent'
               style={{
                 backgroundImage:
-                  'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                  'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               }}
             >
               Press & Media
@@ -182,7 +182,7 @@ const PressPage = () => {
                 className='px-4 py-2 rounded-lg text-black flex items-center gap-2 self-start md:self-auto'
                 style={{
                   background:
-                    'linear-gradient(95.36deg, #FFFFFF 1.12%, #D4AF37 53.42%)',
+                    'linear-gradient(95.36deg, #FFFFFF 1.12%, #F1CB68 53.42%)',
                 }}
               >
                 All
@@ -245,7 +245,7 @@ const PressPage = () => {
                       </div>
                     </div>
                     <button
-                      className='text-[#D4AF37]  transition-colors self-start md:self-auto'
+                      className='text-[#F1CB68]  transition-colors self-start md:self-auto'
                       style={{
                         fontFamily: 'Outfit',
                         fontWeight: 400,
@@ -288,7 +288,7 @@ const PressPage = () => {
                   </p>
                   <a
                     href='mailto:press@company.com'
-                    className='text-[#D4AF37] transition-colors inline-block'
+                    className='text-[#F1CB68] transition-colors inline-block'
                     style={{
                       fontFamily: 'Outfit',
                       fontWeight: 400,
@@ -301,7 +301,7 @@ const PressPage = () => {
                   className='px-6 py-3 rounded-full  text-black font-medium  transition-colors whitespace-nowrap w-full sm:w-auto'
                   style={{
                     background:
-                      'linear-gradient(95.36deg, #FFFFFF 1.12%, #D4AF37 53.42%)',
+                      'linear-gradient(95.36deg, #FFFFFF 1.12%, #F1CB68 53.42%)',
                   }}
                 >
                   Download Press Kit

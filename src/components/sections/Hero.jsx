@@ -73,7 +73,7 @@ const Hero = () => {
             style={{
               lineHeight: '130%',
               letterSpacing: '-0.02em',
-              background: 'linear-gradient(to right, #FFFFFF 0%, #D4AF37 100%)',
+              background: 'linear-gradient(to right, #FFFFFF 0%, #F1CB68 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
@@ -97,7 +97,7 @@ const Hero = () => {
                 className='relative z-10'
                 style={{
                   background:
-                    'linear-gradient(to right, #FFFFFF 0%, #D4AF37 100%)',
+                    'linear-gradient(to right, #FFFFFF 0%, #F1CB68 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
@@ -122,7 +122,7 @@ const Hero = () => {
                 className='relative z-10'
                 style={{
                   background:
-                    'linear-gradient(to right, #FFFFFF 0%, #D4AF37 100%)',
+                    'linear-gradient(to right, #FFFFFF 0%, #F1CB68 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
@@ -176,7 +176,7 @@ const Hero = () => {
               className='w-full sm:w-auto rounded-full px-6 sm:px-5 py-3 text-sm font-medium text-black transition-all'
               style={{
                 background:
-                  'linear-gradient(95.36deg, #FFFFFF 1.12%, #D4AF37 53.42%)',
+                  'linear-gradient(95.36deg, #FFFFFF 1.12%, #F1CB68 53.42%)',
               }}
             >
               Sign up

@@ -505,7 +505,7 @@ export default function Marketplace() {
                 onClick={() => router.push('/signup')}
                 className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-[#0B0D12] font-semibold hover:brightness-110 transition-all shadow-lg"
                 style={{
-                  background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                  background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                 }}
               >
                 Get Started
@@ -540,7 +540,7 @@ export default function Marketplace() {
                   whileTap={{ scale: 0.95 }}
                   className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-all rounded-lg flex items-center gap-2 ${
                     activeCategory === category.id
-                      ? 'text-white bg-[#D4AF37]'
+                      ? 'text-white bg-[#F1CB68]'
                       : 'text-gray-400 hover:text-white bg-white/5 border border-[#FFFFFF14]'
                   }`}
                 >
@@ -561,7 +561,7 @@ export default function Marketplace() {
                   whileTap={{ scale: 0.95 }}
                   className={`p-2 rounded-lg shrink-0 transition-all ${
                     isFilterOpen
-                      ? 'bg-[#D4AF37] text-white'
+                      ? 'bg-[#F1CB68] text-white'
                       : 'bg-white/5 text-gray-400 hover:text-white'
                   }`}
                 >
@@ -605,10 +605,10 @@ export default function Marketplace() {
                           className="sr-only"
                         />
                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          sortBy === option.value ? 'border-[#D4AF37]' : 'border-gray-600'
+                          sortBy === option.value ? 'border-[#F1CB68]' : 'border-gray-600'
                         }`}>
                           {sortBy === option.value && (
-                            <div className="w-2.5 h-2.5 rounded-full bg-[#D4AF37]" />
+                            <div className="w-2.5 h-2.5 rounded-full bg-[#F1CB68]" />
                           )}
                         </div>
                         <span className="text-sm text-gray-300">{option.label}</span>
@@ -627,7 +627,7 @@ export default function Marketplace() {
                           type="checkbox"
                           checked={assetTypes[type]}
                           onChange={() => toggleAssetType(type)}
-                          className="w-5 h-5 rounded border-2 border-gray-600 bg-transparent checked:bg-[#D4AF37] checked:border-[#D4AF37] appearance-none cursor-pointer"
+                          className="w-5 h-5 rounded border-2 border-gray-600 bg-transparent checked:bg-[#F1CB68] checked:border-[#F1CB68] appearance-none cursor-pointer"
                           style={{
                             backgroundImage: assetTypes[type]
                               ? "url(\"data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e\")"
@@ -655,7 +655,7 @@ export default function Marketplace() {
                     onChange={e => setPriceRange([priceRange[0], parseInt(e.target.value)])}
                     className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                     style={{
-                      background: `linear-gradient(to right, #D4AF37 0%, #D4AF37 ${
+                      background: `linear-gradient(to right, #F1CB68 0%, #F1CB68 ${
                         ((priceRange[1] - 100) / (10000 - 100)) * 100
                       }%, #374151 ${
                         ((priceRange[1] - 100) / (10000 - 100)) * 100
@@ -682,7 +682,7 @@ export default function Marketplace() {
                     onChange={e => setReturnRange([returnRange[0], parseInt(e.target.value)])}
                     className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                     style={{
-                      background: `linear-gradient(to right, #D4AF37 0%, #D4AF37 ${
+                      background: `linear-gradient(to right, #F1CB68 0%, #F1CB68 ${
                         ((returnRange[1] - 1) / (30 - 1)) * 100
                       }%, #374151 ${
                         ((returnRange[1] - 1) / (30 - 1)) * 100
@@ -757,7 +757,7 @@ export default function Marketplace() {
               onClick={() => router.push('/signup')}
               className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-[#0B0D12] font-semibold hover:brightness-110 transition-all shadow-lg"
               style={{
-                background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               }}
             >
               Create Free Account
@@ -805,7 +805,7 @@ function InvestmentCard({ fund, index, onViewDetails }) {
     >
       {/* Golden Corner Triangle */}
       <div className="absolute top-0 right-0 w-16 h-16 overflow-hidden">
-        <div className="absolute top-0 right-0 w-0 h-0 border-t-[64px] border-t-[#D4AF37] border-l-[64px] border-l-transparent" />
+        <div className="absolute top-0 right-0 w-0 h-0 border-t-[64px] border-t-[#F1CB68] border-l-[64px] border-l-transparent" />
       </div>
 
       {/* Image */}
@@ -819,13 +819,13 @@ function InvestmentCard({ fund, index, onViewDetails }) {
       </div>
 
       {/* Icon */}
-      <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 bg-[#D4AF37]/10">
+      <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 bg-[#F1CB68]/10">
         <svg
           width="20"
           height="20"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#D4AF37"
+          stroke="#F1CB68"
           strokeWidth="2"
         >
           <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -889,7 +889,7 @@ function InvestmentCard({ fund, index, onViewDetails }) {
         onClick={() => onViewDetails(fund.id)}
         className="w-full py-3 text-sm rounded-lg font-medium transition-all text-[#0B0D12]"
         style={{
-          background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+          background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
         }}
       >
         View Details

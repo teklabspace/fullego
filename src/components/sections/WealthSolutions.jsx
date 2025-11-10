@@ -85,7 +85,7 @@ const WealthSolutions = () => {
               <span
                 style={{
                   background:
-                    'linear-gradient(to right, #FFFFFF 0%, #D4AF37 100%)',
+                    'linear-gradient(to right, #FFFFFF 0%, #F1CB68 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                 }}

@@ -40,7 +40,7 @@ export default function AssetSearchBar({
               isDarkMode
                 ? 'bg-[#101014] border-[#FFFFFF14] text-white'
                 : 'bg-white border-gray-300 text-gray-900'
-            } focus:outline-none focus:border-[#D4AF37]`}
+            } focus:outline-none focus:border-[#F1CB68]`}
           >
             <option value='stocks'>Stocks</option>
             <option value='crypto'>Crypto</option>
@@ -82,7 +82,7 @@ export default function AssetSearchBar({
                 isDarkMode
                   ? 'bg-[#101014] border-[#FFFFFF14] text-white placeholder-gray-500'
                   : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-              } focus:outline-none focus:border-[#D4AF37]`}
+              } focus:outline-none focus:border-[#F1CB68]`}
             />
           </div>
         </div>

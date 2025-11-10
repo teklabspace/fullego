@@ -37,8 +37,8 @@ export default function GlobalError({ error, reset }) {
                 padding: '1rem 2rem',
                 background: 'transparent',
                 borderImage:
-                  'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%) 1',
-                background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                  'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%) 1',
+                background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',

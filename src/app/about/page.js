@@ -42,7 +42,7 @@ const AboutPage = () => {
                   className='bg-clip-text text-transparent'
                   style={{
                     backgroundImage:
-                      'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                      'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                   }}
                 >
                   Digital Innovation
@@ -81,7 +81,7 @@ const AboutPage = () => {
                   className='w-full sm:w-auto rounded-full px-6 sm:px-5 py-3 text-sm font-medium text-black transition-all'
                   style={{
                     background:
-                      'linear-gradient(95.36deg, #FFFFFF 1.12%, #D4AF37 53.42%)',
+                      'linear-gradient(95.36deg, #FFFFFF 1.12%, #F1CB68 53.42%)',
                   }}
                 >
                   Sign up
@@ -176,7 +176,7 @@ const AboutPage = () => {
                   <h3 className='text-xl sm:text-2xl md:text-3xl font-bold text-white'>
                     Stephen Ogu
                   </h3>
-                  <p className='text-base sm:text-lg md:text-xl font-bold text-[#D4AF37]'>
+                  <p className='text-base sm:text-lg md:text-xl font-bold text-[#F1CB68]'>
                     Chief Operations Officer
                   </p>
                   <p className='text-sm sm:text-base text-white/80 leading-relaxed max-w-xs'>
@@ -206,7 +206,7 @@ const AboutPage = () => {
                   <h3 className='text-xl sm:text-2xl md:text-3xl font-bold text-white'>
                     Maria Gonzales
                   </h3>
-                  <p className='text-base sm:text-lg md:text-xl font-bold text-[#D4AF37]'>
+                  <p className='text-base sm:text-lg md:text-xl font-bold text-[#F1CB68]'>
                     Chief Operations Officer
                   </p>
                   <p className='text-sm sm:text-base text-white/80 leading-relaxed max-w-xs'>
@@ -236,7 +236,7 @@ const AboutPage = () => {
                   <h3 className='text-xl sm:text-2xl md:text-3xl font-bold text-white'>
                     David Thompson
                   </h3>
-                  <p className='text-base sm:text-lg md:text-xl font-bold text-[#D4AF37]'>
+                  <p className='text-base sm:text-lg md:text-xl font-bold text-[#F1CB68]'>
                     Chief Technology Officer
                   </p>
                   <p className='text-sm sm:text-base text-white/80 leading-relaxed max-w-xs'>

@@ -296,7 +296,7 @@ export default function CryptoPortfolioPage() {
                             }}
                             className={`w-full px-4 py-2.5 text-left text-sm transition-all ${
                               timeRange === range
-                                ? 'bg-[#D4AF37] text-white'
+                                ? 'bg-[#F1CB68] text-white'
                                 : isDarkMode
                                 ? 'text-gray-300 hover:bg-[#3C3C3E]'
                                 : 'text-gray-700 hover:bg-gray-100'
@@ -769,7 +769,7 @@ export default function CryptoPortfolioPage() {
                         y2='0'
                       >
                         <stop offset='0%' stopColor='#FFFFFF' />
-                        <stop offset='100%' stopColor='#D4AF37' />
+                        <stop offset='100%' stopColor='#F1CB68' />
                       </linearGradient>
                     </defs>
                   </BarChart>
@@ -825,8 +825,8 @@ export default function CryptoPortfolioPage() {
               <button
                 className={`text-sm flex items-center gap-1 ${
                   isDarkMode
-                    ? 'text-[#D4AF37] hover:text-[#C49D2E]'
-                    : 'text-[#D4AF37] hover:text-[#C49D2E]'
+                    ? 'text-[#F1CB68] hover:text-[#C49D2E]'
+                    : 'text-[#F1CB68] hover:text-[#C49D2E]'
                 } transition-colors`}
               >
                 View All
@@ -985,7 +985,7 @@ export default function CryptoPortfolioPage() {
                             style={{
                               width: `${holding.portfolioWeight}%`,
                               background:
-                                'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                                'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                             }}
                           />
                         </div>
@@ -1072,7 +1072,7 @@ function StatCard({
       <div
         className={`text-3xl font-bold mb-1 ${
           highlight
-            ? 'text-[#D4AF37]'
+            ? 'text-[#F1CB68]'
             : isDarkMode
             ? 'text-white'
             : 'text-gray-900'
@@ -1090,7 +1090,7 @@ function StatCard({
         </span>
         {trendValue && (
           <>
-            <div className='w-36 mt-4 h-1 bg-[#D4AF37] rounded-full' />
+            <div className='w-36 mt-4 h-1 bg-[#F1CB68] rounded-full' />
           </>
         )}
       </div>
@@ -1105,7 +1105,7 @@ function TabButton({ active, onClick, children, isDarkMode }) {
       <button
         onClick={onClick}
         className={`px-4 py-2 text-xs font-medium rounded-full transition-all whitespace-nowrap ${
-          isDarkMode ? 'bg-[#313035] text-white' : 'bg-[#D4AF37] text-black'
+          isDarkMode ? 'bg-[#313035] text-white' : 'bg-[#F1CB68] text-black'
         }`}
       >
         {children}
@@ -1388,7 +1388,7 @@ function DatePicker({ isDarkMode, onClose, onSelect }) {
                 disabled={!dayObj.isCurrentMonth}
                 className={`aspect-square rounded-lg text-sm flex items-center justify-center transition-all ${
                   isSelected
-                    ? 'bg-[#D4AF37] text-white font-semibold'
+                    ? 'bg-[#F1CB68] text-white font-semibold'
                     : dayObj.isCurrentMonth
                     ? isDarkMode
                       ? 'text-white hover:bg-[#2C2C2E]'
@@ -1419,7 +1419,7 @@ function DatePicker({ isDarkMode, onClose, onSelect }) {
             disabled={!startDate || !endDate}
             className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-all ${
               startDate && endDate
-                ? 'bg-[#D4AF37] text-white hover:bg-[#C49D2E]'
+                ? 'bg-[#F1CB68] text-white hover:bg-[#C49D2E]'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >

@@ -371,7 +371,7 @@ export default function DocumentsPage() {
                 >
                   {stat.value}
                 </h3>
-                <p className='text-[#D4AF37] text-sm'>{stat.subtitle}</p>
+                <p className='text-[#F1CB68] text-sm'>{stat.subtitle}</p>
               </div>
               <div className='ml-4'>
                 <Image
@@ -405,8 +405,8 @@ export default function DocumentsPage() {
                   ? {
                       padding: '1px',
                       background:
-                        'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
-                      boxShadow: '0 0 20px rgba(212, 175, 55, 0.2)',
+                        'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
+                      boxShadow: '0 0 20px rgba(241, 203, 104, 0.2)',
                     }
                   : {
                       padding: '0px',
@@ -479,7 +479,7 @@ export default function DocumentsPage() {
                   }
             }
             onFocus={e =>
-              (e.target.style.borderColor = 'rgba(212, 175, 55, 0.3)')
+              (e.target.style.borderColor = 'rgba(241, 203, 104, 0.3)')
             }
             onBlur={e =>
               (e.target.style.borderColor = isDarkMode
@@ -587,7 +587,7 @@ export default function DocumentsPage() {
             onClick={handleUpload}
             className='flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold transition-all hover:opacity-90 cursor-pointer'
             style={{
-              background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+              background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               color: '#000000',
             }}
           >

@@ -37,7 +37,7 @@ export default function KYCVerificationPage() {
         <div
           className='absolute w-64 h-64 rounded-full'
           style={{
-            background: '#D4AF37',
+            background: '#F1CB68',
             filter: 'blur(100px)',
             opacity: 0.2,
             right: '15%',
@@ -87,7 +87,7 @@ export default function KYCVerificationPage() {
               className='absolute w-96 h-96 rounded-full'
               style={{
                 background:
-                  'radial-gradient(circle, #D4AF37 0%, transparent 70%)',
+                  'radial-gradient(circle, #F1CB68 0%, transparent 70%)',
                 filter: 'blur(60px)',
                 opacity: 0.3,
                 top: '50%',
@@ -114,8 +114,8 @@ export default function KYCVerificationPage() {
                 <div
                   className='absolute w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center'
                   style={{
-                    background: 'rgba(212, 175, 55, 0.2)',
-                    border: '2px solid rgba(212, 175, 55, 0.5)',
+                    background: 'rgba(241, 203, 104, 0.2)',
+                    border: '2px solid rgba(241, 203, 104, 0.5)',
                     top: '10%',
                     right: '20%',
                     animation: 'float 3s ease-in-out infinite',
@@ -125,7 +125,7 @@ export default function KYCVerificationPage() {
                     className='w-6 h-6 md:w-8 md:h-8'
                     viewBox='0 0 24 24'
                     fill='none'
-                    stroke='#D4AF37'
+                    stroke='#F1CB68'
                     strokeWidth='2'
                   >
                     <path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' />
@@ -135,8 +135,8 @@ export default function KYCVerificationPage() {
                 <div
                   className='absolute w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center'
                   style={{
-                    background: 'rgba(212, 175, 55, 0.2)',
-                    border: '2px solid rgba(212, 175, 55, 0.5)',
+                    background: 'rgba(241, 203, 104, 0.2)',
+                    border: '2px solid rgba(241, 203, 104, 0.5)',
                     bottom: '15%',
                     left: '5%',
                     animation: 'float 4s ease-in-out infinite',
@@ -147,7 +147,7 @@ export default function KYCVerificationPage() {
                     className='w-5 h-5 md:w-6 md:h-6'
                     viewBox='0 0 24 24'
                     fill='none'
-                    stroke='#D4AF37'
+                    stroke='#F1CB68'
                     strokeWidth='2'
                   >
                     <polyline points='20 6 9 17 4 12' />
@@ -163,7 +163,7 @@ export default function KYCVerificationPage() {
           onClick={handleStartVerification}
           className='text-[#0B0D12] cursor-pointer font-semibold px-8 md:px-10 py-3 md:py-4 rounded-full transition-all text-base md:text-lg shadow-lg hover:shadow-xl transform hover:scale-105'
           style={{
-            background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+            background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
           }}
         >
           Start Verification

@@ -72,7 +72,7 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
         className='flex justify-between items-center px-4 md:px-6 py-3 md:py-4'
         style={{
           borderBottom: isDarkMode
-            ? '1px solid rgba(212, 175, 55, 0.2)'
+            ? '1px solid rgba(241, 203, 104, 0.2)'
             : '1px solid rgba(0, 0, 0, 0.1)',
         }}
       >
@@ -117,11 +117,11 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
             background: transparent;
           }
           .custom-modal-scroll::-webkit-scrollbar-thumb {
-            background: rgba(212, 175, 55, 0.3);
+            background: rgba(241, 203, 104, 0.3);
             border-radius: 3px;
           }
           .custom-modal-scroll::-webkit-scrollbar-thumb:hover {
-            background: rgba(212, 175, 55, 0.5);
+            background: rgba(241, 203, 104, 0.5);
           }
         `}</style>
         {/* Upload Area */}
@@ -131,10 +131,10 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
           onDrop={handleDrop}
           className={`border-2 border-dashed rounded-2xl p-8 md:p-12 mb-4 transition-all cursor-pointer ${
             isDragging
-              ? 'border-[#D4AF37] bg-[#D4AF37]/10'
+              ? 'border-[#F1CB68] bg-[#F1CB68]/10'
               : isDarkMode
-              ? 'border-gray-600 hover:border-[#D4AF37]/50'
-              : 'border-gray-300 hover:border-[#D4AF37]/50'
+              ? 'border-gray-600 hover:border-[#F1CB68]/50'
+              : 'border-gray-300 hover:border-[#F1CB68]/50'
           }`}
           onClick={() => document.getElementById('fileInput').click()}
         >
@@ -201,9 +201,9 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
           <button
             className='flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer text-sm'
             style={{
-              background: 'rgba(212, 175, 55, 0.1)',
-              border: '1px solid rgba(212, 175, 55, 0.3)',
-              color: '#D4AF37',
+              background: 'rgba(241, 203, 104, 0.1)',
+              border: '1px solid rgba(241, 203, 104, 0.3)',
+              color: '#F1CB68',
             }}
           >
             <Image
@@ -258,7 +258,7 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
                   }
             }
             onFocus={e =>
-              (e.target.style.borderColor = 'rgba(212, 175, 55, 0.3)')
+              (e.target.style.borderColor = 'rgba(241, 203, 104, 0.3)')
             }
             onBlur={e =>
               (e.target.style.borderColor = isDarkMode
@@ -272,9 +272,9 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
                 key={index}
                 className='flex items-center gap-2 px-4 py-2 rounded-full text-sm'
                 style={{
-                  background: 'rgba(212, 175, 55, 0.1)',
-                  border: '1px solid rgba(212, 175, 55, 0.3)',
-                  color: '#D4AF37',
+                  background: 'rgba(241, 203, 104, 0.1)',
+                  border: '1px solid rgba(241, 203, 104, 0.3)',
+                  color: '#F1CB68',
                 }}
               >
                 <span>{tag}</span>
@@ -307,7 +307,7 @@ const FileUploadModal = ({ isOpen, setIsOpen, onPreview }) => {
             className='flex items-center justify-center gap-2 px-6 py-3 rounded-full text-sm font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed'
             style={{
               background: selectedFile
-                ? 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)'
+                ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
                 : 'rgba(255, 255, 255, 0.1)',
               color: selectedFile ? '#000000' : '#9CA3AF',
               width: '271px',

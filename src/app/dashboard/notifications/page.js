@@ -67,7 +67,7 @@ export default function NotificationsPage() {
             style={{
               background:
                 activeTab === 'all'
-                  ? 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)'
+                  ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
                   : 'rgba(255, 255, 255, 0.05)',
             }}
           >
@@ -83,7 +83,7 @@ export default function NotificationsPage() {
             style={{
               background:
                 activeTab === 'unread'
-                  ? 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)'
+                  ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
                   : 'rgba(255, 255, 255, 0.05)',
             }}
           >
@@ -109,7 +109,7 @@ export default function NotificationsPage() {
                   <div
                     className='w-12 h-12 rounded-full flex items-center justify-center shrink-0'
                     style={{
-                      background: 'rgba(212, 175, 55, 0.2)',
+                      background: 'rgba(241, 203, 104, 0.2)',
                     }}
                   >
                     <Image src='/Bell.svg' alt='Bell' width={24} height={24} />
@@ -147,7 +147,7 @@ export default function NotificationsPage() {
                   {!notification.read && (
                     <div
                       className='w-3 h-3 rounded-full shrink-0'
-                      style={{ background: '#D4AF37' }}
+                      style={{ background: '#F1CB68' }}
                     />
                   )}
                 </div>

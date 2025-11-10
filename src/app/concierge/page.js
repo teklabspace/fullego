@@ -97,7 +97,7 @@ export default function Concierge() {
                 className='absolute right-px top-1/2 transform -translate-y-1/2 flex items-center justify-center px-4 md:px-6 py-[13.5px] rounded-[24px] text-base md:text-[18px] font-medium leading-[130%] tracking-[-0.02em] text-[#101014] border border-white/10'
                 style={{
                   background:
-                    'linear-gradient(95.36deg, #FFFFFF 1.12%, #D4AF37 53.42%)',
+                    'linear-gradient(95.36deg, #FFFFFF 1.12%, #F1CB68 53.42%)',
                   fontFamily: 'Poppins',
                 }}
               >
@@ -157,7 +157,7 @@ export default function Concierge() {
                   fontFamily: 'Outfit, sans-serif',
                 }}
               >
-                Our <span className='text-[#D4AF37]'>Process</span>
+                Our <span className='text-[#F1CB68]'>Process</span>
               </h2>
 
               {/* Subtitle */}

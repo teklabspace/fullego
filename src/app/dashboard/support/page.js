@@ -133,8 +133,8 @@ function HelpCard({ item, isDarkMode }) {
     <div
       className={`rounded-2xl border p-6 transition-all hover:shadow-lg ${
         isDarkMode
-          ? 'bg-[#1A1A1D] border-[#FFFFFF14] hover:border-[#D4AF37]/50'
-          : 'bg-white border-gray-200 hover:border-[#D4AF37]/50'
+          ? 'bg-[#1A1A1D] border-[#FFFFFF14] hover:border-[#F1CB68]/50'
+          : 'bg-white border-gray-200 hover:border-[#F1CB68]/50'
       }`}
     >
       {/* Icon */}
@@ -163,7 +163,7 @@ function HelpCard({ item, isDarkMode }) {
       {/* Learn More Link */}
       <a
         href='#'
-        className='text-[#D4AF37] text-sm font-medium hover:text-[#E5C158] transition-colors inline-flex items-center gap-1'
+        className='text-[#F1CB68] text-sm font-medium hover:text-[#E5C158] transition-colors inline-flex items-center gap-1'
       >
         Learn more{' '}
         <svg

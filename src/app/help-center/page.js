@@ -20,7 +20,7 @@ const categories = [
       >
         <path
           d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v13'
-          stroke='#D4AF37'
+          stroke='#F1CB68'
           strokeWidth='2'
           strokeLinecap='round'
           strokeLinejoin='round'
@@ -42,7 +42,7 @@ const categories = [
       >
         <path
           d='M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'
-          stroke='#D4AF37'
+          stroke='#F1CB68'
           strokeWidth='2'
           strokeLinecap='round'
           strokeLinejoin='round'
@@ -64,7 +64,7 @@ const categories = [
       >
         <path
           d='M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1'
-          stroke='#D4AF37'
+          stroke='#F1CB68'
           strokeWidth='2'
           strokeLinecap='round'
           strokeLinejoin='round'
@@ -84,10 +84,10 @@ const categories = [
         fill='none'
         xmlns='http://www.w3.org/2000/svg'
       >
-        <circle cx='12' cy='12' r='10' stroke='#D4AF37' strokeWidth='2' />
+        <circle cx='12' cy='12' r='10' stroke='#F1CB68' strokeWidth='2' />
         <path
           d='M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01'
-          stroke='#D4AF37'
+          stroke='#F1CB68'
           strokeWidth='2'
           strokeLinecap='round'
           strokeLinejoin='round'
@@ -145,7 +145,7 @@ const HelpCenterPage = () => {
               height: 'clamp(300px, 523px, 40vh)',
               left: 'clamp(-100px, -179px, -10%)',
               top: 'clamp(20px, 41px, 5vh)',
-              background: 'rgba(212, 175, 55, 0.18)',
+              background: 'rgba(241, 203, 104, 0.18)',
               filter: 'blur(124.4px)',
             }}
           />
@@ -179,10 +179,10 @@ const HelpCenterPage = () => {
             >
               How can we{' '}
               <span
-                className='bg-gradient-to-r from-[#D4AF37] to-[#F1CB68] bg-clip-text text-transparent'
+                className='bg-gradient-to-r from-[#F1CB68] to-[#F1CB68] bg-clip-text text-transparent'
                 style={{
                   backgroundImage:
-                    'linear-gradient(180deg, #FFFFFF 0%, #D4AF37 100%)',
+                    'linear-gradient(180deg, #FFFFFF 0%, #F1CB68 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                 }}
@@ -241,7 +241,7 @@ const HelpCenterPage = () => {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder='Search for articles...'
-                  className='w-full pl-12 pr-4 py-4 rounded-full bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white focus:outline-none focus:border-[#D4AF37]/50 transition-colors'
+                  className='w-full pl-12 pr-4 py-4 rounded-full bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white focus:outline-none focus:border-[#F1CB68]/50 transition-colors'
                   style={{
                     fontFamily: 'Outfit',
                     fontWeight: 400,
@@ -281,10 +281,10 @@ const HelpCenterPage = () => {
                   {/* Icon Circle */}
                   <div className='mb-6 flex justify-center'>
                     <div
-                      className='w-20 h-20 rounded-full border-2 border-[#D4AF37] flex items-center justify-center bg-[#1a1a1f]/50'
-                      style={{ borderColor: '#D4AF37' }}
+                      className='w-20 h-20 rounded-full border-2 border-[#F1CB68] flex items-center justify-center bg-[#1a1a1f]/50'
+                      style={{ borderColor: '#F1CB68' }}
                     >
-                      <div className='text-[#D4AF37]'>{category.icon}</div>
+                      <div className='text-[#F1CB68]'>{category.icon}</div>
                     </div>
                   </div>
 
@@ -348,7 +348,7 @@ const HelpCenterPage = () => {
               className='px-6 py-3 mt-10 rounded-full  text-black font-medium  transition-colors whitespace-nowrap w-full sm:w-auto'
               style={{
                 background:
-                  'linear-gradient(95.36deg, #FFFFFF 1.12%, #D4AF37 53.42%)',
+                  'linear-gradient(95.36deg, #FFFFFF 1.12%, #F1CB68 53.42%)',
               }}
             >
               Contact Support

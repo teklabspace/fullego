@@ -143,7 +143,7 @@ const FAQ = () => {
             >
               Frequently asked <br className='hidden lg:block' />
               <span className='lg:inline'> </span>
-              <span className='text-[#D4AF37]'>questions</span>
+              <span className='text-[#F1CB68]'>questions</span>
             </h2>
 
             {/* Subtitle */}

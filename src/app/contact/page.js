@@ -71,7 +71,7 @@ const ContactPage = () => {
                 className='bg-clip-text text-transparent'
                 style={{
                   backgroundImage:
-                    'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                    'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                 }}
               >
                 Touch
@@ -158,7 +158,7 @@ const ContactPage = () => {
                         value={formData.firstName}
                         onChange={handleChange}
                         placeholder='John'
-                        className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#D4AF37]/50 transition-colors'
+                        className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors'
                         style={{
                           fontFamily: 'Outfit',
                           fontWeight: 400,
@@ -173,7 +173,7 @@ const ContactPage = () => {
                         onChange={handleChange}
                         placeholder='Last Name*'
                         required
-                        className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#D4AF37]/50 transition-colors'
+                        className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors'
                         style={{
                           fontFamily: 'Outfit',
                           fontWeight: 400,
@@ -191,7 +191,7 @@ const ContactPage = () => {
                       onChange={handleChange}
                       placeholder='Email*'
                       required
-                      className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#D4AF37]/50 transition-colors'
+                      className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors'
                       style={{
                         fontFamily: 'Outfit',
                         fontWeight: 400,
@@ -208,7 +208,7 @@ const ContactPage = () => {
                       onChange={handleChange}
                       placeholder='Phone Number*'
                       required
-                      className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#D4AF37]/50 transition-colors'
+                      className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors'
                       style={{
                         fontFamily: 'Outfit',
                         fontWeight: 400,
@@ -224,7 +224,7 @@ const ContactPage = () => {
                       onChange={handleChange}
                       placeholder='Your message...'
                       rows={6}
-                      className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#D4AF37]/50 transition-colors resize-none'
+                      className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors resize-none'
                       style={{
                         fontFamily: 'Outfit',
                         fontWeight: 400,
@@ -237,7 +237,7 @@ const ContactPage = () => {
                     type='submit'
                     className='w-full px-6 py-3 rounded-lg font-medium transition-colors'
                     style={{
-                      background: '#D4AF37',
+                      background: '#F1CB68',
                       color: '#FFFFFF',
                       fontFamily: 'Poppins',
                       fontWeight: 500,
@@ -266,7 +266,7 @@ const ContactPage = () => {
                     <div className='flex items-center gap-3'>
                       <div
                         className='w-6 h-6 flex items-center justify-center'
-                        style={{ color: '#D4AF37' }}
+                        style={{ color: '#F1CB68' }}
                       >
                         <svg
                           width='24'
@@ -277,7 +277,7 @@ const ContactPage = () => {
                         >
                           <path
                             d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z'
-                            fill='#D4AF37'
+                            fill='#F1CB68'
                           />
                         </svg>
                       </div>
@@ -307,7 +307,7 @@ const ContactPage = () => {
                     <div className='flex items-center gap-3'>
                       <div
                         className='w-6 h-6 flex items-center justify-center'
-                        style={{ color: '#D4AF37' }}
+                        style={{ color: '#F1CB68' }}
                       >
                         <svg
                           width='24'
@@ -318,7 +318,7 @@ const ContactPage = () => {
                         >
                           <path
                             d='M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z'
-                            fill='#D4AF37'
+                            fill='#F1CB68'
                           />
                         </svg>
                       </div>
@@ -334,7 +334,7 @@ const ContactPage = () => {
                     </div>
                     <a
                       href='mailto:info@akunuba.io'
-                      className='text-base text-white/70 hover:text-[#D4AF37] transition-colors pl-9 inline-block'
+                      className='text-base text-white/70 hover:text-[#F1CB68] transition-colors pl-9 inline-block'
                       style={{
                         fontFamily: 'Outfit',
                         fontWeight: 400,

@@ -23,11 +23,11 @@ const Modal = ({ isOpen, setIsOpen, children, maxWidth = 'max-w-2xl' }) => {
               background: transparent;
             }
             .custom-scrollbar::-webkit-scrollbar-thumb {
-              background: rgba(212, 175, 55, 0.3);
+              background: rgba(241, 203, 104, 0.3);
               border-radius: 3px;
             }
             .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-              background: rgba(212, 175, 55, 0.5);
+              background: rgba(241, 203, 104, 0.5);
             }
           `}</style>
           <motion.div
@@ -41,7 +41,7 @@ const Modal = ({ isOpen, setIsOpen, children, maxWidth = 'max-w-2xl' }) => {
                 ? {
                     background:
                       'linear-gradient(135deg, rgba(34, 33, 38, 0.98) 0%, rgba(17, 17, 22, 0.98) 100%)',
-                    border: '1px solid rgba(212, 175, 55, 0.3)',
+                    border: '1px solid rgba(241, 203, 104, 0.3)',
                   }
                 : {
                     background: 'white',

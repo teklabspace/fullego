@@ -55,7 +55,7 @@ const HowToGetStarted = () => {
             >
               How to get{' '}
               <span
-              className='text-[#D4AF37]'
+              className='text-[#F1CB68]'
               >
                 Started
               </span>
@@ -371,7 +371,7 @@ const HowToGetStarted = () => {
                       width: '141px',
                       height: '48px',
                       background:
-                        'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                        'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                       borderRadius: '40px',
                       flex: 'none',
                       order: 2,

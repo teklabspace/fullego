@@ -124,7 +124,7 @@ export default function Sidebar({ isOpen, onClose }) {
   // Track previous pathname to detect changes
   const prevPathnameRef = useRef(pathname);
   const [, forceUpdate] = useState(0);
-  
+
   // Listen for route changes and force re-render
   useEffect(() => {
     // Check if pathname actually changed
@@ -132,24 +132,25 @@ export default function Sidebar({ isOpen, onClose }) {
       prevPathnameRef.current = pathname;
       forceUpdate(prev => prev + 1);
     }
-    
+
     const handleRouteChange = () => {
       // Check window.location as fallback
       if (typeof window !== 'undefined') {
         const currentPath = window.location.pathname.replace(/\/$/, '') || '/';
-        const prevPath = (prevPathnameRef.current || '').replace(/\/$/, '') || '/';
-        
+        const prevPath =
+          (prevPathnameRef.current || '').replace(/\/$/, '') || '/';
+
         if (currentPath !== prevPath) {
           prevPathnameRef.current = window.location.pathname;
           forceUpdate(prev => prev + 1);
         }
       }
     };
-    
+
     if (typeof window !== 'undefined') {
       // Listen for popstate (browser back/forward)
       window.addEventListener('popstate', handleRouteChange);
-      
+
       return () => {
         window.removeEventListener('popstate', handleRouteChange);
       };
@@ -164,10 +165,13 @@ export default function Sidebar({ isOpen, onClose }) {
   const getCurrentPath = () => {
     // Always read from the latest pathname or window.location
     let currentPath = pathname;
-    if (typeof window !== 'undefined' && (!currentPath || currentPath === window.location.pathname)) {
+    if (
+      typeof window !== 'undefined' &&
+      (!currentPath || currentPath === window.location.pathname)
+    ) {
       currentPath = window.location.pathname;
     }
-    
+
     if (currentPath) {
       return currentPath.replace(/\/$/, '') || '/';
     }
@@ -175,17 +179,19 @@ export default function Sidebar({ isOpen, onClose }) {
   };
 
   // Helper function to check if pathname matches href
-  const isActive = (href) => {
+  const isActive = href => {
     const currentPath = getCurrentPath();
     const normalizedHref = href.replace(/\/$/, '') || '/';
     return currentPath === normalizedHref;
   };
 
   // Helper function to check if pathname starts with href (for submenu parents)
-  const isActiveParent = (href) => {
+  const isActiveParent = href => {
     const currentPath = getCurrentPath();
     const normalizedHref = href.replace(/\/$/, '') || '/';
-    return currentPath.startsWith(normalizedHref) && currentPath !== normalizedHref;
+    return (
+      currentPath.startsWith(normalizedHref) && currentPath !== normalizedHref
+    );
   };
 
   return (
@@ -214,7 +220,18 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className='flex flex-col h-full'>
           {/* Logo - Fixed at top */}
           <div className='flex items-center justify-between px-6 py-5 '>
-            <img src='/Dashboardlogo.svg' alt='Fullego' className='h-8' />
+            <div className='h-8 relative'>
+              <img
+                src='/Logo.svg'
+                alt='Fullego'
+                className='h-8 transition-all'
+                style={{
+                  filter: isDarkMode
+                    ? 'none'
+                    : 'brightness(0) saturate(100%) invert(0)',
+                }}
+              />
+            </div>
             <button
               onClick={onClose}
               className={`lg:hidden transition-colors ${
@@ -339,18 +356,22 @@ export default function Sidebar({ isOpen, onClose }) {
                                 name={item.icon}
                                 size={20}
                                 className={
-                                  (isActiveParent(item.href) || isActive(item.href)) && isDarkMode
+                                  (isActiveParent(item.href) ||
+                                    isActive(item.href)) &&
+                                  isDarkMode
                                     ? 'brightness-0 invert'
                                     : ''
                                 }
                                 style={
-                                  !isActiveParent(item.href) && !isActive(item.href)
+                                  !isActiveParent(item.href) &&
+                                  !isActive(item.href)
                                     ? {
                                         filter: isDarkMode
                                           ? 'brightness(0) saturate(100%) invert(64%) sepia(6%) saturate(449%) hue-rotate(178deg) brightness(95%) contrast(88%)'
                                           : 'brightness(0.5)',
                                       }
-                                    : (isActiveParent(item.href) || isActive(item.href)) &&
+                                    : (isActiveParent(item.href) ||
+                                        isActive(item.href)) &&
                                       !isDarkMode
                                     ? { filter: 'none' }
                                     : {}

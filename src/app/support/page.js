@@ -353,7 +353,7 @@ export default function Support() {
                 whileTap={{ scale: 0.95 }}
                 className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-[#0B0D12] font-semibold hover:brightness-110 transition-all shadow-lg"
                 style={{
-                  background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                  background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                 }}
               >
                 Learn more
@@ -504,7 +504,7 @@ export default function Support() {
                 whileTap={{ scale: 0.95 }}
                 className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-[#0B0D12] font-semibold hover:brightness-110 transition-all shadow-lg"
                 style={{
-                  background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                  background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                 }}
               >
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -519,7 +519,7 @@ export default function Support() {
                 whileTap={{ scale: 0.95 }}
                 className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-[#0B0D12] font-semibold hover:brightness-110 transition-all shadow-lg"
                 style={{
-                  background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                  background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                 }}
               >
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">

@@ -66,15 +66,15 @@ export default function ErrorPage({
             className='group relative px-8 py-4 bg-transparent border-2 rounded-full font-semibold text-lg transition-all duration-300 hover:opacity-80 flex items-center gap-3 slide-up mx-auto lg:mx-0'
             style={{ 
               animationDelay: '0.2s',
-              borderImage: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%) 1',
-              background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+              borderImage: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%) 1',
+              background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text'
             }}
           >
             <span style={{
-              background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+              background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text'
@@ -92,7 +92,7 @@ export default function ErrorPage({
               <defs>
                 <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
                   <stop offset="0%" stopColor="#FFFFFF" />
-                  <stop offset="100%" stopColor="#D4AF37" />
+                  <stop offset="100%" stopColor="#F1CB68" />
                 </linearGradient>
               </defs>
               <path

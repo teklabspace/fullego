@@ -84,7 +84,7 @@ function SettingsContent() {
 
   const getStatusBadge = status => {
     const statusConfig = {
-      open: { bg: 'rgba(212, 175, 55, 0.2)', color: '#D4AF37', text: 'Open' },
+      open: { bg: 'rgba(241, 203, 104, 0.2)', color: '#F1CB68', text: 'Open' },
       inprogress: {
         bg: 'rgba(59, 130, 246, 0.2)',
         color: '#3B82F6',
@@ -144,7 +144,7 @@ function SettingsContent() {
     {
       id: 5,
       icon: '/icons/Frame2121453925.svg',
-      iconColor: '#D4AF37',
+      iconColor: '#F1CB68',
       message: 'BTC Halving will take place in 4 days.',
       time: '7days ago',
     },
@@ -174,7 +174,7 @@ function SettingsContent() {
               style={{
                 background:
                   'linear-gradient(135deg, rgba(30, 30, 35, 0.8) 0%, rgba(20, 20, 25, 0.9) 100%)',
-                border: '1px solid rgba(212, 175, 55, 0.3)',
+                border: '1px solid rgba(241, 203, 104, 0.3)',
               }}
             >
               {/* Tabs */}
@@ -189,7 +189,7 @@ function SettingsContent() {
                   style={{
                     background:
                       notifSubTab === 'all'
-                        ? 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)'
+                        ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
                         : 'rgba(255, 255, 255, 0.05)',
                   }}
                 >
@@ -205,7 +205,7 @@ function SettingsContent() {
                   style={{
                     background:
                       notifSubTab === 'unread'
-                        ? 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)'
+                        ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
                         : 'rgba(255, 255, 255, 0.05)',
                   }}
                 >
@@ -313,7 +313,7 @@ function SettingsContent() {
                   <input
                     type='text'
                     defaultValue='Olivia Benson'
-                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#D4AF37] transition-colors'
+                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
                   />
                 </div>
 
@@ -325,7 +325,7 @@ function SettingsContent() {
                   <input
                     type='email'
                     defaultValue='hello@gmail.com'
-                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#D4AF37] transition-colors'
+                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
                   />
                 </div>
 
@@ -337,7 +337,7 @@ function SettingsContent() {
                   <input
                     type='text'
                     defaultValue='United States'
-                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#D4AF37] transition-colors'
+                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
                   />
                 </div>
 
@@ -349,7 +349,7 @@ function SettingsContent() {
                   <textarea
                     rows={4}
                     defaultValue='Lorem ipsum dolor sit amet, consectetur'
-                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#D4AF37] transition-colors resize-none'
+                    className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors resize-none'
                   />
                 </div>
               </div>
@@ -396,7 +396,7 @@ function SettingsContent() {
                 className='px-4 md:px-6 py-2.5 md:py-3 rounded-full text-xs md:text-sm font-bold transition-all hover:opacity-90 cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap'
                 style={{
                   background:
-                    'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+                    'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                   color: '#000000',
                 }}
               >
@@ -420,7 +420,7 @@ function SettingsContent() {
                 <input
                   type='text'
                   placeholder='Search by keyword or ticket ID'
-                  className='w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 rounded-lg text-sm bg-transparent border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37] transition-colors'
+                  className='w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 rounded-lg text-sm bg-transparent border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
                 />
               </div>
 
@@ -444,7 +444,7 @@ function SettingsContent() {
                     style={{
                       background:
                         ticketFilter === filter.id
-                          ? 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)'
+                          ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
                           : 'transparent',
                       border:
                         ticketFilter === filter.id
@@ -539,8 +539,8 @@ function SettingsContent() {
                   <button
                     className='px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer'
                     style={{
-                      background: 'rgba(212, 175, 55, 0.2)',
-                      color: '#D4AF37',
+                      background: 'rgba(241, 203, 104, 0.2)',
+                      color: '#F1CB68',
                     }}
                   >
                     Next
@@ -592,8 +592,8 @@ function SettingsContent() {
                   <button
                     className='px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer'
                     style={{
-                      background: 'rgba(212, 175, 55, 0.2)',
-                      color: '#D4AF37',
+                      background: 'rgba(241, 203, 104, 0.2)',
+                      color: '#F1CB68',
                     }}
                   >
                     Next
@@ -709,7 +709,7 @@ function SettingsContent() {
               rgba(30, 30, 35, 0.8) 0%,
               rgba(20, 20, 25, 0.9) 100%
             ) !important;
-            border: 1px solid rgba(212, 175, 55, 0.3) !important;
+            border: 1px solid rgba(241, 203, 104, 0.3) !important;
           }
           .settings-tab-inactive {
             background: transparent !important;

@@ -253,7 +253,7 @@ export default function DocumentVerificationPage() {
             onClick={handleNext}
             className='w-full md:w-auto text-[#0B0D12] cursor-pointer font-semibold px-12 py-4 rounded-full transition-all text-base md:text-lg shadow-lg hover:shadow-xl transform hover:scale-105'
             style={{
-              background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+              background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
             }}
           >
             Next

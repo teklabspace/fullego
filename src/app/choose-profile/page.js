@@ -229,7 +229,7 @@ export default function ChooseProfilePage() {
               perspective: '1000px',
               background:
                 selectedProfile === profile.id
-                  ? 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)'
+                  ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
                   : 'transparent',
             }}
           >
@@ -256,10 +256,10 @@ export default function ChooseProfilePage() {
               >
                 {/* Diamond Shape with Icon */}
                 <div
-                  className='w-24 h-24 md:w-28 md:h-28 mb-4 md:mb-6 flex items-center justify-center text-[#D4AF37]'
+                  className='w-24 h-24 md:w-28 md:h-28 mb-4 md:mb-6 flex items-center justify-center text-[#F1CB68]'
                   style={{
                     background: 'transparent',
-                    border: '2px solid #D4AF37',
+                    border: '2px solid #F1CB68',
                     transform: 'rotate(45deg)',
                   }}
                 >
@@ -302,7 +302,7 @@ export default function ChooseProfilePage() {
           onClick={handleContinue}
           className='relative z-10 text-[#0B0D12] cursor-pointer font-semibold px-8 md:px-10 lg:px-12 py-3 md:py-4 rounded-full transition-all text-base md:text-lg shadow-lg hover:shadow-xl transform hover:scale-105'
           style={{
-            background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+            background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
           }}
         >
           Continue

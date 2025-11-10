@@ -31,7 +31,7 @@ export default function RecentTrades({
         </h3>
         <button
           className={`text-sm ${
-            isDarkMode ? 'text-[#D4AF37]' : 'text-[#C49D2E]'
+            isDarkMode ? 'text-[#F1CB68]' : 'text-[#C49D2E]'
           } hover:underline`}
         >
           View All
@@ -46,11 +46,11 @@ export default function RecentTrades({
             className={`p-4 rounded-xl transition-all text-left border ${
               selectedStock === trade.symbol
                 ? isDarkMode
-                  ? 'bg-[#101014] border-[#D4AF37]'
-                  : 'bg-white border-[#D4AF37]'
+                  ? 'bg-[#101014] border-[#F1CB68]'
+                  : 'bg-white border-[#F1CB68]'
                 : isDarkMode
-                ? 'border-[#FFFFFF14] bg-[#101014] hover:border-[#D4AF37]/50'
-                : 'border-gray-200 bg-white hover:border-[#D4AF37]/50'
+                ? 'border-[#FFFFFF14] bg-[#101014] hover:border-[#F1CB68]/50'
+                : 'border-gray-200 bg-white hover:border-[#F1CB68]/50'
             }`}
           >
             <div className='flex items-center gap-2 mb-2'>

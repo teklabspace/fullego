@@ -121,7 +121,7 @@ export default function ScheduleView({ isDarkMode }) {
         <div
           className={`rounded-2xl border p-6 ${
             isDarkMode
-              ? 'bg-transparent border-[#D4AF37]'
+              ? 'bg-transparent border-[#F1CB68]'
               : 'bg-white border-gray-200'
           }`}
         >
@@ -162,7 +162,7 @@ export default function ScheduleView({ isDarkMode }) {
       </div>
 
       {/* Right Side - Profile, Calendar & Upcoming Events */}
-      <div className='space-y-6 border-[#D4AF37] border p-2 rounded-2xl'>
+      <div className='space-y-6 border-[#F1CB68] border p-2 rounded-2xl'>
         {/* User Profile */}
         <div
           className={`rounded-2xl border p-6 ${
@@ -277,8 +277,8 @@ export default function ScheduleView({ isDarkMode }) {
                   className={`aspect-square rounded-lg text-sm flex items-center justify-center transition-all ${
                     dayObj.day === selectedDate && dayObj.isCurrentMonth
                       ? isDarkMode
-                        ? 'bg-transparent text-[#D4AF37] font-semibold border-2 border-[#D4AF37]'
-                        : 'bg-transparent text-[#D4AF37] font-semibold border-2 border-[#D4AF37]'
+                        ? 'bg-transparent text-[#F1CB68] font-semibold border-2 border-[#F1CB68]'
+                        : 'bg-transparent text-[#F1CB68] font-semibold border-2 border-[#F1CB68]'
                       : dayObj.isCurrentMonth
                       ? isDarkMode
                         ? 'text-white hover:bg-white/5 border-2 border-transparent'
@@ -325,7 +325,7 @@ function EventCard({ event, isDarkMode }) {
         <div>
           <h4
             className={`font-semibold text-sm ${
-              isDarkMode ? 'text-[#D4AF37]' : 'text-[#D4AF37]'
+              isDarkMode ? 'text-[#F1CB68]' : 'text-[#F1CB68]'
             }`}
           >
             {event.title}
@@ -368,7 +368,7 @@ function EventCard({ event, isDarkMode }) {
           </div>
         </div>
       </div>
-      <span className='text-xs px-2 py-0.5 bg-[#D4AF37] text-white rounded'>
+      <span className='text-xs px-2 py-0.5 bg-[#F1CB68] text-white rounded'>
         {event.type}
       </span>
       {/* Avatar Images */}
@@ -428,7 +428,7 @@ function UpcomingEventCard({ isDarkMode }) {
       </div>
       <h4
         className={`font-semibold mb-2 ${
-          isDarkMode ? 'text-[#D4AF37]' : 'text-gray-900'
+          isDarkMode ? 'text-[#F1CB68]' : 'text-gray-900'
         }`}
       >
         LLC Tax filings
@@ -452,7 +452,7 @@ function UpcomingEventCard({ isDarkMode }) {
 
       <div className='flex justify-between items-center gap-2 mb-3'>
         <div>
-          <span className='text-xs px-2 py-0.5 bg-[#D4AF37] text-white rounded font-medium'>
+          <span className='text-xs px-2 py-0.5 bg-[#F1CB68] text-white rounded font-medium'>
             Internal
           </span>
         </div>

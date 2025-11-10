@@ -164,7 +164,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
             style={{
               borderBottom:
                 activeTab === 'link'
-                  ? '2px solid #D4AF37'
+                  ? '2px solid #F1CB68'
                   : '2px solid transparent',
             }}
           >
@@ -184,7 +184,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
             style={{
               borderBottom:
                 activeTab === 'invite'
-                  ? '2px solid #D4AF37'
+                  ? '2px solid #F1CB68'
                   : '2px solid transparent',
             }}
           >
@@ -234,7 +234,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                 onClick={() => setViewOnly(!viewOnly)}
                 className={`relative w-12 h-6 rounded-full transition-colors cursor-pointer ${
                   viewOnly
-                    ? 'bg-gradient-to-r from-white to-[#D4AF37]'
+                    ? 'bg-gradient-to-r from-white to-[#F1CB68]'
                     : isDarkMode
                     ? 'bg-gray-600'
                     : 'bg-gray-300'
@@ -284,7 +284,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                 onClick={() => setRestrictDownload(!restrictDownload)}
                 className={`relative w-12 h-6 rounded-full transition-colors cursor-pointer ${
                   restrictDownload
-                    ? 'bg-gradient-to-r from-white to-[#D4AF37]'
+                    ? 'bg-gradient-to-r from-white to-[#F1CB68]'
                     : isDarkMode
                     ? 'bg-gray-600'
                     : 'bg-gray-300'
@@ -336,7 +336,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
               />
               <button
                 onClick={handleCopyLink}
-                className='flex items-center gap-2 text-[#D4AF37] text-sm font-medium cursor-pointer hover:text-[#E5C158] transition-colors'
+                className='flex items-center gap-2 text-[#F1CB68] text-sm font-medium cursor-pointer hover:text-[#E5C158] transition-colors'
               >
                 <Image
                   src='/icons/file-text.svg'
@@ -383,7 +383,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                 onClick={() => setRequireSignIn(!requireSignIn)}
                 className={`relative w-12 h-6 rounded-full transition-colors cursor-pointer ${
                   requireSignIn
-                    ? 'bg-gradient-to-r from-white to-[#D4AF37]'
+                    ? 'bg-gradient-to-r from-white to-[#F1CB68]'
                     : isDarkMode
                     ? 'bg-gray-600'
                     : 'bg-gray-300'
@@ -447,12 +447,12 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
               />
               <button
                 onClick={handleAddEmail}
-                className='w-6 h-6 rounded-full flex items-center justify-center cursor-pointer transition-colors hover:bg-[#D4AF37]/20'
+                className='w-6 h-6 rounded-full flex items-center justify-center cursor-pointer transition-colors hover:bg-[#F1CB68]/20'
                 style={{
-                  border: '1px solid #D4AF37',
+                  border: '1px solid #F1CB68',
                 }}
               >
-                <span className='text-[#D4AF37] text-lg leading-none'>+</span>
+                <span className='text-[#F1CB68] text-lg leading-none'>+</span>
               </button>
             </div>
 
@@ -488,7 +488,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                             openDropdownId === user.id ? null : user.id
                           )
                         }
-                        className='flex items-center gap-2 text-[#D4AF37] text-sm font-medium cursor-pointer hover:text-[#E5C158] transition-colors'
+                        className='flex items-center gap-2 text-[#F1CB68] text-sm font-medium cursor-pointer hover:text-[#E5C158] transition-colors'
                       >
                         {getPermissionLabel(user.permission)}
                         <Image
@@ -509,7 +509,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                           style={{
                             background:
                               'linear-gradient(135deg, #1a1a1d 0%, #0f0f11 100%)',
-                            border: '1px solid rgba(212, 175, 55, 0.3)',
+                            border: '1px solid rgba(241, 203, 104, 0.3)',
                           }}
                         >
                           <button
@@ -518,7 +518,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                             }
                             className={`w-full px-4 py-2.5 text-left text-sm transition-all cursor-pointer ${
                               user.permission === 'view'
-                                ? 'bg-gradient-to-r from-[#D4AF37]/20 to-transparent text-[#D4AF37] font-medium'
+                                ? 'bg-gradient-to-r from-[#F1CB68]/20 to-transparent text-[#F1CB68] font-medium'
                                 : 'text-gray-300 hover:bg-white/5 hover:text-white'
                             }`}
                           >
@@ -530,7 +530,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                             }
                             className={`w-full px-4 py-2.5 text-left text-sm transition-all cursor-pointer ${
                               user.permission === 'edit'
-                                ? 'bg-gradient-to-r from-[#D4AF37]/20 to-transparent text-[#D4AF37] font-medium'
+                                ? 'bg-gradient-to-r from-[#F1CB68]/20 to-transparent text-[#F1CB68] font-medium'
                                 : 'text-gray-300 hover:bg-white/5 hover:text-white'
                             }`}
                           >
@@ -542,7 +542,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                             }
                             className={`w-full px-4 py-2.5 text-left text-sm transition-all cursor-pointer ${
                               user.permission === 'comment'
-                                ? 'bg-gradient-to-r from-[#D4AF37]/20 to-transparent text-[#D4AF37] font-medium'
+                                ? 'bg-gradient-to-r from-[#F1CB68]/20 to-transparent text-[#F1CB68] font-medium'
                                 : 'text-gray-300 hover:bg-white/5 hover:text-white'
                             }`}
                           >
@@ -588,7 +588,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                   onClick={() => setViewOnly(!viewOnly)}
                   className={`w-5 h-5 rounded flex items-center justify-center cursor-pointer transition-all ${
                     viewOnly
-                      ? 'bg-gradient-to-r from-white to-[#D4AF37]'
+                      ? 'bg-gradient-to-r from-white to-[#F1CB68]'
                       : 'bg-transparent'
                   }`}
                   style={{
@@ -619,7 +619,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                   onClick={() => setRestrictDownload(!restrictDownload)}
                   className={`w-5 h-5 rounded flex items-center justify-center cursor-pointer transition-all ${
                     restrictDownload
-                      ? 'bg-gradient-to-r from-white to-[#D4AF37]'
+                      ? 'bg-gradient-to-r from-white to-[#F1CB68]'
                       : 'bg-transparent'
                   }`}
                   style={{
@@ -650,7 +650,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
                   onClick={() => setRequireSignIn(!requireSignIn)}
                   className={`w-5 h-5 rounded flex items-center justify-center cursor-pointer transition-all ${
                     requireSignIn
-                      ? 'bg-gradient-to-r from-white to-[#D4AF37]'
+                      ? 'bg-gradient-to-r from-white to-[#F1CB68]'
                       : 'bg-transparent'
                   }`}
                   style={{
@@ -725,7 +725,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
           onClick={handleShare}
           className='px-6 py-2.5 rounded-full text-sm font-bold transition-all hover:opacity-90 cursor-pointer'
           style={{
-            background: 'linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%)',
+            background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
             color: '#000000',
           }}
         >
