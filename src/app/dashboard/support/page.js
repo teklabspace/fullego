@@ -22,54 +22,54 @@ export default function SupportPage() {
   }
 
   const tickets = [
-        {
+    {
       id: 'TKT-2023-8762',
       subject: 'Payment issue with recent subscription renewal',
-          description:
+      description:
         'I was charged twice for my subscription renewal this month.',
       status: 'open',
       created: 'Nov 15, 2023',
       updated: 'Nov 18, 2023',
-        },
-        {
+    },
+    {
       id: 'TKT-2023-8721',
       subject: 'Cannot access premium features after upgrade',
-          description:
+      description:
         "I upgraded to the Business plan yesterday, but I still don't have access.",
       status: 'inprogress',
       created: 'Nov 12, 2023',
       updated: 'Nov 16, 2023',
-        },
-        {
+    },
+    {
       id: 'TKT-2023-8695',
       subject: 'Request for custom integration documentation',
       description: 'My development team needs more detailed API documentation.',
       status: 'inprogress',
       created: 'Nov 10, 2023',
       updated: 'Nov 15, 2023',
-        },
-        {
+    },
+    {
       id: 'TKT-2023-8674',
       subject: 'Issues with data export functionality',
-          description:
+      description:
         'When I try to export my report data to CSV, some of the data is missing.',
       status: 'resolved',
       created: 'Nov 7, 2023',
       updated: 'Nov 12, 2023',
     },
-        {
+    {
       id: 'TKT-2023-8642',
       subject: 'Account login verification problems',
-          description:
+      description:
         "I'm not receiving the SMS verification code when trying to log in.",
       status: 'closed',
       created: 'Nov 4, 2023',
       updated: 'Nov 9, 2023',
-        },
-        {
+    },
+    {
       id: 'TKT-2023-8621',
       subject: 'Feature request: Dark mode for dashboard',
-          description:
+      description:
         'Would it be possible to implement a dark mode for the main dashboard?',
       status: 'closed',
       created: 'Nov 2, 2023',
@@ -126,17 +126,17 @@ export default function SupportPage() {
 
         {/* Page Content */}
         <main className='flex-1 overflow-y-auto'>
-      <div className='p-4 md:p-6 lg:p-8'>
+          <div className='p-4 md:p-6 lg:p-8'>
             {/* Header */}
             <div className='flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 md:mb-8'>
               <div>
-          <h1
+                <h1
                   className={`text-2xl md:text-3xl font-bold mb-2 ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
-            }`}
-          >
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
                   Support Ticket Center
-          </h1>
+                </h1>
                 <p
                   className={`text-xs md:text-sm ${
                     isDarkMode ? 'text-gray-400' : 'text-gray-600'
@@ -144,7 +144,7 @@ export default function SupportPage() {
                 >
                   Manage your requests and support conversations.
                 </p>
-        </div>
+              </div>
               <button
                 onClick={() => setIsNewTicketModalOpen(true)}
                 className='px-4 md:px-6 py-2.5 md:py-3 rounded-full text-xs md:text-sm font-bold transition-all hover:opacity-90 cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap'
@@ -336,7 +336,7 @@ export default function SupportPage() {
                     ))}
                   </tbody>
                 </table>
-      </div>
+              </div>
 
               {/* Pagination */}
               <div
@@ -354,11 +354,11 @@ export default function SupportPage() {
                 <div className='flex items-center gap-2'>
                   <button
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-        isDarkMode
+                      isDarkMode
                         ? 'text-gray-400 hover:text-white'
                         : 'text-gray-600 hover:text-gray-900'
-      }`}
-    >
+                    }`}
+                  >
                     Previous
                   </button>
                   <button
@@ -372,7 +372,7 @@ export default function SupportPage() {
                   </button>
                 </div>
               </div>
-      </div>
+            </div>
 
             {/* Tickets List - Mobile */}
             <div className='md:hidden space-y-3'>
@@ -386,13 +386,13 @@ export default function SupportPage() {
                   }`}
                 >
                   <div className='flex items-start justify-between gap-3 mb-3'>
-      <h3
+                    <h3
                       className={`font-medium text-sm flex-1 ${
-          isDarkMode ? 'text-white' : 'text-gray-900'
-        }`}
-      >
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}
+                    >
                       {ticket.subject}
-      </h3>
+                    </h3>
                     {getStatusBadge(ticket.status)}
                   </div>
                   <p
@@ -434,9 +434,9 @@ export default function SupportPage() {
               <div className='flex items-center justify-between pt-4'>
                 <p
                   className={`text-xs ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-        }`}
-      >
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
                   Showing 1-6 of 24
                 </p>
                 <div className='flex items-center gap-2'>

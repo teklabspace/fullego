@@ -111,7 +111,7 @@ const menuSections = [
           {
             id: 'crm-support',
             label: 'Support ticket',
-            href: '/dashboard/Support',
+            href: '/dashboard/support',
           },
           {
             id: 'crm-concierge',
@@ -159,7 +159,7 @@ const menuSections = [
         id: 'help-center',
         label: 'Help Center',
         icon: 'HelpCircle',
-        href: '/dashboard/Support',
+        href: '/dashboard/support',
       },
     ],
   },
@@ -179,7 +179,7 @@ export default function Sidebar({ isOpen, onClose }) {
     if (currentPath.startsWith('/dashboard/marketplace')) return 'marketplace';
     if (currentPath.startsWith('/dashboard/reports/crm')) return 'crm-dashboard';
     if (currentPath.startsWith('/dashboard/documents')) return 'crm-dashboard';
-    if (currentPath.startsWith('/dashboard/Support')) return 'crm-dashboard';
+    if (currentPath.startsWith('/dashboard/support')) return 'crm-dashboard';
     if (currentPath.startsWith('/dashboard/concierge')) return 'crm-dashboard';
     if (currentPath.startsWith('/dashboard/reports') && !currentPath.startsWith('/dashboard/reports/crm')) return null;
     return null;
