@@ -150,7 +150,7 @@ export default function SupportPage() {
 
   return (
     <div
-      className={`flex h-screen ${isDarkMode ? 'bg-brand-bg' : 'bg-gray-50'}`}
+      className={`flex h-screen ${isDarkMode ? 'bg-[#1A1A1F]' : 'bg-gray-50'}`}
     >
       {/* Sidebar */}
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />

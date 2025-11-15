@@ -252,7 +252,7 @@ export default function SupportDashboardPage() {
 
   return (
     <div
-      className={`flex h-screen ${isDarkMode ? 'bg-brand-bg' : 'bg-gray-50'}`}
+      className={`flex h-screen ${isDarkMode ? 'bg-[#1A1A1F]' : 'bg-gray-50'}`}
     >
       {/* Sidebar */}
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
@@ -263,11 +263,13 @@ export default function SupportDashboardPage() {
         <Navbar onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
 
         {/* Page Content */}
-        <main className='flex-1 overflow-hidden flex flex-col'>
+        <main className='flex-1  overflow-hidden flex flex-col'>
           {/* Header Tabs */}
           <div
             className={`flex items-center gap-4 px-6 py-4 border-b ${
-              isDarkMode ? 'border-white/10' : 'border-gray-200'
+              isDarkMode
+                ? 'border-white/10 bg-[#1A1A1F]'
+                : 'border-gray-200 bg-white'
             }`}
           >
             <button
@@ -571,7 +573,11 @@ export default function SupportDashboardPage() {
                     </div>
 
                     {/* Messages */}
-                    <div className='flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4'>
+                    <div
+                      className={`flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4 ${
+                        isDarkMode ? 'bg-[#1A1A1F]' : 'bg-white'
+                      }`}
+                    >
                       {currentMessages.map(message => (
                         <div
                           key={message.id}
