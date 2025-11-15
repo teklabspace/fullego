@@ -8,6 +8,7 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
     category: '',
     priority: '',
     description: '',
+    issuer: '',
   });
 
   const handleSubmit = e => {
@@ -21,6 +22,7 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
       category: '',
       priority: '',
       description: '',
+      issuer: '',
     });
   };
 
@@ -82,6 +84,49 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
             />
           </div>
 
+          {/* Issuer Selection */}
+          <div>
+            <label className='block text-white text-sm font-medium mb-2'>
+              Issuer <span className='text-red-500'>*</span>
+            </label>
+            <select
+              required
+              value={formData.issuer}
+              onChange={e =>
+                setFormData({ ...formData, issuer: e.target.value })
+              }
+              className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
+            >
+              <option value='' className='bg-[#1a1a1d]'>
+                Select issuer (person or business)
+              </option>
+              <option value='john-smith' className='bg-[#1a1a1d]'>
+                John Smith
+              </option>
+              <option value='oakridge-family-office' className='bg-[#1a1a1d]'>
+                Oakridge Family Office
+              </option>
+              <option value='isabella-w' className='bg-[#1a1a1d]'>
+                Isabella W
+              </option>
+              <option value='ryan-green' className='bg-[#1a1a1d]'>
+                Ryan Green
+              </option>
+              <option value='marta-diaz' className='bg-[#1a1a1d]'>
+                Marta Diaz
+              </option>
+              <option value='matthew-m' className='bg-[#1a1a1d]'>
+                Matthew M
+              </option>
+              <option value='brian-baker' className='bg-[#1a1a1d]'>
+                Brian Baker
+              </option>
+            </select>
+            <p className='text-gray-500 text-xs mt-1'>
+              The person or business that raised this issue
+            </p>
+          </div>
+
           {/* Category and Priority */}
           <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
             {/* Category */}
@@ -95,7 +140,7 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
                 onChange={e =>
                   setFormData({ ...formData, category: e.target.value })
                 }
-                className='w-full'
+                className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
               >
                 <option value='' className='bg-[#1a1a1d]'>
                   Select category
@@ -129,7 +174,7 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
                 onChange={e =>
                   setFormData({ ...formData, priority: e.target.value })
                 }
-                className='w-full'
+                className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
               >
                 <option value='' className='bg-[#1a1a1d]'>
                   Select priority

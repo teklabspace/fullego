@@ -5,6 +5,7 @@ import Sidebar from '@/components/dashboard/Sidebar';
 import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
+import DocumentUploadModal from '@/components/dashboard/DocumentUploadModal';
 
 export default function SupportPage() {
   const { isDarkMode } = useTheme();
@@ -12,16 +13,9 @@ export default function SupportPage() {
   const [ticketFilter, setTicketFilter] = useState('all');
   const [isNewTicketModalOpen, setIsNewTicketModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return null;
-  }
-
-  const tickets = [
+  const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [tickets, setTickets] = useState([
     {
       id: 'TKT-2023-8762',
       subject: 'Payment issue with recent subscription renewal',
@@ -30,6 +24,8 @@ export default function SupportPage() {
       status: 'open',
       created: 'Nov 15, 2023',
       updated: 'Nov 18, 2023',
+      issuer: 'John Smith',
+      documents: [],
     },
     {
       id: 'TKT-2023-8721',
@@ -39,6 +35,8 @@ export default function SupportPage() {
       status: 'inprogress',
       created: 'Nov 12, 2023',
       updated: 'Nov 16, 2023',
+      issuer: 'Oakridge Family Office',
+      documents: [],
     },
     {
       id: 'TKT-2023-8695',
@@ -47,6 +45,8 @@ export default function SupportPage() {
       status: 'inprogress',
       created: 'Nov 10, 2023',
       updated: 'Nov 15, 2023',
+      issuer: 'Isabella W',
+      documents: [],
     },
     {
       id: 'TKT-2023-8674',
@@ -56,6 +56,8 @@ export default function SupportPage() {
       status: 'resolved',
       created: 'Nov 7, 2023',
       updated: 'Nov 12, 2023',
+      issuer: 'Ryan Green',
+      documents: [],
     },
     {
       id: 'TKT-2023-8642',
@@ -65,6 +67,8 @@ export default function SupportPage() {
       status: 'closed',
       created: 'Nov 4, 2023',
       updated: 'Nov 9, 2023',
+      issuer: 'Marta Diaz',
+      documents: [],
     },
     {
       id: 'TKT-2023-8621',
@@ -74,8 +78,40 @@ export default function SupportPage() {
       status: 'closed',
       created: 'Nov 2, 2023',
       updated: 'Nov 8, 2023',
+      issuer: 'Matthew M',
+      documents: [],
     },
-  ];
+  ]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
+
+  const handleDocumentUpload = uploadData => {
+    if (selectedTicket) {
+      const updatedTickets = tickets.map(t =>
+        t.id === selectedTicket.id
+          ? {
+              ...t,
+              documents: [
+                ...(t.documents || []),
+                ...uploadData.files.map(f => ({
+                  name: f.name,
+                  size: f.size,
+                  type: f.type,
+                })),
+              ],
+            }
+          : t
+      );
+      setTickets(updatedTickets);
+      setSelectedTicket(null);
+    }
+  };
 
   const filteredTickets =
     ticketFilter === 'all'
@@ -276,7 +312,21 @@ export default function SupportPage() {
                           isDarkMode ? 'text-gray-400' : 'text-gray-600'
                         }`}
                       >
+                        Issuer
+                      </th>
+                      <th
+                        className={`text-left px-6 py-4 text-xs font-semibold uppercase ${
+                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}
+                      >
                         ID
+                      </th>
+                      <th
+                        className={`text-left px-6 py-4 text-xs font-semibold uppercase ${
+                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}
+                      >
+                        Actions
                       </th>
                     </tr>
                   </thead>
@@ -284,7 +334,7 @@ export default function SupportPage() {
                     {filteredTickets.map((ticket, index) => (
                       <tr
                         key={ticket.id}
-                        className={`border-b transition-colors cursor-pointer ${
+                        className={`border-b transition-colors ${
                           isDarkMode
                             ? 'border-white/5 hover:bg-white/5'
                             : 'border-gray-200 hover:bg-gray-50'
@@ -326,11 +376,47 @@ export default function SupportPage() {
                           {ticket.updated}
                         </td>
                         <td
+                          className={`px-6 py-4 text-sm font-medium ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}
+                        >
+                          {ticket.issuer || 'N/A'}
+                        </td>
+                        <td
                           className={`px-6 py-4 text-sm font-mono ${
                             isDarkMode ? 'text-gray-400' : 'text-gray-600'
                           }`}
                         >
                           {ticket.id}
+                        </td>
+                        <td className='px-6 py-4'>
+                          <button
+                            onClick={() => {
+                              setSelectedTicket(ticket);
+                              setDocumentModalOpen(true);
+                            }}
+                            className={`p-2 rounded-lg transition-all ${
+                              isDarkMode
+                                ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                            }`}
+                            title='Upload documents'
+                          >
+                            <svg
+                              width='18'
+                              height='18'
+                              viewBox='0 0 24 24'
+                              fill='none'
+                              stroke='currentColor'
+                              strokeWidth='2'
+                            >
+                              <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+                              <path d='M14 2v6h6' />
+                              <path d='M16 13H8' />
+                              <path d='M16 17H8' />
+                              <path d='M10 9H8' />
+                            </svg>
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -402,7 +488,7 @@ export default function SupportPage() {
                   >
                     {ticket.description}
                   </p>
-                  <div className='flex items-center justify-between text-xs'>
+                  <div className='flex items-center justify-between text-xs mb-3'>
                     <div className='flex items-center gap-3'>
                       <span
                         className={
@@ -426,6 +512,51 @@ export default function SupportPage() {
                     >
                       {ticket.id}
                     </span>
+                  </div>
+                  <div className='flex items-center justify-between'>
+                    <div>
+                      <span
+                        className={`text-xs ${
+                          isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                        }`}
+                      >
+                        Issuer:{' '}
+                        <span
+                          className={`font-medium ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}
+                        >
+                          {ticket.issuer || 'N/A'}
+                        </span>
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedTicket(ticket);
+                        setDocumentModalOpen(true);
+                      }}
+                      className={`p-2 rounded-lg transition-all ${
+                        isDarkMode
+                          ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`}
+                      title='Upload documents'
+                    >
+                      <svg
+                        width='18'
+                        height='18'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                      >
+                        <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+                        <path d='M14 2v6h6' />
+                        <path d='M16 13H8' />
+                        <path d='M16 17H8' />
+                        <path d='M10 9H8' />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -469,6 +600,16 @@ export default function SupportPage() {
       <NewTicketModal
         isOpen={isNewTicketModalOpen}
         setIsOpen={setIsNewTicketModalOpen}
+      />
+
+      {/* Document Upload Modal */}
+      <DocumentUploadModal
+        isOpen={documentModalOpen}
+        setIsOpen={setDocumentModalOpen}
+        onUpload={handleDocumentUpload}
+        title='Upload Documents'
+        itemType='ticket'
+        itemId={selectedTicket?.id}
       />
 
       <style jsx global>{`

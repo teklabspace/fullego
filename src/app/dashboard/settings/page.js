@@ -109,9 +109,11 @@ function ProfileSettings({
         </h2>
         <div className='grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6'>
           <div>
-            <label className={`block text-sm mb-2 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>
+            <label
+              className={`block text-sm mb-2 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
               Full Name
             </label>
             <input
@@ -125,9 +127,13 @@ function ProfileSettings({
             />
           </div>
           <div>
-            <label className={`block text-sm mb-2 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>Email</label>
+            <label
+              className={`block text-sm mb-2 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              Email
+            </label>
             <input
               type='email'
               defaultValue='john.doe@email.com'
@@ -139,9 +145,13 @@ function ProfileSettings({
             />
           </div>
           <div>
-            <label className={`block text-sm mb-2 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>Phone</label>
+            <label
+              className={`block text-sm mb-2 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              Phone
+            </label>
             <input
               type='tel'
               defaultValue='+1 (555) 123-4567'
@@ -153,9 +163,13 @@ function ProfileSettings({
             />
           </div>
           <div>
-            <label className={`block text-sm mb-2 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>Country</label>
+            <label
+              className={`block text-sm mb-2 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              Country
+            </label>
             <select
               className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                 isDarkMode
@@ -318,9 +332,11 @@ function ProfileSettings({
         }`}
       >
         <h2 className='text-lg font-semibold text-red-400 mb-2'>Danger Zone</h2>
-        <p className={`text-sm mb-4 ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-        }`}>
+        <p
+          className={`text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}
+        >
           These actions cannot be undone
         </p>
         <div className='flex flex-col sm:flex-row gap-3'>
@@ -422,11 +438,13 @@ function ServiceCard({ service, isDarkMode }) {
         </div>
 
         {/* Link Icon */}
-        <button className={`shrink-0 transition-colors ${
-          isDarkMode 
-            ? 'text-gray-400 hover:text-gray-300' 
-            : 'text-gray-500 hover:text-gray-700'
-        }`}>
+        <button
+          className={`shrink-0 transition-colors ${
+            isDarkMode
+              ? 'text-gray-400 hover:text-gray-300'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
           <svg
             width='20'
             height='20'
@@ -450,23 +468,31 @@ function ServiceCard({ service, isDarkMode }) {
 
       {/* Date/Status Info */}
       {service.linkedDate && (
-        <p className={`ms-16 text-sm mb-4 ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-        }`}>
+        <p
+          className={`ms-16 text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}
+        >
           Linked on {service.linkedDate}
         </p>
       )}
       {service.status === 'pending' && (
-        <p className={`ms-16 text-sm mb-4 ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-        }`}>
+        <p
+          className={`ms-16 text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}
+        >
           Linking in progress...
         </p>
       )}
       {service.status === 'error' && (
-        <p className={`ms-16 text-sm mb-4 ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-        }`}>Failed to link...</p>
+        <p
+          className={`ms-16 text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}
+        >
+          Failed to link...
+        </p>
       )}
 
       {/* Action Buttons */}
@@ -490,25 +516,505 @@ function ServiceCard({ service, isDarkMode }) {
 
 // Payment and Billing Tab
 function PaymentBilling({ isDarkMode }) {
+  const paymentHistory = [
+    {
+      date: 'Nov 28, 2023',
+      details:
+        'Marketing Monthly Plan from Nov 28, 2023 to Dec 28, 2024 Recurring payment',
+      total: '49.00 USD',
+      invoice: '#',
+      status: 'PAID',
+    },
+    {
+      date: 'Oct 28, 2023',
+      details:
+        'Marketing Monthly Plan from Oct 28, 2023 to Nov 28, 2024 Recurring payment',
+      total: '49.00 USD',
+      invoice: '#',
+      status: 'PAID',
+    },
+    {
+      date: 'Sep 28, 2023',
+      details:
+        'Marketing Monthly Plan from Sep 28, 2023 to Oct 28, 2024 Recurring payment',
+      total: '49.00 USD',
+      invoice: '#',
+      status: 'PAID',
+    },
+    {
+      date: 'Aug 28, 2023',
+      details:
+        'Developer Monthly Plan from Aug 28, 2023 to Sep 28, 2024 Recurring payment',
+      total: '7.00 USD',
+      invoice: '#',
+      status: 'PAID',
+    },
+    {
+      date: 'Jul 28, 2023',
+      details:
+        'Developer Monthly Plan from Jul 28, 2023 to Aug 28, 2024 Recurring payment',
+      total: '7.00 USD',
+      invoice: '#',
+      status: 'PAID',
+    },
+  ];
+
   return (
     <div className='space-y-6'>
+      {/* Header */}
+      <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6'>
+        <h2
+          className={`text-2xl font-bold ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}
+        >
+          Billing
+        </h2>
+        <button className='px-4 py-2.5 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#BF9B30] transition-colors flex items-center gap-2 justify-center sm:w-auto'>
+          <span className='text-lg'>+</span>
+          UPGRADE PLAN
+        </button>
+      </div>
+
+      {/* Current Plan Section */}
       <div
-        className={`rounded-2xl p-8 border ${
+        className={`rounded-2xl p-4 md:p-6 border ${
           isDarkMode
             ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
             : 'bg-white border-gray-200'
         }`}
       >
-        <h2
-          className={`text-xl font-semibold mb-4 ${
+        <div className='mb-6'>
+          <p
+            className={`text-base mb-2 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}
+          >
+            Plan:{' '}
+            <span
+              className={`font-semibold ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}
+            >
+              Marketing
+            </span>
+          </p>
+        </div>
+
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-6 mb-6'>
+          {/* Annual Plan */}
+          <div>
+            <label
+              className={`block text-xs font-semibold uppercase mb-2 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              ANNUAL PLAN
+            </label>
+            <div className='flex items-center gap-2 mb-2'>
+              <span
+                className={`text-lg font-semibold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                49.00 USD estimated,
+              </span>
+              <button
+                className={`text-sm underline ${
+                  isDarkMode ? 'text-[#F1CB68]' : 'text-[#BF9B30]'
+                } hover:opacity-80 transition-opacity`}
+              >
+                detail
+              </button>
+            </div>
+            <p
+              className={`text-sm ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              Next payment Dec 28, 2023
+            </p>
+          </div>
+
+          {/* Monthly Overage */}
+          <div>
+            <label
+              className={`block text-xs font-semibold uppercase mb-2 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              MONTHLY OVERAGE
+            </label>
+            <div className='flex items-center gap-2 mb-2'>
+              <span
+                className={`text-lg font-semibold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                0.00 USD estimated
+              </span>
+            </div>
+            <p
+              className={`text-sm ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              Next payment Dec 28, 2023
+            </p>
+          </div>
+        </div>
+
+        <p
+          className={`text-xs mb-6 ${
+            isDarkMode ? 'text-gray-500' : 'text-gray-500'
+          }`}
+        >
+          This amount is the current amount. The final amount will depend on the
+          limits exceeded at the end of the payment period.
+        </p>
+
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+          {/* Bill To */}
+          <div
+            className={`rounded-xl p-5 border ${
+              isDarkMode
+                ? 'bg-gradient-to-br from-[#1A1A1D] to-[#151518] border-[#F1CB68]/20'
+                : 'bg-gradient-to-br from-white to-gray-50 border-[#F1CB68]/30'
+            }`}
+          >
+            <div className='flex items-center gap-2 mb-4'>
+              <div
+                className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  isDarkMode ? 'bg-[#F1CB68]/10' : 'bg-[#F1CB68]/10'
+                }`}
+              >
+                <svg
+                  width='20'
+                  height='20'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                  className='text-[#F1CB68]'
+                >
+                  <path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z' />
+                  <circle cx='12' cy='10' r='3' />
+                </svg>
+              </div>
+              <label
+                className={`text-xs font-bold uppercase tracking-wider ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}
+              >
+                BILL TO
+              </label>
+            </div>
+            <div
+              className={`px-4 py-4 rounded-lg mb-4 ${
+                isDarkMode
+                  ? 'bg-white/5 border border-[#FFFFFF14]'
+                  : 'bg-white/80 border border-gray-200'
+              }`}
+            >
+              <p
+                className={`text-sm leading-relaxed ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                <span className='font-semibold'>John Doe</span>
+                <br />
+                123 Main Street
+                <br />
+                New York, NY 10001
+              </p>
+            </div>
+            <button
+              className={`w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                isDarkMode
+                  ? 'bg-[#F1CB68]/10 text-[#F1CB68] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20'
+                  : 'bg-[#F1CB68]/10 text-[#BF9B30] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20'
+              }`}
+            >
+              MANAGE BILLING INFO
+            </button>
+          </div>
+
+          {/* Payment Method */}
+          <div
+            className={`rounded-xl p-5 border ${
+              isDarkMode
+                ? 'bg-gradient-to-br from-[#1A1A1D] to-[#151518] border-[#F1CB68]/20'
+                : 'bg-gradient-to-br from-white to-gray-50 border-[#F1CB68]/30'
+            }`}
+          >
+            <div className='flex items-center gap-2 mb-4'>
+              <div
+                className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  isDarkMode ? 'bg-[#F1CB68]/10' : 'bg-[#F1CB68]/10'
+                }`}
+              >
+                <svg
+                  width='20'
+                  height='20'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                  className='text-[#F1CB68]'
+                >
+                  <rect x='1' y='4' width='22' height='16' rx='2' ry='2' />
+                  <line x1='1' y1='10' x2='23' y2='10' />
+                </svg>
+              </div>
+              <label
+                className={`text-xs font-bold uppercase tracking-wider ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}
+              >
+                PAYMENT METHOD
+              </label>
+            </div>
+            <div
+              className={`px-4 py-4 rounded-lg mb-4 ${
+                isDarkMode
+                  ? 'bg-white/5 border border-[#FFFFFF14]'
+                  : 'bg-white/80 border border-gray-200'
+              }`}
+            >
+              <div className='flex items-center justify-between'>
+                <div>
+                  <p
+                    className={`text-base font-semibold mb-1 tracking-wider ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}
+                  >
+                    .... .... .... 4242
+                  </p>
+                  <div className='flex items-center gap-2'>
+                    <span
+                      className={`text-xs ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}
+                    >
+                      Visa
+                    </span>
+                    <span
+                      className={`text-xs ${
+                        isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                      }`}
+                    >
+                      ••••
+                    </span>
+                  </div>
+                </div>
+                <div
+                  className={`w-12 h-8 rounded flex items-center justify-center ${
+                    isDarkMode ? 'bg-white/10' : 'bg-gray-100'
+                  }`}
+                >
+                  <span className='text-lg font-bold text-[#F1CB68]'>V</span>
+                </div>
+              </div>
+            </div>
+            <button
+              className={`w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                isDarkMode
+                  ? 'bg-[#F1CB68]/10 text-[#F1CB68] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20'
+                  : 'bg-[#F1CB68]/10 text-[#BF9B30] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20'
+              }`}
+            >
+              MANAGE PAYMENT METHOD
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment History */}
+      <div
+        className={`rounded-2xl p-4 md:p-6 border ${
+          isDarkMode
+            ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
+            : 'bg-white border-gray-200'
+        }`}
+      >
+        <h3
+          className={`text-lg font-semibold mb-4 ${
             isDarkMode ? 'text-white' : 'text-gray-900'
           }`}
         >
-          Payment and Billing
-        </h2>
-        <p className={`text-lg ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-          Coming soon...
-        </p>
+          Payment history
+        </h3>
+
+        {/* Table - Desktop */}
+        <div className='hidden md:block overflow-x-auto'>
+          <table className='w-full'>
+            <thead>
+              <tr
+                className={`border-b ${
+                  isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                }`}
+              >
+                <th
+                  className={`text-left py-3 px-4 text-xs font-semibold uppercase ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  CREATION DATE
+                </th>
+                <th
+                  className={`text-left py-3 px-4 text-xs font-semibold uppercase ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  DETAILS
+                </th>
+                <th
+                  className={`text-left py-3 px-4 text-xs font-semibold uppercase ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  INVOICE TOTAL
+                </th>
+                <th
+                  className={`text-left py-3 px-4 text-xs font-semibold uppercase ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  INVOICE
+                </th>
+                <th
+                  className={`text-left py-3 px-4 text-xs font-semibold uppercase ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  STATUS
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {paymentHistory.map((payment, index) => (
+                <tr
+                  key={index}
+                  className={`border-b last:border-0 ${
+                    isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                  }`}
+                >
+                  <td
+                    className={`py-4 px-4 ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}
+                  >
+                    {payment.date}
+                  </td>
+                  <td
+                    className={`py-4 px-4 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}
+                  >
+                    {payment.details}
+                  </td>
+                  <td
+                    className={`py-4 px-4 font-semibold ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}
+                  >
+                    {payment.total}
+                  </td>
+                  <td className='py-4 px-4'>
+                    <a
+                      href={payment.invoice}
+                      className={`inline-flex items-center gap-1 text-sm ${
+                        isDarkMode ? 'text-[#F1CB68]' : 'text-[#BF9B30]'
+                      } hover:opacity-80 transition-opacity`}
+                    >
+                      PDF
+                      <svg
+                        width='14'
+                        height='14'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                      >
+                        <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
+                        <polyline points='15 3 21 3 21 9' />
+                        <line x1='10' y1='14' x2='21' y2='3' />
+                      </svg>
+                    </a>
+                  </td>
+                  <td className='py-4 px-4'>
+                    <span className='inline-block px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-semibold'>
+                      {payment.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Cards */}
+        <div className='md:hidden space-y-4'>
+          {paymentHistory.map((payment, index) => (
+            <div
+              key={index}
+              className={`p-4 rounded-lg border ${
+                isDarkMode
+                  ? 'bg-white/5 border-[#FFFFFF14]'
+                  : 'bg-gray-50 border-gray-200'
+              }`}
+            >
+              <div className='flex justify-between items-start mb-2'>
+                <p
+                  className={`text-sm font-semibold ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  {payment.date}
+                </p>
+                <span className='inline-block px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-semibold'>
+                  {payment.status}
+                </span>
+              </div>
+              <p
+                className={`text-sm mb-3 ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}
+              >
+                {payment.details}
+              </p>
+              <div className='flex justify-between items-center'>
+                <span
+                  className={`font-semibold ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  {payment.total}
+                </span>
+                <a
+                  href={payment.invoice}
+                  className={`inline-flex items-center gap-1 text-sm ${
+                    isDarkMode ? 'text-[#F1CB68]' : 'text-[#BF9B30]'
+                  } hover:opacity-80 transition-opacity`}
+                >
+                  PDF
+                  <svg
+                    width='14'
+                    height='14'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeWidth='2'
+                  >
+                    <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
+                    <polyline points='15 3 21 3 21 9' />
+                    <line x1='10' y1='14' x2='21' y2='3' />
+                  </svg>
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -529,9 +1035,13 @@ function ToggleRow({ label, description, checked, onChange, isDarkMode }) {
         >
           {label}
         </p>
-        <p className={`text-sm ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-        }`}>{description}</p>
+        <p
+          className={`text-sm ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}
+        >
+          {description}
+        </p>
       </div>
       <button
         onClick={onChange}

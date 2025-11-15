@@ -3,6 +3,8 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { useState } from 'react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import AssignmentModal from '@/components/dashboard/AssignmentModal';
+import DocumentUploadModal from '@/components/dashboard/DocumentUploadModal';
 
 export default function CRMDashboardPage() {
   const { isDarkMode } = useTheme();
@@ -11,6 +13,9 @@ export default function CRMDashboardPage() {
   const [selectedAssigned, setSelectedAssigned] = useState([]);
   const [unassignedSort, setUnassignedSort] = useState('lastUpdated');
   const [assignedSort, setAssignedSort] = useState('lastUpdated');
+  const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
+  const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
 
   // Chart data for stat cards
   const chartData1 = [
@@ -41,7 +46,7 @@ export default function CRMDashboardPage() {
   ];
 
   // Unassigned tasks
-  const unassignedTasks = [
+  const [unassignedTasks, setUnassignedTasks] = useState([
     {
       id: '#1147',
       subject: 'New Registry Laws conflict',
@@ -51,6 +56,8 @@ export default function CRMDashboardPage() {
       assignee: '-',
       date: 'Jul 21',
       status: 'New',
+      assignedTo: null,
+      ticketHistory: [],
     },
     {
       id: '#1146',
@@ -61,6 +68,8 @@ export default function CRMDashboardPage() {
       assignee: '-',
       date: 'Jul 21',
       status: 'New',
+      assignedTo: null,
+      ticketHistory: [],
     },
     {
       id: '#1145',
@@ -71,11 +80,13 @@ export default function CRMDashboardPage() {
       assignee: '-',
       date: 'Jul 21',
       status: 'New',
+      assignedTo: null,
+      ticketHistory: [],
     },
-  ];
+  ]);
 
   // Assigned tasks
-  const assignedTasks = [
+  const [assignedTasks, setAssignedTasks] = useState([
     {
       id: '#1129',
       subject: 'Tax return filing',
@@ -85,6 +96,8 @@ export default function CRMDashboardPage() {
       assignee: 'Monica H',
       date: 'Jul 21',
       status: 'Open',
+      assignedTo: 'Monica H',
+      ticketHistory: [],
     },
     {
       id: '#976',
@@ -95,6 +108,8 @@ export default function CRMDashboardPage() {
       assignee: 'Monica H',
       date: 'Jul 19',
       status: 'Pend',
+      assignedTo: 'Monica H',
+      ticketHistory: [],
     },
     {
       id: '#963',
@@ -105,8 +120,51 @@ export default function CRMDashboardPage() {
       assignee: 'Viola D',
       date: 'Jul 20',
       status: 'Open',
+      assignedTo: 'Viola D',
+      ticketHistory: [],
     },
-  ];
+  ]);
+
+  const handleAssignTask = assignmentData => {
+    if (selectedTask) {
+      const taskIndex = unassignedTasks.findIndex(t => t.id === selectedTask.id);
+      if (taskIndex !== -1) {
+        const updatedTask = {
+          ...unassignedTasks[taskIndex],
+          assignee: assignmentData.userName,
+          assignedTo: assignmentData.userName,
+          ticketHistory: [
+            ...(unassignedTasks[taskIndex].ticketHistory || []),
+            {
+              action: 'Task assigned',
+              user: assignmentData.userName,
+              date: new Date().toISOString(),
+              note: assignmentData.internalNote,
+            },
+          ],
+        };
+        const newUnassigned = unassignedTasks.filter(t => t.id !== selectedTask.id);
+        setUnassignedTasks(newUnassigned);
+        setAssignedTasks([...assignedTasks, updatedTask]);
+      }
+    }
+    setSelectedTask(null);
+  };
+
+  const handleDocumentUpload = uploadData => {
+    console.log('Documents uploaded:', uploadData);
+    // In production, this would update the task/ticket with document references
+  };
+
+  const handleOpenAssignment = task => {
+    setSelectedTask(task);
+    setAssignmentModalOpen(true);
+  };
+
+  const handleOpenDocuments = task => {
+    setSelectedTask(task);
+    setDocumentModalOpen(true);
+  };
 
   const handleUnassignedSelect = id => {
     setSelectedUnassigned(prev =>
@@ -575,6 +633,13 @@ export default function CRMDashboardPage() {
                         >
                           Date
                         </th>
+                        <th
+                          className={`text-left px-6 py-4 text-xs font-medium ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                          }`}
+                        >
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -636,7 +701,7 @@ export default function CRMDashboardPage() {
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}
                           >
-                            {task.assignee}
+                            {task.assignedTo || task.assignee}
                           </td>
                           <td
                             className={`px-6 py-4 text-sm ${
@@ -644,6 +709,45 @@ export default function CRMDashboardPage() {
                             }`}
                           >
                             {task.date}
+                          </td>
+                          <td className='px-6 py-4'>
+                            <div className='flex items-center gap-2'>
+                              <button
+                                onClick={() => handleOpenAssignment(task)}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                                  isDarkMode
+                                    ? 'bg-[#F1CB68]/20 text-[#F1CB68] hover:bg-[#F1CB68]/30'
+                                    : 'bg-[#F1CB68]/20 text-[#F1CB68] hover:bg-[#F1CB68]/30'
+                                }`}
+                                title='Assign to CRM user'
+                              >
+                                Assign
+                              </button>
+                              <button
+                                onClick={() => handleOpenDocuments(task)}
+                                className={`p-1.5 rounded-lg transition-all ${
+                                  isDarkMode
+                                    ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                }`}
+                                title='Upload documents'
+                              >
+                                <svg
+                                  width='18'
+                                  height='18'
+                                  viewBox='0 0 24 24'
+                                  fill='none'
+                                  stroke='currentColor'
+                                  strokeWidth='2'
+                                >
+                                  <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+                                  <path d='M14 2v6h6' />
+                                  <path d='M16 13H8' />
+                                  <path d='M16 17H8' />
+                                  <path d='M10 9H8' />
+                                </svg>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -818,6 +922,13 @@ export default function CRMDashboardPage() {
                         >
                           Date
                         </th>
+                        <th
+                          className={`text-left px-6 py-4 text-xs font-medium ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                          }`}
+                        >
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -879,7 +990,7 @@ export default function CRMDashboardPage() {
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}
                           >
-                            {task.assignee}
+                            {task.assignedTo || task.assignee}
                           </td>
                           <td
                             className={`px-6 py-4 text-sm ${
@@ -887,6 +998,45 @@ export default function CRMDashboardPage() {
                             }`}
                           >
                             {task.date}
+                          </td>
+                          <td className='px-6 py-4'>
+                            <div className='flex items-center gap-2'>
+                              <button
+                                onClick={() => handleOpenAssignment(task)}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                                  isDarkMode
+                                    ? 'bg-[#F1CB68]/20 text-[#F1CB68] hover:bg-[#F1CB68]/30'
+                                    : 'bg-[#F1CB68]/20 text-[#F1CB68] hover:bg-[#F1CB68]/30'
+                                }`}
+                                title='Reassign to CRM user'
+                              >
+                                Reassign
+                              </button>
+                              <button
+                                onClick={() => handleOpenDocuments(task)}
+                                className={`p-1.5 rounded-lg transition-all ${
+                                  isDarkMode
+                                    ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                }`}
+                                title='Upload documents'
+                              >
+                                <svg
+                                  width='18'
+                                  height='18'
+                                  viewBox='0 0 24 24'
+                                  fill='none'
+                                  stroke='currentColor'
+                                  strokeWidth='2'
+                                >
+                                  <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+                                  <path d='M14 2v6h6' />
+                                  <path d='M16 13H8' />
+                                  <path d='M16 17H8' />
+                                  <path d='M10 9H8' />
+                                </svg>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1093,6 +1243,25 @@ export default function CRMDashboardPage() {
           </>
         )}
       </div>
+
+      {/* Assignment Modal */}
+      <AssignmentModal
+        isOpen={assignmentModalOpen}
+        setIsOpen={setAssignmentModalOpen}
+        onAssign={handleAssignTask}
+        title='Assign to CRM User'
+        itemName='task'
+      />
+
+      {/* Document Upload Modal */}
+      <DocumentUploadModal
+        isOpen={documentModalOpen}
+        setIsOpen={setDocumentModalOpen}
+        onUpload={handleDocumentUpload}
+        title='Upload Documents'
+        itemType='task'
+        itemId={selectedTask?.id}
+      />
 
       <style jsx global>{`
         .scrollbar-hide {

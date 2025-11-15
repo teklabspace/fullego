@@ -1,11 +1,13 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import NotificationDropdown from './NotificationDropdown';
 import ProfileDropdown from './ProfileDropdown';
 
 export default function Navbar({ onMenuClick }) {
   const { isDarkMode, setIsDarkMode } = useTheme();
+  const router = useRouter();
 
   return (
     <nav
@@ -105,10 +107,27 @@ export default function Navbar({ onMenuClick }) {
 
             {/* Vertical Divider Line */}
             <div
-              className={`hidden lg:block w-[40px] h-0 border-t rotate-90 transition-colors duration-300 ${
+              className={`hidden lg:block w-[30px] h-0 border-t rotate-90 transition-colors duration-300 ${
                 isDarkMode ? 'border-white/10' : 'border-gray-200'
               }`}
             ></div>
+
+            {/* Messages/Support */}
+            <button
+              onClick={() => router.push('/dashboard/support-dashboard')}
+              className='flex items-center justify-center rounded-full relative cursor-pointer hover:opacity-80 transition-opacity'
+            >
+              <Image
+                src={
+                  isDarkMode
+                    ? '/icons/message.svg'
+                    : '/icons/messageiconslightmode.svg'
+                }
+                alt='Messages'
+                width={56}
+                height={56}
+              />
+            </button>
 
             {/* Notifications */}
             <NotificationDropdown />

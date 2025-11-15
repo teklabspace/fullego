@@ -4,6 +4,8 @@ import Sidebar from '@/components/dashboard/Sidebar';
 import { useTheme } from '@/context/ThemeContext';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import AssignmentModal from '@/components/dashboard/AssignmentModal';
+import DocumentUploadModal from '@/components/dashboard/DocumentUploadModal';
 
 // Mock appraisal data
 const mockAppraisals = [
@@ -17,6 +19,9 @@ const mockAppraisals = [
     assignedProvider: 'Internal Team',
     appraisedValue: null,
     valuationDate: null,
+    assignedTo: null,
+    comments: [],
+    documents: [],
   },
   {
     id: 2,
@@ -81,13 +86,71 @@ export default function ConciergeServicePage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedAppraisal, setSelectedAppraisal] = useState(null);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
+  const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [appraisals, setAppraisals] = useState(mockAppraisals);
 
   // Calculate stats
   const stats = {
-    total: mockAppraisals.length,
-    inProgress: mockAppraisals.filter(a => a.status === 'In Progress').length,
-    completed: mockAppraisals.filter(a => a.status === 'Completed').length,
-    awaitingInfo: mockAppraisals.filter(a => a.status === 'Awaiting Info').length,
+    total: appraisals.length,
+    inProgress: appraisals.filter(a => a.status === 'In Progress').length,
+    completed: appraisals.filter(a => a.status === 'Completed').length,
+    awaitingInfo: appraisals.filter(a => a.status === 'Awaiting Info').length,
+  };
+
+  const handleAssignConcierge = assignmentData => {
+    if (selectedAppraisal) {
+      const updatedAppraisals = appraisals.map(a =>
+        a.id === selectedAppraisal.id
+          ? {
+              ...a,
+              assignedTo: assignmentData.userName,
+              comments: [
+                ...(a.comments || []),
+                {
+                  id: Date.now(),
+                  from: 'System',
+                  message: `Task assigned to ${assignmentData.userName}`,
+                  date: new Date().toISOString(),
+                },
+              ],
+            }
+          : a
+      );
+      setAppraisals(updatedAppraisals);
+      setSelectedAppraisal({
+        ...selectedAppraisal,
+        assignedTo: assignmentData.userName,
+        comments: updatedAppraisals.find(a => a.id === selectedAppraisal.id)
+          .comments,
+      });
+    }
+  };
+
+  const handleDocumentUpload = uploadData => {
+    if (selectedAppraisal) {
+      const updatedAppraisals = appraisals.map(a =>
+        a.id === selectedAppraisal.id
+          ? {
+              ...a,
+              documents: [
+                ...(a.documents || []),
+                ...uploadData.files.map(f => ({
+                  name: f.name,
+                  size: f.size,
+                  type: f.type,
+                })),
+              ],
+            }
+          : a
+      );
+      setAppraisals(updatedAppraisals);
+      setSelectedAppraisal({
+        ...selectedAppraisal,
+        documents: updatedAppraisals.find(a => a.id === selectedAppraisal.id)
+          .documents,
+      });
+    }
   };
 
   // Get status color
@@ -184,7 +247,7 @@ export default function ConciergeServicePage() {
                   isDarkMode ? 'text-gray-400' : 'text-gray-600'
                 }`}
               >
-                {mockAppraisals.length} appraisal{mockAppraisals.length !== 1 ? 's' : ''} found
+                {appraisals.length} appraisal{appraisals.length !== 1 ? 's' : ''} found
               </p>
               <div className='flex gap-2'>
                 <button
@@ -242,7 +305,7 @@ export default function ConciergeServicePage() {
             {/* Appraisals Grid View */}
             {viewMode === 'grid' && (
               <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
-                {mockAppraisals.map(appraisal => (
+                {appraisals.map(appraisal => (
                   <AppraisalCard
                     key={appraisal.id}
                     appraisal={appraisal}
@@ -326,7 +389,7 @@ export default function ConciergeServicePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {mockAppraisals.map(appraisal => (
+                      {appraisals.map(appraisal => (
                         <AppraisalTableRow
                           key={appraisal.id}
                           appraisal={appraisal}
@@ -353,8 +416,53 @@ export default function ConciergeServicePage() {
           onClose={() => setSelectedAppraisal(null)}
           formatDate={formatDate}
           getStatusColor={getStatusColor}
+          onAssign={() => setAssignmentModalOpen(true)}
+          onDocumentUpload={() => setDocumentModalOpen(true)}
+          onCommentAdd={comment => {
+            const updatedAppraisals = appraisals.map(a =>
+              a.id === selectedAppraisal.id
+                ? {
+                    ...a,
+                    comments: [
+                      ...(a.comments || []),
+                      {
+                        id: Date.now(),
+                        from: 'CRM Staff',
+                        message: comment,
+                        date: new Date().toISOString(),
+                      },
+                    ],
+                  }
+                : a
+            );
+            setAppraisals(updatedAppraisals);
+            setSelectedAppraisal({
+              ...selectedAppraisal,
+              comments: updatedAppraisals.find(a => a.id === selectedAppraisal.id)
+                .comments,
+            });
+          }}
         />
       )}
+
+      {/* Assignment Modal */}
+      <AssignmentModal
+        isOpen={assignmentModalOpen}
+        setIsOpen={setAssignmentModalOpen}
+        onAssign={handleAssignConcierge}
+        title='Assign to CRM User'
+        itemName='concierge request'
+      />
+
+      {/* Document Upload Modal */}
+      <DocumentUploadModal
+        isOpen={documentModalOpen}
+        setIsOpen={setDocumentModalOpen}
+        onUpload={handleDocumentUpload}
+        title='Upload Documents'
+        itemType='concierge'
+        itemId={selectedAppraisal?.id}
+      />
     </div>
   );
 }
@@ -633,7 +741,11 @@ function AppraisalDetailModal({
   onClose,
   formatDate,
   getStatusColor,
+  onAssign,
+  onDocumentUpload,
+  onCommentAdd,
 }) {
+  const [newComment, setNewComment] = useState('');
   // Progress timeline steps
   const timelineSteps = [
     { step: 'Submitted', completed: true, date: appraisal.requestDate },
@@ -656,8 +768,8 @@ function AppraisalDetailModal({
     },
   ];
 
-  // Mock notes/messages
-  const notes = [
+  // Combine system notes with user comments
+  const systemNotes = [
     {
       id: 1,
       from: 'Concierge Team',
@@ -683,6 +795,17 @@ function AppraisalDetailModal({
         ]
       : []),
   ];
+  const notes = [...systemNotes, ...(appraisal.comments || [])].sort(
+    (a, b) => new Date(b.date) - new Date(a.date)
+  );
+
+  const handleAddComment = e => {
+    e.preventDefault();
+    if (newComment.trim() && onCommentAdd) {
+      onCommentAdd(newComment.trim());
+      setNewComment('');
+    }
+  };
 
   return (
     <>
@@ -802,6 +925,52 @@ function AppraisalDetailModal({
               >
                 Assigned Provider: {appraisal.assignedProvider}
               </p>
+              {appraisal.assignedTo && (
+                <p
+                  className={`text-sm font-medium mt-2 ${
+                    isDarkMode ? 'text-[#F1CB68]' : 'text-[#F1CB68]'
+                  }`}
+                >
+                  Assigned to: {appraisal.assignedTo}
+                </p>
+              )}
+            </div>
+            <div className='flex gap-2'>
+              {onAssign && (
+                <button
+                  onClick={onAssign}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isDarkMode
+                      ? 'bg-[#F1CB68]/20 text-[#F1CB68] hover:bg-[#F1CB68]/30'
+                      : 'bg-[#F1CB68]/20 text-[#F1CB68] hover:bg-[#F1CB68]/30'
+                  }`}
+                >
+                  Assign to CRM User
+                </button>
+              )}
+              {onDocumentUpload && (
+                <button
+                  onClick={onDocumentUpload}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                    isDarkMode
+                      ? 'bg-white/5 text-gray-300 hover:bg-white/10'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <svg
+                    width='16'
+                    height='16'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeWidth='2'
+                  >
+                    <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+                    <path d='M14 2v6h6' />
+                  </svg>
+                  Documents
+                </button>
+              )}
             </div>
           </div>
 
@@ -868,50 +1037,92 @@ function AppraisalDetailModal({
             </div>
           </div>
 
-          {/* Notes/Messages */}
+          {/* Comments Area */}
           <div>
             <h3
               className={`text-lg font-semibold mb-4 ${
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}
             >
-              Notes & Messages
+              Comments & Notes
             </h3>
-            <div className='space-y-3'>
-              {notes.map(note => (
-                <div
-                  key={note.id}
-                  className={`rounded-lg border p-4 ${
+            
+            {/* Add Comment Form */}
+            {onCommentAdd && (
+              <form onSubmit={handleAddComment} className='mb-4'>
+                <textarea
+                  value={newComment}
+                  onChange={e => setNewComment(e.target.value)}
+                  placeholder='Add a comment or note...'
+                  rows={3}
+                  className={`w-full px-4 py-3 rounded-lg border text-sm transition-colors resize-none ${
                     isDarkMode
-                      ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
-                      : 'bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <div className='flex items-center justify-between mb-2'>
-                    <p
-                      className={`text-sm font-medium ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      {note.from}
-                    </p>
-                    <p
-                      className={`text-xs ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}
-                    >
-                      {formatDate(note.date)}
-                    </p>
-                  </div>
-                  <p
-                    className={`text-sm ${
-                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                      ? 'bg-[#2C2C2E] border-[#FFFFFF14] text-white placeholder-gray-500 focus:border-[#F1CB68]'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-[#F1CB68]'
+                  } focus:outline-none`}
+                />
+                <div className='flex justify-end mt-2'>
+                  <button
+                    type='submit'
+                    disabled={!newComment.trim()}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode
+                        ? 'bg-[#F1CB68] text-black hover:bg-[#F1CB68]/80'
+                        : 'bg-[#F1CB68] text-black hover:bg-[#F1CB68]/80'
                     }`}
                   >
-                    {note.message}
-                  </p>
+                    Add Comment
+                  </button>
                 </div>
-              ))}
+              </form>
+            )}
+
+            {/* Notes/Messages List */}
+            <div className='space-y-3'>
+              {notes.length > 0 ? (
+                notes.map(note => (
+                  <div
+                    key={note.id}
+                    className={`rounded-lg border p-4 ${
+                      isDarkMode
+                        ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                  >
+                    <div className='flex items-center justify-between mb-2'>
+                      <p
+                        className={`text-sm font-medium ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        {note.from}
+                      </p>
+                      <p
+                        className={`text-xs ${
+                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}
+                      >
+                        {formatDate(note.date)}
+                      </p>
+                    </div>
+                    <p
+                      className={`text-sm ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                      }`}
+                    >
+                      {note.message}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p
+                  className={`text-sm text-center py-4 ${
+                    isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                  }`}
+                >
+                  No comments yet. Add the first comment above.
+                </p>
+              )}
             </div>
           </div>
 
@@ -919,32 +1130,60 @@ function AppraisalDetailModal({
           <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
             {/* Uploaded Documents */}
             <div>
-              <h3
-                className={`text-lg font-semibold mb-4 ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
-                }`}
-              >
-                Uploaded Documents
-              </h3>
+              <div className='flex items-center justify-between mb-4'>
+                <h3
+                  className={`text-lg font-semibold ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  Uploaded Documents
+                </h3>
+                {onDocumentUpload && (
+                  <button
+                    onClick={onDocumentUpload}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                      isDarkMode
+                        ? 'bg-[#F1CB68]/20 text-[#F1CB68] hover:bg-[#F1CB68]/30'
+                        : 'bg-[#F1CB68]/20 text-[#F1CB68] hover:bg-[#F1CB68]/30'
+                    }`}
+                  >
+                    + Upload
+                  </button>
+                )}
+              </div>
               <div className='space-y-2'>
-                <DocumentItem
-                  name='Asset Photos'
-                  type='PDF'
-                  size='2.4 MB'
-                  isDarkMode={isDarkMode}
-                />
-                <DocumentItem
-                  name='Ownership Certificate'
-                  type='PDF'
-                  size='1.8 MB'
-                  isDarkMode={isDarkMode}
-                />
-                <DocumentItem
-                  name='Purchase Receipt'
-                  type='PDF'
-                  size='956 KB'
-                  isDarkMode={isDarkMode}
-                />
+                {appraisal.documents && appraisal.documents.length > 0 ? (
+                  appraisal.documents.map((doc, index) => (
+                    <DocumentItem
+                      key={index}
+                      name={doc.name}
+                      type={doc.type || 'PDF'}
+                      size={`${(doc.size / 1024 / 1024).toFixed(2)} MB`}
+                      isDarkMode={isDarkMode}
+                    />
+                  ))
+                ) : (
+                  <>
+                    <DocumentItem
+                      name='Asset Photos'
+                      type='PDF'
+                      size='2.4 MB'
+                      isDarkMode={isDarkMode}
+                    />
+                    <DocumentItem
+                      name='Ownership Certificate'
+                      type='PDF'
+                      size='1.8 MB'
+                      isDarkMode={isDarkMode}
+                    />
+                    <DocumentItem
+                      name='Purchase Receipt'
+                      type='PDF'
+                      size='956 KB'
+                      isDarkMode={isDarkMode}
+                    />
+                  </>
+                )}
               </div>
             </div>
 
