@@ -23,555 +23,528 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
       {/* Header Section */}
-      <div className={`mb-8 border rounded-2xl p-6 ${
-        isDarkMode ? 'border-[#1A1A1A]' : 'border-gray-200'
+      <div className={`mb-8 flex items-center justify-between ${
+        isDarkMode ? '' : ''
       }`}>
         <h1
-          className={`text-3xl md:text-4xl font-bold mb-3 ${
+          className={`text-3xl md:text-4xl font-bold ${
             isDarkMode ? 'text-white' : 'text-black'
           }`}
         >
-          Good morning, Olivia.
+          Olá, Clark
         </h1>
-        <p className={`text-lg mb-8 ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-        }`}>
-          Here&apos;s a 360° view of your financial position.
-        </p>
-
-        {/* Top Stats */}
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-8 mb-8'>
-          <div>
-            <p className={`text-sm mb-2 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>Net Worth</p>
-            <div className='flex items-center gap-3'>
-              <h2
-                className={`text-3xl font-bold ${
-                  isDarkMode ? 'text-white' : 'text-black'
-                }`}
-              >
-                $12.4M
-              </h2>
-              <span className='text-[#10B981] text-sm font-medium bg-[#10B9811A] px-2 py-1 rounded'>
-                ↑ 3.7%
-              </span>
-            </div>
-          </div>
-          <div>
-            <p className={`text-sm mb-2 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>Asset Allocation</p>
-            <h2
-              className={`text-3xl font-bold ${
-                isDarkMode ? 'text-white' : 'text-black'
-              }`}
-            >
-              5 Classes
-            </h2>
-          </div>
-          <div>
-            <p className={`text-sm mb-2 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>Available Liquidity</p>
-            <h2
-              className={`text-3xl font-bold ${
-                isDarkMode ? 'text-white' : 'text-black'
-              }`}
-            >
-              $1.75M
-            </h2>
-          </div>
+        
+        {/* Navigation Icons */}
+        <div className='flex items-center gap-4'>
+          <button className={`p-2 rounded-lg transition-colors ${
+            isDarkMode ? 'hover:bg-[#2A2A2D]' : 'hover:bg-gray-100'
+          }`}>
+            <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke={isDarkMode ? '#666666' : '#9CA3AF'} strokeWidth='2'>
+              <path d='M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2' />
+            </svg>
+          </button>
+          <button className={`p-2 rounded-lg transition-colors ${
+            isDarkMode ? 'hover:bg-[#2A2A2D]' : 'hover:bg-gray-100'
+          }`}>
+            <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke={isDarkMode ? '#666666' : '#9CA3AF'} strokeWidth='2'>
+              <circle cx='11' cy='11' r='8' />
+              <path d='m21 21-4.35-4.35' />
+            </svg>
+          </button>
+          <button className={`p-2 rounded-lg transition-colors ${
+            isDarkMode ? 'hover:bg-[#2A2A2D]' : 'hover:bg-gray-100'
+          }`}>
+            <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke={isDarkMode ? '#666666' : '#9CA3AF'} strokeWidth='2'>
+              <path d='M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8' />
+              <polyline points='16 6 12 2 8 6' />
+              <line x1='12' y1='2' x2='12' y2='15' />
+            </svg>
+          </button>
+          <button className={`p-2 rounded-lg transition-colors ${
+            isDarkMode ? 'hover:bg-[#2A2A2D]' : 'hover:bg-gray-100'
+          }`}>
+            <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke={isDarkMode ? '#666666' : '#9CA3AF'} strokeWidth='2'>
+              <circle cx='12' cy='12' r='3' />
+              <path d='M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24' />
+            </svg>
+          </button>
+          <select className={`text-sm font-medium px-3 py-1.5 rounded-lg border ${
+            isDarkMode 
+              ? 'bg-[#1A1A1D] border-[#FFFFFF14] text-white' 
+              : 'bg-white border-gray-200 text-black'
+          } focus:outline-none`}>
+            <option>USD $</option>
+            <option>EUR €</option>
+            <option>GBP £</option>
+          </select>
         </div>
       </div>
 
-      {/* Main Cards Grid */}
-      <div className='flex flex-wrap xl:flex-nowrap gap-6 mb-8'>
-        {/* Net Worth Card */}
-        <NetWorthCard />
+      {/* Top Row Cards */}
+      <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-6'>
+        {/* Net Worth & Investable Card */}
+        <NetWorthInvestableCard />
 
-        {/* Asset Allocation Card */}
-        <AssetAllocationCard />
+        {/* Assets Card */}
+        <AssetsCard />
 
-        {/* Liabilities Card */}
-        <LiabilitiesCard />
-
-        {/* Available Liquidity Card */}
-        <AvailableLiquidityCard />
+        {/* Debts Card */}
+        <DebtsCard />
       </div>
 
-      {/* Performance Analytics */}
-      <PerformanceAnalyticsCard />
+      {/* Middle Row Cards */}
+      <div className='grid grid-cols-1 md:grid-cols-2 gap-6 mb-6'>
+        {/* Cash on hand Card */}
+        <CashOnHandCard />
+
+        {/* Tax Estimate Card */}
+        <TaxEstimateCard />
+      </div>
+
+      {/* Historical Performance Graph */}
+      <HistoricalPerformanceGraph />
     </DashboardLayout>
   );
 }
 
-// Net Worth Card Component
-function NetWorthCard() {
+// Net Worth & Investable Card Component
+function NetWorthInvestableCard() {
   const { isDarkMode } = useTheme();
-  const data = [
-    { month: 'Jan', value: 10.5 },
-    { month: 'Feb', value: 10.8 },
-    { month: 'Mar', value: 11.2 },
-    { month: 'Apr', value: 11.0 },
-    { month: 'May', value: 11.5 },
-    { month: 'Jun', value: 12.4 },
-  ];
 
   return (
-    <div className='bg-transparent border border-[#FFFFFF14] rounded-2xl p-4 w-full xl:w-[238px] h-[238px] flex flex-col'>
-      {/* Header */}
-      <div className='flex items-center justify-between mb-2'>
-        <div className='flex items-center gap-2'>
-          <h3
-            className={`font-semibold text-sm ${
-              isDarkMode ? 'text-white' : 'text-black'
-            }`}
-          >
+    <div className={`bg-transparent border rounded-2xl p-6 ${
+      isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+    }`}>
+      {/* Net Worth */}
+      <div className='mb-6'>
+        <div className='flex items-center gap-2 mb-2'>
+          <h3 className={`text-sm font-medium ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
             Net Worth
           </h3>
           <InfoIcon />
         </div>
-      </div>
-
-      {/* Value */}
-      <div className='flex items-center gap-2 mb-3'>
-        <h2
-          className={`text-xl font-bold ${
-            isDarkMode ? 'text-white' : 'text-black'
-          }`}
-        >
-          $12.4M
+        <h2 className={`text-3xl font-bold ${
+          isDarkMode ? 'text-white' : 'text-black'
+        }`}>
+          $16.995 Million
         </h2>
-        <span className='text-[#10B981] text-xs font-medium bg-[#10B9811A] px-1.5 py-0.5 rounded'>
-          ↑ 3.7%
-        </span>
       </div>
 
-      {/* Chart */}
-      <div className='flex-1 mb-2'>
-        <ResponsiveContainer width='100%' height='100%'>
-          <AreaChart data={data}>
-            <defs>
-              <linearGradient id='netWorthGradient' x1='0' y1='0' x2='0' y2='1'>
-                <stop
-                  offset='5%'
-                  stopColor='rgba(241, 203, 104, 0.301961)'
-                  stopOpacity={1}
-                />
-                <stop
-                  offset='95%'
-                  stopColor='rgba(241, 203, 104, 0)'
-                  stopOpacity={1}
-                />
-              </linearGradient>
-            </defs>
-            <Area
-              type='monotone'
-              dataKey='value'
-              stroke='#F1CB68'
-              strokeWidth={2}
-              fill='url(#netWorthGradient)'
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Footer */}
-      <p className={`text-xs ${
-        isDarkMode ? 'text-gray-500' : 'text-gray-600'
-      }`}>Last 6 months</p>
-    </div>
-  );
-}
-
-// Asset Allocation Card Component
-function AssetAllocationCard() {
-  const { isDarkMode } = useTheme();
-  const data = [
-    { name: 'Stocks', value: 45, color: '#F1CB68' },
-    { name: 'Real Estate', value: 25, color: '#BF9B30' },
-    { name: 'Bonds', value: 15, color: '#977A20' },
-    { name: 'Alternatives', value: 10, color: '#EACE6F' },
-    { name: 'Cash', value: 5, color: '#F1D976' },
-  ];
-
-  return (
-    <div className='bg-transparent border border-[#FFFFFF14] rounded-2xl p-4 w-full xl:w-[238px] h-[238px] flex flex-col'>
-      {/* Header */}
-      <div className='flex items-center justify-between mb-3'>
-        <div className='flex items-center gap-2'>
-          <h3
-            className={`font-semibold text-sm ${
-              isDarkMode ? 'text-white' : 'text-black'
-            }`}
-          >
-            Asset Allocation
-          </h3>
-          <InfoIcon />
-        </div>
-      </div>
-
-      {/* Chart and Legend Container */}
-      <div className='flex-1 flex items-center gap-3'>
-        {/* Donut Chart */}
-        <div className='shrink-0 w-[100px] h-[100px]'>
-          <ResponsiveContainer width='100%' height='100%'>
-            <PieChart>
-              <Pie
-                data={data}
-                cx='50%'
-                cy='50%'
-                innerRadius={30}
-                outerRadius={45}
-                paddingAngle={2}
-                dataKey='value'
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Legend on the right */}
-        <div className='flex-1 space-y-2'>
-          {data.map((item, index) => (
-            <div key={index} className='flex items-center justify-between'>
-              <div className='flex items-center gap-1.5'>
-                <div
-                  className='w-1.5 h-1.5 rounded-full shrink-0'
-                  style={{ backgroundColor: item.color }}
-                />
-                <span className={`text-[10px] ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                }`}>{item.name}</span>
-              </div>
-              <span
-                className={`text-[10px] font-medium ml-1 ${
-                  isDarkMode ? 'text-white' : 'text-black'
-                }`}
-              >
-                {item.value}%
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Liabilities Card Component
-function LiabilitiesCard() {
-  const { isDarkMode } = useTheme();
-  const liabilities = [
-    { name: 'Mortgages', amount: '$1.8M', percentage: 56 },
-    { name: 'Credit Lines', amount: '$1.2M', percentage: 38 },
-    { name: 'Other Debts', amount: '$0.2M', percentage: 6 },
-  ];
-
-  const total = '$3.2M';
-
-  return (
-    <div className='bg-transparent border border-[#FFFFFF14] rounded-2xl p-4 w-full xl:w-[238px] h-[238px] flex flex-col'>
-      {/* Header */}
-      <div className='flex items-center justify-between mb-2'>
-        <div className='flex items-center gap-2'>
-          <h3
-            className={`font-semibold text-sm ${
-              isDarkMode ? 'text-white' : 'text-black'
-            }`}
-          >
-            Liabilities
-          </h3>
-          <InfoIcon />
-        </div>
-      </div>
-
-      {/* Total */}
-      <h2
-        className={`text-xl font-bold mb-4 ${
-          isDarkMode ? 'text-white' : 'text-black'
-        }`}
-      >
-        {total}
-      </h2>
-
-      {/* Liabilities List */}
-      <div className='space-y-3 flex-1'>
-        {liabilities.map((item, index) => (
-          <div key={index}>
-            <div className='flex items-center justify-between mb-1.5'>
-              <span className={`text-xs ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-600'
-              }`}>{item.name}</span>
-              <span
-                className={`text-xs font-medium ${
-                  isDarkMode ? 'text-white' : 'text-black'
-                }`}
-              >
-                {item.amount}
-              </span>
-            </div>
-            <div className={`w-full h-1.5 rounded-full overflow-hidden ${
-              isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-            }`}>
-              <div
-                className='h-full bg-[#F1CB68] rounded-full'
-                style={{ width: `${item.percentage}%` }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Available Liquidity Card Component
-function AvailableLiquidityCard() {
-  const { isDarkMode } = useTheme();
-
-  return (
-    <div className='bg-transparent border border-[#FFFFFF14] rounded-2xl p-4 w-full xl:w-[238px] h-[238px] flex flex-col'>
-      {/* Header */}
-      <div className='flex items-center justify-between mb-2'>
-        <div className='flex items-center gap-2'>
-          <h3
-            className={`font-semibold text-sm ${
-              isDarkMode ? 'text-white' : 'text-black'
-            }`}
-          >
-            Available Liquidity
-          </h3>
-          <InfoIcon />
-        </div>
-      </div>
-
-      {/* Total */}
-      <h2
-        className={`text-xl font-bold mb-3 ${
-          isDarkMode ? 'text-white' : 'text-black'
-        }`}
-      >
-        $1.75M
-      </h2>
-
-      {/* Details */}
-      <div className='space-y-2 flex-1'>
-        {/* Cash & Cash Equivalents */}
-        <div>
-          <p className={`text-xs mb-1.5 ${
+      {/* Investable */}
+      <div className='mb-6'>
+        <div className='flex items-center gap-2 mb-2'>
+          <h3 className={`text-sm font-medium ${
             isDarkMode ? 'text-gray-400' : 'text-gray-600'
           }`}>
-            Cash & Cash Equivalents
-          </p>
-          <div className={`w-full h-1.5 rounded-full overflow-hidden ${
-            isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-          }`}>
-            <div className='h-full bg-[#F1CB68] rounded-full w-[70%]' />
-          </div>
+            Investable
+          </h3>
+          <InfoIcon />
         </div>
+        <h2 className={`text-3xl font-bold ${
+            isDarkMode ? 'text-white' : 'text-black'
+        }`}>
+          $12.228 Million
+        </h2>
+      </div>
 
-        {/* Liquidity Target */}
-        <div className='bg-[#F1CB681A] rounded-lg p-2'>
-          <div className='flex items-center justify-between mb-0.5'>
+      {/* CAGR YTD Section */}
+      <div>
+        <h4 className={`text-xs font-medium mb-3 ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          CAGR YTD
+        </h4>
+        <div className='space-y-2'>
+          <div className='flex items-center justify-between'>
             <span className={`text-xs ${
               isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>Liquidity Target:</span>
-            <span
-              className={`text-xs font-medium ${
-                isDarkMode ? 'text-white' : 'text-black'
-              }`}
-            >
-              70% of target
-            </span>
+            }`}>NET WORTH</span>
+            <span className='text-[#10B981] text-xs font-medium'>+35%</span>
           </div>
-          <p className={`text-[10px] ${
-            isDarkMode ? 'text-gray-500' : 'text-gray-600'
-          }`}>$2.5M</p>
-        </div>
-
-        {/* Credit Available */}
-        <div className='flex items-center gap-1.5 bg-[#F1CB681A] rounded-lg p-2'>
-          <svg
-            width='12'
-            height='12'
-            viewBox='0 0 24 24'
-            fill='none'
-            stroke='#F1CB68'
-            strokeWidth='2'
-          >
-            <rect x='1' y='4' width='22' height='16' rx='2' ry='2' />
-            <line x1='1' y1='10' x2='23' y2='10' />
-          </svg>
-          <span className='text-[#F1CB68] text-xs font-medium'>
-            $5M Credit Available
-          </span>
+          <div className='flex items-center justify-between'>
+            <span className={`text-xs ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>INVESTABLE</span>
+            <span className='text-[#10B981] text-xs font-medium'>+30%</span>
+          </div>
+          <div className='flex items-center justify-between'>
+            <span className={`text-xs ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>S&P 500</span>
+            <span className='text-[#10B981] text-xs font-medium'>+14%</span>
+          </div>
+          <div className='flex items-center justify-between'>
+            <span className={`text-xs ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>DOW JONES</span>
+            <span className='text-[#10B981] text-xs font-medium'>+9%</span>
+          </div>
+          <div className='flex items-center justify-between'>
+            <span className={`text-xs ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>TSLA</span>
+            <span className='text-[#10B981] text-xs font-medium'>+9%</span>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// Performance Analytics Card Component
-function PerformanceAnalyticsCard() {
+// Assets Card Component
+function AssetsCard() {
   const { isDarkMode } = useTheme();
-  const [selectedPeriod, setSelectedPeriod] = React.useState('30d');
-
-  // Different datasets for each time period
-  const dataByPeriod = {
-    '7d': [
-      { time: 'Mon', portfolio: 12.1, sp500: 10.3 },
-      { time: 'Tue', portfolio: 12.0, sp500: 10.2 },
-      { time: 'Wed', portfolio: 12.3, sp500: 10.4 },
-      { time: 'Thu', portfolio: 12.2, sp500: 10.3 },
-      { time: 'Fri', portfolio: 12.5, sp500: 10.5 },
-      { time: 'Sat', portfolio: 12.4, sp500: 10.4 },
-      { time: 'Sun', portfolio: 12.4, sp500: 10.4 },
-    ],
-    '30d': [
-      { time: 'Week 1', portfolio: 11.8, sp500: 10.1 },
-      { time: 'Week 2', portfolio: 11.9, sp500: 10.2 },
-      { time: 'Week 3', portfolio: 12.1, sp500: 10.3 },
-      { time: 'Week 4', portfolio: 12.4, sp500: 10.4 },
-    ],
-    '1y': [
-      { time: 'Jan', portfolio: 8.5, sp500: 8.3 },
-      { time: 'Feb', portfolio: 8.7, sp500: 8.5 },
-      { time: 'Mar', portfolio: 9.0, sp500: 8.6 },
-      { time: 'Apr', portfolio: 9.2, sp500: 8.8 },
-      { time: 'May', portfolio: 9.5, sp500: 9.0 },
-      { time: 'Jun', portfolio: 9.8, sp500: 9.2 },
-      { time: 'Jul', portfolio: 10.2, sp500: 9.4 },
-      { time: 'Aug', portfolio: 10.5, sp500: 9.6 },
-      { time: 'Sep', portfolio: 11.0, sp500: 9.8 },
-      { time: 'Oct', portfolio: 11.5, sp500: 10.0 },
-      { time: 'Nov', portfolio: 12.0, sp500: 10.2 },
-      { time: 'Dec', portfolio: 12.4, sp500: 10.4 },
-    ],
-    All: [
-      { time: '2020', portfolio: 5.2, sp500: 6.8 },
-      { time: '2021', portfolio: 6.5, sp500: 7.5 },
-      { time: '2022', portfolio: 7.8, sp500: 8.0 },
-      { time: '2023', portfolio: 9.5, sp500: 8.8 },
-      { time: '2024', portfolio: 12.4, sp500: 10.4 },
-    ],
-  };
-
-  const data = dataByPeriod[selectedPeriod];
 
   return (
-    <div className='bg-transparent border border-[#FFFFFF14] rounded-2xl p-6'>
-      {/* Header */}
-      <div className='flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4'>
-        <h3
-          className={`font-semibold text-lg ${
-            isDarkMode ? 'text-white' : 'text-black'
-          }`}
-        >
-          Performance Analytics
-        </h3>
-
-        {/* Right Side Controls */}
-        <div className='flex md:flex-row flex-col md:items-center items-start gap-4'>
-          {/* Legend */}
-          <div className='flex items-center gap-4'>
-            <div className='flex items-center gap-2'>
-              <div className='w-8 h-1 bg-[#F1CB68] rounded' />
-              <span className={`text-sm ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-600'
-              }`}>Your Portfolio</span>
-            </div>
-            <div className='flex items-center gap-2'>
-              <div className='w-8 h-1 bg-[#666666] rounded' />
-              <span className={`text-sm ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-600'
-              }`}>S&P 500</span>
-            </div>
-          </div>
-
-          {/* Time Buttons */}
-          <div
-            className={`flex gap-1 rounded-lg p-1 ${
-              isDarkMode ? 'bg-[#2A2A2D]' : 'bg-transparent'
-            }`}
-          >
-            <TimeButton
-              active={selectedPeriod === '7d'}
-              onClick={() => setSelectedPeriod('7d')}
-              isDarkMode={isDarkMode}
-            >
-              7d
-            </TimeButton>
-            <TimeButton
-              active={selectedPeriod === '30d'}
-              onClick={() => setSelectedPeriod('30d')}
-              isDarkMode={isDarkMode}
-            >
-              30d
-            </TimeButton>
-            <TimeButton
-              active={selectedPeriod === '1y'}
-              onClick={() => setSelectedPeriod('1y')}
-              isDarkMode={isDarkMode}
-            >
-              1y
-            </TimeButton>
-            <TimeButton
-              active={selectedPeriod === 'All'}
-              onClick={() => setSelectedPeriod('All')}
-              isDarkMode={isDarkMode}
-            >
-              All
-            </TimeButton>
-          </div>
+    <div className={`bg-transparent border rounded-2xl p-6 ${
+      isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+    }`}>
+      <h3 className={`text-sm font-medium mb-4 ${
+        isDarkMode ? 'text-gray-400' : 'text-gray-600'
+      }`}>
+        Assets
+      </h3>
+      <h2 className={`text-3xl font-bold mb-6 ${
+              isDarkMode ? 'text-white' : 'text-black'
+      }`}>
+        $18.226 Million
+      </h2>
+      
+      <div className='space-y-3'>
+        <div>
+          <p className={`text-xs mb-1 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            1 DAY
+          </p>
+          <p className='text-[#10B981] text-sm font-medium'>
+            +$32,682 (0.18%)
+          </p>
+        </div>
+        <div>
+          <p className={`text-xs mb-1 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            1 YEAR
+          </p>
+          <p className='text-[#EF4444] text-sm font-medium'>
+            -$62,249 (0.34%)
+          </p>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Chart */}
-      <div className='h-64'>
-        <ResponsiveContainer width='100%' height='100%'>
-          <LineChart data={data}>
-            <CartesianGrid 
-              strokeDasharray='3 3' 
-              stroke={isDarkMode ? '#2A2A2D' : '#E5E7EB'} 
-            />
-            <XAxis
-              dataKey='time'
-              stroke={isDarkMode ? '#666666' : '#9CA3AF'}
-              style={{ fontSize: '12px' }}
-            />
-            <YAxis 
-              stroke={isDarkMode ? '#666666' : '#9CA3AF'} 
-              style={{ fontSize: '12px' }} 
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: isDarkMode ? '#1A1A1D' : '#FFFFFF',
-                border: isDarkMode ? '1px solid #FFFFFF14' : '1px solid #E5E7EB',
-                borderRadius: '8px',
-              }}
-              labelStyle={{ color: isDarkMode ? '#fff' : '#111827' }}
-            />
-            <Line
-              type='monotone'
-              dataKey='portfolio'
-              stroke='#F1CB68'
-              strokeWidth={2}
-              dot={false}
-            />
-            <Line
-              type='monotone'
-              dataKey='sp500'
-              stroke='#666666'
-              strokeWidth={2}
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+// Debts Card Component
+function DebtsCard() {
+  const { isDarkMode } = useTheme();
+
+  return (
+    <div className={`bg-transparent border rounded-2xl p-6 ${
+      isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+    }`}>
+      <h3 className={`text-sm font-medium mb-4 ${
+        isDarkMode ? 'text-gray-400' : 'text-gray-600'
+      }`}>
+        Debts
+          </h3>
+      <h2 className={`text-3xl font-bold mb-6 ${
+          isDarkMode ? 'text-white' : 'text-black'
+      }`}>
+        $1.232 Million
+      </h2>
+
+      <div className='space-y-3'>
+        <div>
+          <p className={`text-xs mb-1 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            1 DAY
+          </p>
+          <p className={`text-sm font-medium ${
+            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+          }`}>
+            $0
+          </p>
+            </div>
+        <div>
+          <p className={`text-xs mb-1 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            1 YEAR
+          </p>
+          <p className='text-[#EF4444] text-sm font-medium'>
+            -$83,791 (6%)
+          </p>
+          </div>
+      </div>
+    </div>
+  );
+}
+
+// Cash on hand Card Component
+function CashOnHandCard() {
+  const { isDarkMode } = useTheme();
+
+  return (
+    <div className={`bg-transparent border rounded-2xl p-6 ${
+      isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+    }`}>
+      <div className='flex items-center gap-2 mb-4'>
+        <h3 className={`text-sm font-medium ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Cash on hand
+        </h3>
+        <InfoIcon />
+      </div>
+      <h2 className={`text-3xl font-bold mb-4 ${
+        isDarkMode ? 'text-white' : 'text-black'
+      }`}>
+        $430,778
+      </h2>
+      <div>
+        <p className={`text-xs mb-1 ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Overdue
+        </p>
+        <p className='text-[#EF4444] text-sm font-medium'>
+          -$15,000
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Tax Estimate Card Component
+function TaxEstimateCard() {
+  const { isDarkMode } = useTheme();
+
+  return (
+    <div className={`bg-transparent border rounded-2xl p-6 ${
+      isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+    }`}>
+      <div className='flex items-center gap-2 mb-4'>
+        <h3 className={`text-sm font-medium ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Tax Estimate
+        </h3>
+        <InfoIcon />
+      </div>
+      <h2 className={`text-3xl font-bold mb-4 ${
+        isDarkMode ? 'text-white' : 'text-black'
+      }`}>
+        $227,056
+      </h2>
+      <div>
+        <p className={`text-xs mb-1 ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Adjusted Net Worth
+        </p>
+        <p className={`text-sm font-medium ${
+          isDarkMode ? 'text-white' : 'text-black'
+        }`}>
+          $16.759 Million
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+// Historical Performance Graph Component
+function HistoricalPerformanceGraph() {
+  const { isDarkMode } = useTheme();
+  const [timeRange, setTimeRange] = React.useState('ALL-TIME');
+
+  // Historical data for Net Worth and Investable - matching the image with more data points
+  const historicalData = [
+    { date: '2020', netWorth: 6.5, investable: 4.2 },
+    { date: '2021', netWorth: 7.8, investable: 5.5 },
+    { date: '2022', netWorth: 9.2, investable: 6.8 },
+    { date: '2023', netWorth: 11.5, investable: 8.9 },
+    { date: '2024 Q1', netWorth: 13.2, investable: 10.1 },
+    { date: '2024 Q2', netWorth: 14.8, investable: 11.2 },
+    { date: '2024 Q3', netWorth: 16.995, investable: 12.228 },
+  ];
+
+  const currentNetWorth = 16.995;
+  const currentInvestable = 12.228;
+  const initialNetWorth = 6.5;
+  const initialInvestable = 4.2;
+  const netWorthGrowth = currentNetWorth - initialNetWorth;
+  const investableGrowth = currentInvestable - initialInvestable;
+  const netWorthGrowthPercent = ((netWorthGrowth / initialNetWorth) * 100).toFixed(0);
+  const investableGrowthPercent = ((investableGrowth / initialInvestable) * 100).toFixed(0);
+
+  return (
+    <div className={`bg-transparent border rounded-2xl p-6 ${
+      isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+    }`}>
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
+        {/* Left Side - Summary Stats */}
+        <div className='space-y-8'>
+          {/* Net Worth Summary */}
+          <div>
+            <h3 className={`text-sm font-medium mb-2 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              Net Worth
+            </h3>
+            <h2 className={`text-3xl font-bold mb-2 ${
+              isDarkMode ? 'text-white' : 'text-black'
+            }`}>
+              $16.995 Million
+            </h2>
+            <p className='text-[#10B981] text-sm font-medium'>
+              +${netWorthGrowth.toFixed(2)}M ({netWorthGrowthPercent}%)
+            </p>
+          </div>
+
+          {/* Investable Summary */}
+          <div>
+            <h3 className={`text-sm font-medium mb-2 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              Investable
+            </h3>
+            <h2 className={`text-3xl font-bold mb-2 ${
+              isDarkMode ? 'text-white' : 'text-black'
+            }`}>
+              $12.228 Million
+            </h2>
+            <p className='text-[#10B981] text-sm font-medium'>
+              +${investableGrowth.toFixed(2)}M ({investableGrowthPercent}%)
+            </p>
+          </div>
+        </div>
+
+        {/* Right Side - Graph */}
+        <div>
+          {/* Graph Header */}
+          <div className='flex items-center justify-end gap-2 mb-4'>
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className={`text-sm font-medium px-3 py-1.5 rounded-lg border ${
+                isDarkMode 
+                  ? 'bg-[#1A1A1D] border-[#FFFFFF14] text-white' 
+                  : 'bg-white border-gray-200 text-black'
+              } focus:outline-none focus:ring-2 focus:ring-purple-500`}
+            >
+              <option value='ALL-TIME'>ALL-TIME</option>
+              <option value='1Y'>1 YEAR</option>
+              <option value='6M'>6 MONTHS</option>
+              <option value='3M'>3 MONTHS</option>
+            </select>
+            <button className={`p-1.5 rounded-lg transition-colors ${
+              isDarkMode ? 'hover:bg-[#2A2A2D]' : 'hover:bg-gray-100'
+            }`}>
+              <svg
+                width='16'
+                height='16'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke={isDarkMode ? '#666666' : '#9CA3AF'}
+                strokeWidth='2'
+              >
+                <circle cx='12' cy='12' r='3' />
+                <path d='M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24' />
+              </svg>
+            </button>
+          </div>
+
+          {/* Chart */}
+          <div className='h-80'>
+            <ResponsiveContainer width='100%' height='100%'>
+              <AreaChart data={historicalData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  {/* Gradient for Investable (lighter purple) */}
+                  <linearGradient id='investableGradientHist' x1='0' y1='0' x2='0' y2='1'>
+                    <stop
+                      offset='5%'
+                      stopColor='rgba(139, 92, 246, 0.5)'
+                      stopOpacity={1}
+                    />
+                    <stop
+                      offset='95%'
+                      stopColor='rgba(139, 92, 246, 0)'
+                      stopOpacity={1}
+                    />
+                  </linearGradient>
+                  {/* Gradient for Net Worth (darker purple) */}
+                  <linearGradient id='netWorthGradientHist' x1='0' y1='0' x2='0' y2='1'>
+                    <stop
+                      offset='5%'
+                      stopColor='rgba(124, 58, 237, 0.6)'
+                      stopOpacity={1}
+                    />
+                    <stop
+                      offset='95%'
+                      stopColor='rgba(124, 58, 237, 0)'
+                      stopOpacity={1}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid 
+                  strokeDasharray='3 3' 
+                  stroke={isDarkMode ? '#2A2A2D' : '#E5E7EB'}
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey='date'
+                  stroke={isDarkMode ? '#666666' : '#9CA3AF'}
+                  style={{ fontSize: '12px' }}
+                  tick={{ fill: isDarkMode ? '#666666' : '#9CA3AF' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis 
+                  stroke={isDarkMode ? '#666666' : '#9CA3AF'} 
+                  style={{ fontSize: '12px' }}
+                  tick={{ fill: isDarkMode ? '#666666' : '#9CA3AF' }}
+                  tickFormatter={(value) => `$${value}M`}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: isDarkMode ? '#1A1A1D' : '#FFFFFF',
+                    border: isDarkMode ? '1px solid #FFFFFF14' : '1px solid #E5E7EB',
+                    borderRadius: '8px',
+                  }}
+                  labelStyle={{ color: isDarkMode ? '#fff' : '#111827' }}
+                  formatter={(value, name) => {
+                    const label = name === 'netWorth' ? 'Net Worth' : 'Investable';
+                    return [`$${value.toFixed(2)}M`, label];
+                  }}
+                />
+                {/* Net Worth Area (darker purple, behind) */}
+                <Area
+                  type='monotone'
+                  dataKey='netWorth'
+                  stroke='#7C3AED'
+                  strokeWidth={2.5}
+                  fill='url(#netWorthGradientHist)'
+                />
+                {/* Investable Area (lighter purple, on top) */}
+                <Area
+                  type='monotone'
+                  dataKey='investable'
+                  stroke='#8B5CF6'
+                  strokeWidth={2.5}
+                  fill='url(#investableGradientHist)'
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -596,25 +569,3 @@ function InfoIcon() {
   );
 }
 
-function TimeButton({ children, active, onClick, isDarkMode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        px-3 py-1 rounded text-sm font-medium transition-all
-        ${
-          active
-            ? 'bg-[#F1CB68] text-[#101014]'
-            : isDarkMode
-            ? 'text-gray-400 dark:hover:text-white hover:text-gray-900'
-            : 'text-gray-900'
-        }
-      `}
-      style={
-        !active && !isDarkMode ? { background: 'rgba(241, 203, 104, 0.2)' } : {}
-      }
-    >
-      {children}
-    </button>
-  );
-}
