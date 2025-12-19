@@ -1,4 +1,4 @@
-# 🏆 Fullego - Luxury Wealth & Lifestyle Management Platform
+# 🏆 Akunuba - Luxury Wealth & Lifestyle Management Platform
 
 <div align="center">
 
@@ -19,7 +19,7 @@ entrepreneurs**
 
 ## 📖 About
 
-Fullego is a luxury wealth and lifestyle management platform designed for
+Akunuba is a luxury wealth and lifestyle management platform designed for
 high-net-worth individuals and entrepreneurs. It combines investment tracking,
 asset management, estate planning, and exclusive marketplace access into one
 AI-powered dashboard, making it easy to grow, manage, and protect generational
@@ -141,8 +141,8 @@ wealth.
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/yourusername/fullego.git
-   cd fullego
+   git clone https://github.com/yourusername/akunuba.git
+   cd akunuba
    ```
 
 2. **Install dependencies**
@@ -184,7 +184,7 @@ npm run lint         # Run ESLint
 ## 📁 Project Structure
 
 ```
-fullego/
+akunuba/
 ├── src/
 │   ├── app/                    # Next.js App Router pages
 │   │   ├── dashboard/         # Dashboard pages
@@ -358,7 +358,7 @@ This project is private and proprietary. All rights reserved.
 
 ## 📞 Support
 
-For support, email support@fullego.com or open an issue in the repository.
+For support, email support@akunuba.com or open an issue in the repository.
 
 ---
 

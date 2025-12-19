@@ -270,7 +270,7 @@ const WealthSolutions = () => {
                   className='text-white/70 font-normal text-base sm:text-lg md:text-xl'
                   style={{ lineHeight: '1.4' }}
                 >
-                  Let Fullego's AI anticipate market shifts, rebalance your
+                  Let Akunuba's AI anticipate market shifts, rebalance your
                   portfolios, and surface personalized recommendations to meet
                   your financial goals.
                 </p>

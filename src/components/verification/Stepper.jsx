@@ -24,7 +24,7 @@ export default function Stepper({ steps, currentStep }) {
                         status === 'completed'
                           ? 'bg-gray-600 text-gray-400'
                           : status === 'active'
-                          ? 'bg-fullego-gold text-fullego-dark'
+                          ? 'bg-akunuba-gold text-akunuba-dark'
                           : 'bg-gray-700 text-gray-400'
                       }
                     `}
@@ -76,7 +76,7 @@ export default function Stepper({ steps, currentStep }) {
                       status === 'completed'
                         ? 'bg-gray-600 text-gray-400'
                         : status === 'active'
-                        ? 'bg-fullego-gold text-fullego-dark'
+                        ? 'bg-akunuba-gold text-akunuba-dark'
                         : 'bg-gray-700 text-gray-400'
                     }
                   `}

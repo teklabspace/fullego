@@ -82,7 +82,7 @@ const TermsPage = () => {
                 fontWeight: 400,
               }}
             >
-              By using Fullego, you agree to the following common-sense rules:
+              By using Akunuba, you agree to the following common-sense rules:
             </motion.p>
           </motion.div>
 
@@ -118,7 +118,7 @@ const TermsPage = () => {
                   Keeping your login credentials safe and private
                 </p>
                 <p>
-                  Using Fullego only for legal and ethical purposes
+                  Using Akunuba only for legal and ethical purposes
                 </p>
               </div>
             </div>
@@ -149,7 +149,7 @@ const TermsPage = () => {
                   with the platform
                 </p>
                 <p>
-                  Try to clone, copy, or resell Fullego&apos;s core technology
+                  Try to clone, copy, or resell Akunuba&apos;s core technology
                   without our permission
                 </p>
               </div>
@@ -175,14 +175,14 @@ const TermsPage = () => {
               >
                 <p>
                   While we strive for near-perfect uptime and reliability, we
-                  can&apos;t guarantee that Fullego will always be available or
+                  can&apos;t guarantee that Akunuba will always be available or
                   error-free.
                 </p>
                 <p>
                   Outages may happen due to system updates or unforeseen issues.
                 </p>
                 <p>
-                  Fullego is not liable for losses related to market changes,
+                  Akunuba is not liable for losses related to market changes,
                   incorrect data input, or integration with third-party tools.
                   Use of the platform is at your own risk and should not replace
                   professional financial advice.

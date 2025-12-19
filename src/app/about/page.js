@@ -51,7 +51,7 @@ const AboutPage = () => {
 
               {/* Subtitle */}
               <p className='text-base sm:text-lg md:text-xl text-white/80 max-w-2xl mx-auto leading-relaxed'>
-                Learn more about how fullego is leading the industry in digital
+                Learn more about how Akunuba is leading the industry in digital
                 innovation and transformation.
               </p>
 

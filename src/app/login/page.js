@@ -63,7 +63,7 @@ export default function LoginPage() {
             <div className='w-10 h-10 bg-[#F1CB68] rounded-lg flex items-center justify-center'>
               <span className='text-[#0B0D12] text-xl font-bold'>F</span>
             </div>
-            <span className='text-white text-xl font-semibold'>Fullego</span>
+            <span className='text-white text-xl font-semibold'>Akunuba</span>
           </div>
 
           {/* Form Header */}
@@ -72,7 +72,7 @@ export default function LoginPage() {
               Welcome back
             </h1>
             <p className='text-gray-400 text-sm'>
-              Sign in to continue your journey at Fullego
+              Sign in to continue your journey at Akunuba
             </p>
           </div>
 

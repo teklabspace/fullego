@@ -157,7 +157,7 @@ const Footer = () => {
         {/* Copyright */}
         <div className='pt-6 border-t border-white/10'>
           <p className='text-white text-xs'>
-            © {currentYear} Fullego. All rights reserved.
+            © {currentYear} Akunuba. All rights reserved.
           </p>
         </div>
       </div>

@@ -5,20 +5,22 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTheme } from '@/context/ThemeContext';
 import Container from '../ui/Container';
 
 const NAV_ITEMS = [
   { label: 'Marketplace', href: '/marketplace', id: 'marketplace' },
   { label: 'Plans', href: '/plans', id: 'plans' },
-  { label: 'Why Fullego', href: '/', id: 'why-fullego' },
+  { label: 'Why Akunuba', href: '/', id: 'why-akunuba' },
   { label: 'Concierge', href: '/concierge', id: 'concierge' },
   { label: 'Support', href: '/support', id: 'support' },
 ];
 
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState('why-fullego');
+  const [activeSection, setActiveSection] = useState('why-akunuba');
   const pathname = usePathname();
+  const { isDarkMode } = useTheme();
 
   // Track previous pathname to detect changes
   const prevPathnameRef = useRef(pathname);
@@ -88,8 +90,8 @@ const Navbar = () => {
       if (matchingItem) {
         setActiveSection(matchingItem.id);
       } else if (currentPath === '/') {
-        // Default to 'why-fullego' for home page
-        setActiveSection('why-fullego');
+        // Default to 'why-akunuba' for home page
+        setActiveSection('why-akunuba');
       }
     };
 
@@ -173,10 +175,10 @@ const Navbar = () => {
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Link href='/' className='flex items-center gap-3'>
               <Image
-                src='/Logo.svg'
-                alt='Fullego Logo'
-                width={100}
-                height={100}
+                src={isDarkMode ? '/darkmode_Logo.svg' : '/lightmode_logo.svg'}
+                alt='Akunuba Logo'
+                width={150}
+                height={150}
               />
             </Link>
           </motion.div>
@@ -356,7 +358,7 @@ const Navbar = () => {
                   className='mt-8 pt-8 border-t border-[#FFFFFF1A]'
                 >
                   <p className='text-xs text-brand-muted text-center'>
-                    © {new Date().getFullYear()} Fullego. All rights reserved.
+                    © {new Date().getFullYear()} Akunuba. All rights reserved.
                   </p>
                 </motion.div>
               </div>

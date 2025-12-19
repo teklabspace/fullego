@@ -85,7 +85,7 @@ const SecurityPage = () => {
                 fontWeight: 400,
               }}
             >
-              We take your security seriously. Fullego is designed to safeguard
+              We take your security seriously. Akunuba is designed to safeguard
               your data and protect you from unauthorized access.
             </motion.p>
           </motion.div>
@@ -154,13 +154,13 @@ const SecurityPage = () => {
                 <p>
                   Report anything suspicious to{' '}
                   <a
-                    href='mailto:security@fullego.com'
+                    href='mailto:security@akunuba.com'
                     className='text-[#F1CB68] hover:text-[#F1CB68] transition-colors duration-300 underline'
                     style={{
                       color: '#F1CB68',
                     }}
                   >
-                    security@fullego.com
+                    security@akunuba.com
                   </a>{' '}
                   right away
                 </p>
@@ -188,7 +188,7 @@ const SecurityPage = () => {
               >
                 <p>
                   While we do everything possible to secure your information, no
-                  platform is 100% immune to risk. By using Fullego, you
+                  platform is 100% immune to risk. By using Akunuba, you
                   acknowledge that no system can guarantee absolute protection
                   and agree to use it at your discretion.
                 </p>
@@ -232,10 +232,10 @@ const SecurityPage = () => {
               }}
             >
               This content does not constitute legal, financial, or investment
-              advice. Fullego is a wealth management platform intended to
+              advice. Akunuba is a wealth management platform intended to
               support – not replace – the advice of qualified professionals. By
-              using Fullego, you agree that you are solely responsible for your
-              financial decisions and that Fullego and its team are not liable
+              using Akunuba, you agree that you are solely responsible for your
+              financial decisions and that Akunuba and its team are not liable
               for losses, damages, or regulatory issues resulting from your use
               of the platform.
             </p>

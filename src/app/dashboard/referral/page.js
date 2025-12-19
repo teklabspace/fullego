@@ -8,7 +8,7 @@ export default function ReferralPage() {
   const { isDarkMode } = useTheme();
   const [copied, setCopied] = useState(false);
   const referralCode = 'OLIVIA2024';
-  const referralLink = `https://fullego.com/register?ref=${referralCode}`;
+  const referralLink = `https://akunuba.com/register?ref=${referralCode}`;
 
   // Mock referral data
   const referralStats = {

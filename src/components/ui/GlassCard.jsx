@@ -9,9 +9,9 @@ export default function GlassCard({
   const { isDarkMode } = useTheme();
   
   const variants = {
-    default: isDarkMode ? 'bg-fullego-card' : 'bg-white',
-    dark: isDarkMode ? 'bg-fullego-cardDark' : 'bg-gray-50',
-    hover: isDarkMode ? 'bg-fullego-cardHover' : 'bg-gray-50',
+    default: isDarkMode ? 'bg-akunuba-card' : 'bg-white',
+    dark: isDarkMode ? 'bg-akunuba-cardDark' : 'bg-gray-50',
+    hover: isDarkMode ? 'bg-akunuba-cardHover' : 'bg-gray-50',
   };
 
   return (
@@ -19,7 +19,7 @@ export default function GlassCard({
       className={`
         rounded-2xl ${variants[variant]}
         backdrop-blur-md border
-        ${isDarkMode ? 'border-fullego-border' : 'border-gray-200'}
+        ${isDarkMode ? 'border-akunuba-border' : 'border-gray-200'}
         ${className}
       `}
     >

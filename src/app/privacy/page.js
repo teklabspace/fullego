@@ -82,7 +82,7 @@ const PrivacyPage = () => {
                 fontWeight: 400,
               }}
             >
-              We value your trust. At Fullego, protecting your privacy isn&apos;t
+              We value your trust. At Akunuba, protecting your privacy isn&apos;t
               just a compliance box — it&apos;s core to how we do business. This
               policy explains what we collect, why we collect it, and how you can
               control your information.
@@ -193,13 +193,13 @@ const PrivacyPage = () => {
                 <p>
                   If you&apos;re unsure about how your data is handled, email us at{' '}
                   <a
-                    href='mailto:privacy@fullego.com'
+                    href='mailto:privacy@akunuba.com'
                     className='text-[#F1CB68] hover:text-[#F1CB68] transition-colors duration-300 underline'
                     style={{
                       color: '#F1CB68',
                     }}
                   >
-                    privacy@fullego.com
+                    privacy@akunuba.com
                   </a>{' '}
                   and we&apos;ll clarify.
                 </p>

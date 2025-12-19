@@ -7,7 +7,7 @@ import Container from '../ui/Container';
 const Hero = () => {
   return (
     <section
-      id='why-fullego'
+      id='why-akunuba'
       className='relative overflow-hidden min-h-[calc(100vh-120px)] flex items-center'
     >
       {/* Grid Background Image */}
@@ -145,7 +145,7 @@ const Hero = () => {
               letterSpacing: '-0.02em',
             }}
           >
-            Fullego brings your investments, luxury assets, and financial
+            Akunuba brings your investments, luxury assets, and financial
             strategy into one intelligent dashboard—crafted for elite
             individuals and family offices.
           </motion.p>

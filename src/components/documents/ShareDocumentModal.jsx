@@ -10,7 +10,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
   const [viewOnly, setViewOnly] = useState(true);
   const [restrictDownload, setRestrictDownload] = useState(false);
   const [requireSignIn, setRequireSignIn] = useState(false);
-  const [shareLink] = useState('https://fullego.com/share/abc123');
+  const [shareLink] = useState('https://akunuba.com/share/abc123');
   const [copied, setCopied] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState(null);

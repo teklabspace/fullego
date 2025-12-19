@@ -8,15 +8,15 @@ const faqData = {
   General: [
     {
       id: 1,
-      question: 'How secure is Fullego?',
+      question: 'How secure is Akunuba?',
       answer:
-        'Fullego employs bank-level encryption, multi-factor authentication, and regular security audits to ensure your data and assets are protected at all times. Our security protocols exceed industry standards and are continuously updated.',
+        'Akunuba employs bank-level encryption, multi-factor authentication, and regular security audits to ensure your data and assets are protected at all times. Our security protocols exceed industry standards and are continuously updated.',
     },
     {
       id: 2,
       question: 'Can I link accounts from outside my country?',
       answer:
-        'Yes, Fullego supports international account linking from major financial institutions worldwide. We work with banks and brokerages across multiple countries to provide you with a comprehensive view of your global wealth.',
+        'Yes, Akunuba supports international account linking from major financial institutions worldwide. We work with banks and brokerages across multiple countries to provide you with a comprehensive view of your global wealth.',
     },
     {
       id: 3,
@@ -50,7 +50,7 @@ const faqData = {
       id: 1,
       question: 'How can I contact customer support?',
       answer:
-        'You can reach our support team 24/7 via live chat, email at support@fullego.com, or phone at 1-800-FULLEGO. Premium and Elite members also have access to dedicated account managers.',
+        'You can reach our support team 24/7 via live chat, email at support@akunuba.com, or phone at 1-800-AKUNUBA. Premium and Elite members also have access to dedicated account managers.',
     },
     {
       id: 2,
@@ -148,7 +148,7 @@ const FAQ = () => {
 
             {/* Subtitle */}
             <p className='text-white/60 text-base sm:text-lg mt-4 sm:mt-6 max-w-[600px] mx-auto lg:mx-0'>
-              All the things you need to know about Fullego
+              All the things you need to know about Akunuba
             </p>
           </motion.div>
 

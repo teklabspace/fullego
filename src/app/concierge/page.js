@@ -49,7 +49,7 @@ export default function Concierge() {
                 className='relative text-4xl  sm:text-5xl md:text-6xl lg:text-[80px] font-medium leading-[130%] text-center tracking-[-0.02em] text-white mb-4'
                 style={{ fontFamily: 'Poppins' }}
               >
-                Fullego Concierge
+                Akunuba Concierge
                 {/* Border around title */}
                 <div
                   className='absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none  md:block'
@@ -146,7 +146,7 @@ export default function Concierge() {
                   flexGrow: 0,
                 }}
               >
-                <span className='text-white text-sm'>How Fullego works</span>
+                <span className='text-white text-sm'>How Akunuba works</span>
               </motion.button>
 
               {/* Main Heading */}
@@ -554,7 +554,7 @@ export default function Concierge() {
                 className='text-white/70 text-base sm:text-lg md:text-xl mt-4 sm:mt-6 max-w-[700px] mx-auto'
                 style={{ fontFamily: 'Outfit, sans-serif' }}
               >
-                Hear from those who have experienced the Fullego difference.
+                Hear from those who have experienced the Akunuba difference.
               </p>
             </motion.div>
 
@@ -621,7 +621,7 @@ export default function Concierge() {
                           className='text-sm sm:text-base leading-relaxed text-white/90'
                           style={{ fontFamily: 'Outfit, sans-serif' }}
                         >
-                          The Fullego team sourced a vintage timepiece I had
+                          The Akunuba team sourced a vintage timepiece I had
                           been searching for years. Their access and
                           professionalism are simply unparalleled. The entire
                           process was flawless.
@@ -692,7 +692,7 @@ export default function Concierge() {
                           style={{ fontFamily: 'Outfit, sans-serif' }}
                         >
                           As a first-time yacht buyer, I was intimidated.
-                          Fullego Concierge guided me through every step, from
+                          Akunuba Concierge guided me through every step, from
                           selection to sea trial, with expertise and patience. I
                           couldn&apos;t be happier.
                         </p>

@@ -23,7 +23,11 @@ export default function Navbar({ onMenuClick }) {
           <div className='flex md:hidden items-center gap-4'>
             {/* Logo */}
             <div className='flex items-center gap-2'>
-              <img src='/Dashboardlogo.svg' alt='Fullego' className='h-8' />
+              <img 
+                src={isDarkMode ? '/darkmode_logo.svg' : '/Dblighmodeicon.svg'} 
+                alt='Akunuba' 
+                className='h-9600px' 
+              />
             </div>
           </div>
 
@@ -174,7 +178,7 @@ export default function Navbar({ onMenuClick }) {
               className={`
                 w-full pl-10 pr-4 py-2
                 border rounded-full text-sm
-                focus:outline-none focus:border-fullego-gold
+                focus:outline-none focus:border-akunuba-gold
                 transition-all
                 ${
                   isDarkMode

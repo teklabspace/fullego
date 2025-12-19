@@ -664,7 +664,7 @@ function MakeOfferModal({
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}
               >
-                Fullego Prime Collection #247
+                Akunuba Prime Collection #247
               </h3>
 
               <div className='flex items-center justify-between mb-2'>

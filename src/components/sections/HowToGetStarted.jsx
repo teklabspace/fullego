@@ -42,7 +42,7 @@ const HowToGetStarted = () => {
                 flexGrow: 0,
               }}
             >
-              <span className='text-white text-sm'>How Fullego works</span>
+              <span className='text-white text-sm'>How Akunuba works</span>
             </motion.button>
 
             {/* Main Heading */}

@@ -27,7 +27,7 @@ export default function InvestmentsPage() {
                 <h3 className='text-white font-semibold mb-1'>{investment.name}</h3>
                 <p className='text-gray-400 text-sm'>{investment.risk} Risk</p>
               </div>
-              <span className='px-3 py-1 bg-fullego-gold/20 text-fullego-gold rounded-full text-xs font-medium'>
+              <span className='px-3 py-1 bg-akunuba-gold/20 text-akunuba-gold rounded-full text-xs font-medium'>
                 Active
               </span>
             </div>

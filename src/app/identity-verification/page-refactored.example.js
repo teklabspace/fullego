@@ -162,7 +162,7 @@ function CaptureArea({ photoPreview }) {
   return (
     <div className='mb-8'>
       <div
-        className='relative w-full max-w-md mx-auto aspect-square rounded-3xl flex items-center justify-center overflow-hidden border-2 border-fullego-gold bg-fullego-cardDark'
+        className='relative w-full max-w-md mx-auto aspect-square rounded-3xl flex items-center justify-center overflow-hidden border-2 border-akunuba-gold bg-akunuba-cardDark'
       >
         {photoPreview ? (
           <img src={photoPreview} alt='Captured selfie' className='w-full h-full object-cover' />
@@ -170,8 +170,8 @@ function CaptureArea({ photoPreview }) {
           <>
             <div className='absolute w-3/4 h-3/4 rounded-full border-2 border-dashed border-white/30' />
             <div className='flex flex-col items-center justify-center z-10'>
-              <div className='w-16 h-16 md:w-20 md:h-20 bg-fullego-gold rounded-2xl flex items-center justify-center mb-4'>
-                <CameraIcon className='text-fullego-dark' size={32} />
+              <div className='w-16 h-16 md:w-20 md:h-20 bg-akunuba-gold rounded-2xl flex items-center justify-center mb-4'>
+                <CameraIcon className='text-akunuba-dark' size={32} />
               </div>
               <p className='text-white text-sm md:text-base font-medium'>
                 Position your face here

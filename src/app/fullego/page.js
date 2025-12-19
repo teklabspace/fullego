@@ -1,13 +1,13 @@
 import Button from '@/components/ui/Button';
 import Layout from '../../components/layout/Layout';
 
-export default function FullegoLandingPage() {
+export default function AkunubaLandingPage() {
   return (
     <Layout>
       <div className='space-y-12'>
         {/* Hero Section */}
         <section className='text-center py-12 space-y-6'>
-          <h1 className='text-4xl md:text-6xl font-bold'>Welcome to Fullego</h1>
+          <h1 className='text-4xl md:text-6xl font-bold'>Welcome to Akunuba</h1>
           <p className='text-xl text-gray-600 max-w-3xl mx-auto'>
             Your complete solution for digital growth and success
           </p>

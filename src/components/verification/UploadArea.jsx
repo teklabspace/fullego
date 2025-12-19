@@ -1,11 +1,11 @@
 export default function UploadArea({ inputId, onFileChange }) {
   return (
     <div
-      className='border-2 border-dashed border-gray-700 rounded-xl p-6 md:p-8 text-center hover:border-fullego-gold transition-colors cursor-pointer'
+      className='border-2 border-dashed border-gray-700 rounded-xl p-6 md:p-8 text-center hover:border-akunuba-gold transition-colors cursor-pointer'
       onClick={() => document.getElementById(inputId)?.click()}
     >
       <div className='flex flex-col items-center'>
-        <div className='w-12 h-12 bg-fullego-gold/20 rounded-full flex items-center justify-center mb-3'>
+        <div className='w-12 h-12 bg-akunuba-gold/20 rounded-full flex items-center justify-center mb-3'>
           <svg
             width='24'
             height='24'

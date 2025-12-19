@@ -11,7 +11,7 @@ export default function GradientButton({
       disabled={disabled}
       className={`
         ${fullWidth ? 'w-full' : ''}
-        text-fullego-dark cursor-pointer font-semibold 
+        text-akunuba-dark cursor-pointer font-semibold 
         px-8 md:px-12 py-3 md:py-4 rounded-full 
         transition-all text-base md:text-lg 
         shadow-lg hover:shadow-xl transform hover:scale-105

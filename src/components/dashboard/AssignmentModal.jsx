@@ -17,11 +17,11 @@ export default function AssignmentModal({
 
   // Mock CRM users - in production, this would come from an API
   const crmUsers = [
-    { id: '1', name: 'Sarah Johnson', email: 'sarah.j@fullego.com' },
-    { id: '2', name: 'Monica H', email: 'monica.h@fullego.com' },
-    { id: '3', name: 'Viola D', email: 'viola.d@fullego.com' },
-    { id: '4', name: 'Judy Green', email: 'judy.g@fullego.com' },
-    { id: '5', name: 'Taylor B', email: 'taylor.b@fullego.com' },
+    { id: '1', name: 'Sarah Johnson', email: 'sarah.j@akunuba.com' },
+    { id: '2', name: 'Monica H', email: 'monica.h@akunuba.com' },
+    { id: '3', name: 'Viola D', email: 'viola.d@akunuba.com' },
+    { id: '4', name: 'Judy Green', email: 'judy.g@akunuba.com' },
+    { id: '5', name: 'Taylor B', email: 'taylor.b@akunuba.com' },
   ];
 
   const handleSubmit = e => {

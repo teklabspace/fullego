@@ -14,7 +14,7 @@ export default function VerificationLayout({
   };
 
   return (
-    <div className='min-h-screen bg-fullego-dark text-white'>
+    <div className='min-h-screen bg-akunuba-dark text-white'>
       {/* Header with Logo and Stepper */}
       <div className='border-b border-gray-800'>
         {/* Logo */}
@@ -61,7 +61,7 @@ export default function VerificationLayout({
                           status === 'completed'
                             ? 'bg-gray-600 text-gray-400'
                             : status === 'active'
-                            ? 'bg-fullego-gold text-fullego-dark'
+                            ? 'bg-akunuba-gold text-akunuba-dark'
                             : 'bg-gray-700 text-gray-400'
                         }
                       `}
@@ -113,7 +113,7 @@ export default function VerificationLayout({
                         status === 'completed'
                           ? 'bg-gray-600 text-gray-400'
                           : status === 'active'
-                          ? 'bg-fullego-gold text-fullego-dark'
+                          ? 'bg-akunuba-gold text-akunuba-dark'
                           : 'bg-gray-700 text-gray-400'
                       }
                     `}

@@ -73,7 +73,7 @@ export default function KYCVerificationPage() {
 
           <div className='mb-8 md:mb-10 max-w-2xl mx-auto'>
             <p className='text-gray-300 text-sm md:text-base leading-relaxed'>
-              Fullego prioritizes your security. All information is encrypted
+              Akunuba prioritizes your security. All information is encrypted
               and handled according to the highest industry standards.
             </p>
           </div>

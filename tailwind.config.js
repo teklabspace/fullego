@@ -19,7 +19,7 @@ module.exports = {
           muted: "#FFFFFF99",
           tabInactive: "#313035",
         },
-        fullego: {
+        akunuba: {
           dark: "#0B0D12",
           card: "rgba(30, 30, 35, 0.6)",
           cardDark: "rgba(30, 30, 35, 0.8)",

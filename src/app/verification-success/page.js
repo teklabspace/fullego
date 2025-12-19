@@ -27,7 +27,7 @@ export default function VerificationSuccessPage() {
           <span className='text-[#0B0D12] text-lg md:text-xl font-bold'>F</span>
         </div>
         <span className='text-white text-lg md:text-xl font-semibold'>
-          Fullego
+          Akunuba
         </span>
       </div>
 

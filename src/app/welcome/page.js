@@ -130,7 +130,7 @@ export default function WelcomePage() {
             <h1 className='text-white text-4xl md:text-5xl lg:text-7xl font-bold leading-tight mb-6 lg:mb-8'>
               Welcome to
               <br />
-              Fullego
+              Akunuba
             </h1>
             <p className='text-gray-400 text-base md:text-lg lg:text-xl mb-8 lg:mb-10 max-w-lg'>
               Discover personalized wealth solutions tailored to your financial

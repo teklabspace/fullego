@@ -19,7 +19,7 @@ const supportCategories = [
     topics: [
       {
         name: 'Getting Started Guide',
-        description: 'Learn the basics of using Fullego',
+        description: 'Learn the basics of using Akunuba',
       },
       { name: 'Video Tutorials', description: 'Step-by-step video guides' },
       { name: 'FAQ', description: 'Frequently asked questions' },
@@ -72,7 +72,7 @@ const supportCategories = [
     icon: MdSettings,
     topics: [
       { name: 'Dashboard Overview', description: 'Navigate the platform' },
-      { name: 'Mobile App', description: 'Use Fullego on mobile' },
+      { name: 'Mobile App', description: 'Use Akunuba on mobile' },
       { name: 'API Documentation', description: 'Integrate with our API' },
     ],
   },

@@ -94,7 +94,7 @@ function RiskBar({ label, percentage, color }) {
 
 function SectorItem({ sector, percentage, value }) {
   return (
-    <div className='flex items-center justify-between py-2 border-b border-fullego-border last:border-0'>
+    <div className='flex items-center justify-between py-2 border-b border-akunuba-border last:border-0'>
       <span className='text-gray-300'>{sector}</span>
       <div className='text-right'>
         <p className='text-white font-medium'>{value}</p>

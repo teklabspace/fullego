@@ -915,7 +915,7 @@ function TransferModal({
                       isDarkMode ? 'text-gray-400' : 'text-gray-600'
                     }`}
                   >
-                    Transfer funds between your own accounts within Fullego.
+                    Transfer funds between your own accounts within Akunuba.
                   </p>
                   <div className='flex items-center gap-2 text-xs text-[#36D399]'>
                     <span>No transfer fee</span>

@@ -286,16 +286,11 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className='flex flex-col h-full'>
           {/* Logo - Fixed at top */}
           <div className='flex items-center justify-between px-6 py-5 '>
-            <div className='h-8 relative'>
+            <div className='h-12 relative'>
               <img
-                src='/Logo.svg'
-                alt='Fullego'
-                className='h-8 transition-all'
-                style={{
-                  filter: isDarkMode
-                    ? 'none'
-                    : 'brightness(0) saturate(100%) invert(0)',
-                }}
+                src={isDarkMode ? '/darkmode_logo.svg' : '/Dblighmodeicon.svg'}
+                alt='Akunuba'
+                className='h-12 transition-all'
               />
             </div>
             <button

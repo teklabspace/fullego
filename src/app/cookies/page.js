@@ -82,7 +82,7 @@ const CookiesPage = () => {
                 fontWeight: 400,
               }}
             >
-              Fullego uses cookies to make your experience better. Here&apos;s what
+              Akunuba uses cookies to make your experience better. Here&apos;s what
               that means:
             </motion.p>
           </motion.div>
@@ -167,7 +167,7 @@ const CookiesPage = () => {
             >
               You can manage or block cookies through your browser settings.
               Just note that turning off essential cookies might impact the way
-              Fullego works for you.
+              Akunuba works for you.
             </motion.p>
           </motion.div>
         </div>

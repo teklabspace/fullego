@@ -6,7 +6,7 @@ export default function OutlineButton({
   variant = 'gold', // 'gold' or 'gray'
 }) {
   const variants = {
-    gold: 'border-fullego-gold text-fullego-gold hover:bg-fullego-gold hover:text-fullego-dark',
+    gold: 'border-akunuba-gold text-akunuba-gold hover:bg-akunuba-gold hover:text-akunuba-dark',
     gray: 'border-gray-700 hover:border-gray-600 text-white',
   };
 

@@ -81,7 +81,7 @@ export default function TransactionsPage() {
         <div className='overflow-x-auto'>
           <table className='w-full'>
             <thead>
-              <tr className='border-b border-fullego-border'>
+              <tr className='border-b border-akunuba-border'>
                 <th
                   className={`text-left text-sm font-medium pb-4 ${
                     isDarkMode ? 'text-gray-400' : 'text-gray-600'
@@ -130,7 +130,7 @@ export default function TransactionsPage() {
               {transactions.map(transaction => (
                 <tr
                   key={transaction.id}
-                  className='border-b border-fullego-border/50 last:border-0'
+                  className='border-b border-akunuba-border/50 last:border-0'
                 >
                   <td className='py-4'>
                     <span

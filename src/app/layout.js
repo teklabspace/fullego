@@ -9,9 +9,14 @@ const poppins = Poppins({
 });
 
 export const metadata = {
-  title: 'Fullego - Your Digital Growth Partner',
+  title: 'Akunuba - Your Digital Growth Partner',
   description:
-    'Fullego helps businesses achieve digital success through powerful tools and expert support',
+    'Akunuba helps businesses achieve digital success through powerful tools and expert support',
+  icons: {
+    icon: '/favicon/fav.svg',
+    shortcut: '/favicon/fav.svg',
+    apple: '/favicon/fav.svg',
+  },
 };
 
 export default function RootLayout({ children }) {
