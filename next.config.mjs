@@ -11,6 +11,10 @@ const nextConfig = {
   skipTrailingSlashRedirect: true,
   // Disable source maps for faster builds (optional)
   productionBrowserSourceMaps: false,
+  // Disable Turbopack to use Webpack instead (for Cloudflare Pages compatibility)
+  experimental: {
+    turbo: false,
+  },
 };
 
 export default nextConfig;
