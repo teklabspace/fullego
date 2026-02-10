@@ -3,17 +3,191 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
+import {
+  listEntities,
+  getEntity,
+  listEntityTypes,
+  getEntityHierarchy,
+  getComplianceStatus,
+  listPeople,
+  getAuditTrail,
+  addAuditTrailEntry,
+  deleteAuditTrailEntry,
+  downloadCompliancePackage,
+  uploadDocument,
+  addPerson,
+  removePerson,
+} from '@/utils/entityApi';
+import { toast } from 'react-toastify';
 
 export default function EntityStructurePage() {
   const { isDarkMode } = useTheme();
-  const [selectedEntity, setSelectedEntity] = useState('Golden Trust LLC');
+  const [selectedEntityId, setSelectedEntityId] = useState(null);
+  const [selectedEntity, setSelectedEntity] = useState(null);
   const [activeTab, setActiveTab] = useState('people'); // 'people' or 'audit'
   const [manageMenuOpen, setManageMenuOpen] = useState(null);
+  
+  // Loading states
+  const [loading, setLoading] = useState(true);
+  const [loadingEntity, setLoadingEntity] = useState(false);
+  const [loadingPeople, setLoadingPeople] = useState(false);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  
+  // Data states
+  const [entities, setEntities] = useState([]);
+  const [entityTypes, setEntityTypes] = useState([]);
+  const [complianceStatus, setComplianceStatus] = useState([]);
+  const [people, setPeople] = useState([]);
+  const [auditTrailEntries, setAuditTrailEntries] = useState([]);
+  const [hierarchy, setHierarchy] = useState(null);
+  
+  // Form states
+  const [noteText, setNoteText] = useState('');
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+
+  // Fetch initial data
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch entities list
+        const entitiesResponse = await listEntities({ limit: 100 });
+        const entitiesList = entitiesResponse.data || entitiesResponse || [];
+        setEntities(entitiesList);
+        
+        // Select first entity if available
+        if (entitiesList.length > 0) {
+          const firstEntity = entitiesList[0];
+          setSelectedEntityId(firstEntity.id);
+          setSelectedEntity(firstEntity);
+        }
+        
+        // Fetch entity types (optional - may fail if backend route is misconfigured)
+        try {
+          const typesResponse = await listEntityTypes();
+          const typesList = typesResponse.data || typesResponse || [];
+          setEntityTypes(typesList);
+        } catch (typesError) {
+          // Silently handle entity types error - this is a backend routing issue
+          // where /entities/types is being caught by /entities/{entity_id} route
+          console.warn('Failed to fetch entity types (this is expected if backend route is misconfigured):', typesError);
+          setEntityTypes([]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch initial data:', error);
+        toast.error('Failed to load entity data. Please refresh the page.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInitialData();
+  }, []);
+
+  // Fetch entity details when selected entity changes
+  useEffect(() => {
+    const fetchEntityDetails = async () => {
+      if (!selectedEntityId) return;
+
+      try {
+        setLoadingEntity(true);
+        
+        const [entityResponse, complianceResponse, hierarchyResponse] = await Promise.allSettled([
+          getEntity(selectedEntityId),
+          getComplianceStatus(selectedEntityId),
+          getEntityHierarchy(selectedEntityId),
+        ]);
+
+        if (entityResponse.status === 'fulfilled') {
+          const entityData = entityResponse.value.data || entityResponse.value;
+          setSelectedEntity(entityData);
+        }
+
+        if (complianceResponse.status === 'fulfilled') {
+          const compliance = complianceResponse.value.data || complianceResponse.value;
+          // Transform compliance data to match UI format
+          const complianceList = [
+            { label: 'KYC/AML Status', value: compliance.kycAmlStatus || 'Pending', color: getStatusColor(compliance.kycAmlStatus) },
+            { label: 'Registered Agent', value: compliance.registeredAgent || 'Not Verified', color: compliance.registeredAgent === 'verified' ? 'text-green-400' : 'text-red-400' },
+            { label: 'Tax Residency', value: compliance.taxResidency || 'N/A', color: 'text-gray-400' },
+            { label: 'FATCA/CRS Compliance', value: compliance.fatcaCrsCompliance || 'Not Compliant', color: compliance.fatcaCrsCompliance === 'compliant' ? 'text-green-400' : 'text-gray-400' },
+          ];
+          setComplianceStatus(complianceList);
+        }
+
+        if (hierarchyResponse.status === 'fulfilled') {
+          const hierarchyData = hierarchyResponse.value.data || hierarchyResponse.value;
+          setHierarchy(hierarchyData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch entity details:', error);
+        toast.error('Failed to load entity details.');
+      } finally {
+        setLoadingEntity(false);
+      }
+    };
+
+    fetchEntityDetails();
+  }, [selectedEntityId]);
+
+  // Fetch people when people tab is active
+  useEffect(() => {
+    const fetchPeople = async () => {
+      if (!selectedEntityId || activeTab !== 'people') return;
+
+      try {
+        setLoadingPeople(true);
+        const response = await listPeople(selectedEntityId);
+        const peopleList = response.data || response || [];
+        setPeople(peopleList);
+      } catch (error) {
+        console.error('Failed to fetch people:', error);
+        toast.error('Failed to load people and roles.');
+      } finally {
+        setLoadingPeople(false);
+      }
+    };
+
+    fetchPeople();
+  }, [selectedEntityId, activeTab]);
+
+  // Fetch audit trail when audit tab is active
+  useEffect(() => {
+    const fetchAuditTrail = async () => {
+      if (!selectedEntityId || activeTab !== 'audit') return;
+
+      try {
+        setLoadingAudit(true);
+        const response = await getAuditTrail(selectedEntityId, { limit: 100 });
+        const auditList = response.data || response || [];
+        // Transform audit trail entries to match UI format
+        const transformedAudit = auditList.map(entry => ({
+          id: entry.id,
+          timestamp: entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) : '',
+          user: entry.user || entry.userName || 'Unknown',
+          role: entry.role || 'User',
+          action: entry.actionDisplay || entry.action || 'Updated',
+          document: entry.document || entry.documentName || '',
+          status: entry.statusDisplay || entry.status || '',
+          statusColor: getStatusColor(entry.status),
+          notes: entry.notes || '',
+        }));
+        setAuditTrailEntries(transformedAudit);
+      } catch (error) {
+        console.error('Failed to fetch audit trail:', error);
+        toast.error('Failed to load audit trail.');
+      } finally {
+        setLoadingAudit(false);
+      }
+    };
+
+    fetchAuditTrail();
+  }, [selectedEntityId, activeTab]);
 
   // Close manage menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Check if click is outside any manage menu
       const clickedElement = event.target;
       const isManageButton = clickedElement.closest('[data-manage-button]');
       const isManageMenu = clickedElement.closest('[data-manage-menu]');
@@ -32,130 +206,209 @@ export default function EntityStructurePage() {
     };
   }, [manageMenuOpen]);
 
-  // Mock data
-  const entityData = {
-    name: 'Golden Trust LLC',
-    location: 'United States',
-    registrationNumber: 'DE-123456789',
-    formationDate: 'Jan 15, 2020',
-    status: 'Active',
+  // Helper function to get status color
+  const getStatusColor = (status) => {
+    if (!status) return 'text-gray-400';
+    const statusLower = status.toLowerCase();
+    if (statusLower === 'approved' || statusLower === 'verified' || statusLower === 'active' || statusLower === 'compliant') {
+      return 'text-green-400';
+    }
+    if (statusLower === 'pending') {
+      return 'text-[#F1CB68]';
+    }
+    if (statusLower === 'rejected' || statusLower === 'inactive') {
+      return 'text-red-400';
+    }
+    return 'text-gray-400';
   };
 
-  const entityTypes = [
-    {
-      type: 'LLC (Limited Liability Company)',
-      jurisdiction: 'State',
-      formationRates: 'LLC',
-      status: 'Active',
-      statusColor: 'text-red-400',
-    },
-    {
-      type: 'Corporation (C-Corp)',
-      jurisdiction: 'Federal',
-      formationRates: 'Corporation',
-      status: 'Pending',
-      statusColor: 'text-[#F1CB68]',
-    },
-    {
-      type: 'S-Corporation (S-Corp)',
-      jurisdiction: 'Tribal',
-      formationRates: 'Sole Proprietorship',
-      status: 'Inactive',
-      statusColor: 'text-gray-400',
-    },
-    {
-      type: 'Partnership (GP/LP/LLP)',
-      jurisdiction: 'International',
-      formationRates: 'Nonprofit Corporation',
-      status: 'Good Standing',
-      statusColor: 'text-green-400',
-    },
-  ];
+  // Handlers
+  const handleDownloadCompliancePackage = async () => {
+    if (!selectedEntityId) {
+      toast.error('No entity selected');
+      return;
+    }
 
-  const complianceStatus = [
-    { label: 'KYC/AML Status', value: 'Pending', color: 'text-[#F1CB68]' },
-    { label: 'Registered Agent', value: 'Verified', color: 'text-red-400' },
-    { label: 'Tax Residency', value: 'United States', color: 'text-gray-400' },
-    {
-      label: 'FATCA/CRS Compliance',
-      value: 'Not Compliant',
-      color: 'text-gray-400',
-    },
-  ];
-
-  const people = [
-    { name: 'Jasmine', role: 'Trustee' },
-    { name: 'Stephen', role: 'Signatory' },
-    { name: 'Nina', role: 'Power of Attorney' },
-  ];
-
-  const auditTrailEntries = [
-    {
-      id: 1,
-      timestamp: '2024-01-15 10:30 AM',
-      user: 'Stephen',
-      role: 'User',
-      action: 'Document Uploaded',
-      document: 'Articles of Incorporation',
-      status: 'Approved',
-      statusColor: 'text-green-400',
-      notes: 'Initial entity formation documents submitted for review.',
-    },
-    {
-      id: 2,
-      timestamp: '2024-01-14 2:15 PM',
-      user: 'Compliance Officer',
-      role: 'Compliance Officer',
-      action: 'Status Updated',
-      document: 'KYC/AML Review',
-      status: 'Pending',
-      statusColor: 'text-[#F1CB68]',
-      notes: 'KYC documentation requires additional verification. Awaiting response from registered agent.',
-    },
-    {
-      id: 3,
-      timestamp: '2024-01-13 9:45 AM',
-      user: 'Jasmine',
-      role: 'Trustee',
-      action: 'Person Added',
-      document: 'Trustee Assignment',
-      status: 'Verified',
-      statusColor: 'text-green-400',
-      notes: 'Jasmine assigned as trustee with full administrative powers.',
-    },
-    {
-      id: 4,
-      timestamp: '2024-01-12 4:20 PM',
-      user: 'Compliance Officer',
-      role: 'Compliance Officer',
-      action: 'Document Approved',
-      document: 'Trust Deed',
-      status: 'Approved',
-      statusColor: 'text-green-400',
-      notes: 'Trust deed reviewed and approved. All legal requirements met.',
-    },
-    {
-      id: 5,
-      timestamp: '2024-01-11 11:00 AM',
-      user: 'Stephen',
-      role: 'User',
-      action: 'Entity Created',
-      document: 'Golden Trust LLC',
-      status: 'Active',
-      statusColor: 'text-green-400',
-      notes: 'Entity structure created and registered in Delaware.',
-    },
-  ];
-
-  const handleDownloadCompliancePackage = () => {
-    // Handle download logic
-    console.log('Downloading compliance package...');
+    try {
+      const blob = await downloadCompliancePackage(selectedEntityId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `compliance-package-${selectedEntityId}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Compliance package downloaded successfully!');
+    } catch (error) {
+      console.error('Failed to download compliance package:', error);
+      const errorMsg = error.data?.detail || error.message || 'Failed to download compliance package. Please try again.';
+      toast.error(errorMsg);
+    }
   };
 
   const handleAddEntity = () => {
-    // Handle add entity logic
-    console.log('Adding new entity...');
+    toast.info('Add entity functionality coming soon');
   };
+
+  const handleAddNote = async () => {
+    if (!selectedEntityId || !noteText.trim()) {
+      toast.error('Please enter a note');
+      return;
+    }
+
+    try {
+      await addAuditTrailEntry(selectedEntityId, {
+        action: 'note_added',
+        notes: noteText.trim(),
+      });
+      toast.success('Note added successfully!');
+      setNoteText('');
+      // Refresh audit trail
+      const response = await getAuditTrail(selectedEntityId, { limit: 100 });
+      const auditList = response.data || response || [];
+      const transformedAudit = auditList.map(entry => ({
+        id: entry.id,
+        timestamp: entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) : '',
+        user: entry.user || entry.userName || 'Unknown',
+        role: entry.role || 'User',
+        action: entry.actionDisplay || entry.action || 'Updated',
+        document: entry.document || entry.documentName || '',
+        status: entry.statusDisplay || entry.status || '',
+        statusColor: getStatusColor(entry.status),
+        notes: entry.notes || '',
+      }));
+      setAuditTrailEntries(transformedAudit);
+    } catch (error) {
+      console.error('Failed to add note:', error);
+      const errorMsg = error.data?.detail || error.message || 'Failed to add note. Please try again.';
+      toast.error(errorMsg);
+    }
+  };
+
+  const handleDeleteAuditEntry = async (entryId) => {
+    if (!selectedEntityId) return;
+
+    try {
+      await deleteAuditTrailEntry(selectedEntityId, entryId);
+      toast.success('Entry deleted successfully!');
+      setManageMenuOpen(null);
+      // Refresh audit trail
+      const response = await getAuditTrail(selectedEntityId, { limit: 100 });
+      const auditList = response.data || response || [];
+      const transformedAudit = auditList.map(entry => ({
+        id: entry.id,
+        timestamp: entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) : '',
+        user: entry.user || entry.userName || 'Unknown',
+        role: entry.role || 'User',
+        action: entry.actionDisplay || entry.action || 'Updated',
+        document: entry.document || entry.documentName || '',
+        status: entry.statusDisplay || entry.status || '',
+        statusColor: getStatusColor(entry.status),
+        notes: entry.notes || '',
+      }));
+      setAuditTrailEntries(transformedAudit);
+    } catch (error) {
+      console.error('Failed to delete entry:', error);
+      const errorMsg = error.data?.detail || error.message || 'Failed to delete entry. Please try again.';
+      toast.error(errorMsg);
+    }
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedEntityId) return;
+
+    try {
+      setUploadingDocument(true);
+      await uploadDocument(selectedEntityId, file, {
+        documentType: 'supporting_document',
+      });
+      toast.success('Document uploaded successfully!');
+      // Refresh entity details to get updated document list
+      const entityResponse = await getEntity(selectedEntityId);
+      const entityData = entityResponse.data || entityResponse;
+      setSelectedEntity(entityData);
+    } catch (error) {
+      console.error('Failed to upload document:', error);
+      const errorMsg = error.data?.detail || error.message || 'Failed to upload document. Please try again.';
+      toast.error(errorMsg);
+    } finally {
+      setUploadingDocument(false);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
+  const handleAddPerson = () => {
+    toast.info('Add person functionality coming soon');
+  };
+
+  // Show loading state with skeleton
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className='space-y-6'>
+          {/* Header Skeleton */}
+          <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6'>
+            <div className='space-y-3'>
+              <div className={`h-10 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}></div>
+              <div className={`h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}></div>
+              <div className={`h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}></div>
+            </div>
+          </div>
+
+          {/* Content Skeleton */}
+          <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+            {/* Left Sidebar Skeleton */}
+            <div className='lg:col-span-1 space-y-4'>
+              <div className={`rounded-2xl p-6 border ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`}>
+                <div className={`h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse`}></div>
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className='mb-4'>
+                    <div className={`h-4 w-full bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse`}></div>
+                    <div className={`h-4 w-3/4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Main Content Skeleton */}
+            <div className='lg:col-span-2 space-y-4'>
+              {/* Tabs Skeleton */}
+              <div className='flex gap-2 border-b border-gray-200 dark:border-[#FFFFFF14]'>
+                <div className={`h-10 w-24 bg-gray-200 dark:bg-gray-700 rounded-t animate-pulse`}></div>
+                <div className={`h-10 w-24 bg-gray-200 dark:bg-gray-700 rounded-t animate-pulse`}></div>
+              </div>
+
+              {/* Content Cards Skeleton */}
+              <div className={`rounded-2xl p-6 border ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`}>
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className='mb-4 last:mb-0'>
+                    <div className={`h-5 w-full bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse`}></div>
+                    <div className={`h-4 w-2/3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show message if no entities
+  if (!selectedEntity && entities.length === 0) {
+    return (
+      <DashboardLayout>
+        <div className='flex items-center justify-center h-64'>
+          <div className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            No entities found. Please create an entity first.
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -175,10 +428,10 @@ export default function EntityStructurePage() {
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}
             >
-              {entityData.name}
+              {selectedEntity?.name || 'No Entity Selected'}
             </h2>
             <p className='text-[#F1CB68] text-sm md:text-base'>
-              {entityData.location}
+              {selectedEntity?.location || ''}
             </p>
           </div>
           <button
@@ -214,101 +467,111 @@ export default function EntityStructurePage() {
             Entity Type Overview
           </h3>
           <div className='overflow-x-auto'>
-            <table className='w-full'>
-              <thead>
-                <tr
-                  className={`border-b ${
-                    isDarkMode ? 'border-white/10' : 'border-gray-200'
-                  }`}
-                >
-                  <th
-                    className={`text-left px-4 md:px-6 py-3 text-xs md:text-sm font-semibold uppercase ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}
-                  >
-                    Type
-                  </th>
-                  <th
-                    className={`text-left px-4 md:px-6 py-3 text-xs md:text-sm font-semibold uppercase ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}
-                  >
-                    Jurisdiction
-                  </th>
-                  <th
-                    className={`text-left px-4 md:px-6 py-3 text-xs md:text-sm font-semibold uppercase ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}
-                  >
-                    Formation Rates
-                  </th>
-                  <th
-                    className={`text-left px-4 md:px-6 py-3 text-xs md:text-sm font-semibold uppercase ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}
-                  >
-                    Status
-                  </th>
-                  <th
-                    className={`text-left px-4 md:px-6 py-3 text-xs md:text-sm font-semibold uppercase ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}
-                  >
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {entityTypes.map((entity, index) => (
+            {loadingEntity ? (
+              <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Loading entity types...
+              </div>
+            ) : entityTypes.length === 0 ? (
+              <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                No entity types available
+              </div>
+            ) : (
+              <table className='w-full'>
+                <thead>
                   <tr
-                    key={index}
-                    className={`border-b transition-colors ${
-                      isDarkMode
-                        ? 'border-white/5 hover:bg-white/5'
-                        : 'border-gray-200 hover:bg-gray-50'
-                    } ${index === entityTypes.length - 1 ? 'border-0' : ''}`}
+                    className={`border-b ${
+                      isDarkMode ? 'border-white/10' : 'border-gray-200'
+                    }`}
                   >
-                    <td
-                      className={`px-4 md:px-6 py-4 text-sm md:text-base ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
+                    <th
+                      className={`text-left px-4 md:px-6 py-3 text-xs md:text-sm font-semibold uppercase ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
                       }`}
                     >
-                      {entity.type}
-                    </td>
-                    <td
-                      className={`px-4 md:px-6 py-4 text-sm md:text-base ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      Type
+                    </th>
+                    <th
+                      className={`text-left px-4 md:px-6 py-3 text-xs md:text-sm font-semibold uppercase ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
                       }`}
                     >
-                      {entity.jurisdiction}
-                    </td>
-                    <td
-                      className={`px-4 md:px-6 py-4 text-sm md:text-base ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      Jurisdiction
+                    </th>
+                    <th
+                      className={`text-left px-4 md:px-6 py-3 text-xs md:text-sm font-semibold uppercase ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
                       }`}
                     >
-                      {entity.formationRates}
-                    </td>
-                    <td className='px-4 md:px-6 py-4'>
-                      <span className={`text-sm md:text-base font-medium ${entity.statusColor}`}>
-                        {entity.status}
-                      </span>
-                    </td>
-                    <td className='px-4 md:px-6 py-4'>
-                      <button
-                        className={`text-sm md:text-base font-medium transition-colors ${
-                          isDarkMode
-                            ? 'text-[#F1CB68] hover:text-[#E5C158]'
-                            : 'text-gray-900 hover:text-[#F1CB68]'
+                      Formation Rates
+                    </th>
+                    <th
+                      className={`text-left px-4 md:px-6 py-3 text-xs md:text-sm font-semibold uppercase ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}
+                    >
+                      Status
+                    </th>
+                    <th
+                      className={`text-left px-4 md:px-6 py-3 text-xs md:text-sm font-semibold uppercase ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}
+                    >
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entityTypes.map((entity, index) => (
+                    <tr
+                      key={entity.type || index}
+                      className={`border-b transition-colors ${
+                        isDarkMode
+                          ? 'border-white/5 hover:bg-white/5'
+                          : 'border-gray-200 hover:bg-gray-50'
+                      } ${index === entityTypes.length - 1 ? 'border-0' : ''}`}
+                    >
+                      <td
+                        className={`px-4 md:px-6 py-4 text-sm md:text-base ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
                         }`}
                       >
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        {entity.fullName || entity.type}
+                      </td>
+                      <td
+                        className={`px-4 md:px-6 py-4 text-sm md:text-base ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        {entity.jurisdiction}
+                      </td>
+                      <td
+                        className={`px-4 md:px-6 py-4 text-sm md:text-base ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        {entity.formationRates}
+                      </td>
+                      <td className='px-4 md:px-6 py-4'>
+                        <span className={`text-sm md:text-base font-medium ${getStatusColor(entity.status)}`}>
+                          {entity.status || 'N/A'}
+                        </span>
+                      </td>
+                      <td className='px-4 md:px-6 py-4'>
+                        <button
+                          className={`text-sm md:text-base font-medium transition-colors ${
+                            isDarkMode
+                              ? 'text-[#F1CB68] hover:text-[#E5C158]'
+                              : 'text-gray-900 hover:text-[#F1CB68]'
+                          }`}
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
@@ -331,26 +594,73 @@ export default function EntityStructurePage() {
             </h3>
             <div className='space-y-4'>
               {/* Parent Entity */}
-              <div
-                className={`rounded-lg border-2 border-[#F1CB68] p-4 ${
-                  isDarkMode ? 'bg-white/5' : 'bg-[#F1CB68]/10'
-                }`}
-              >
-                <p
-                  className={`text-center font-semibold ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
+              {hierarchy?.parent && (
+                <>
+                  <div
+                    className={`rounded-lg border-2 border-[#F1CB68] p-4 ${
+                      isDarkMode ? 'bg-white/5' : 'bg-[#F1CB68]/10'
+                    }`}
+                  >
+                    <p
+                      className={`text-center font-semibold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}
+                    >
+                      {hierarchy.parent.name}
+                    </p>
+                  </div>
+                  {/* Connection Line */}
+                  <div className='flex justify-center'>
+                    <div className='w-0.5 h-8 border-l-2 border-dashed border-[#F1CB68]'></div>
+                  </div>
+                </>
+              )}
+
+              {/* Current Entity */}
+              {selectedEntity && (
+                <div
+                  className={`rounded-lg border-2 border-[#F1CB68] p-4 ${
+                    isDarkMode ? 'bg-white/5' : 'bg-[#F1CB68]/10'
                   }`}
                 >
-                  Golden Trust
-                </p>
-              </div>
+                  <p
+                    className={`text-center font-semibold ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}
+                  >
+                    {selectedEntity.name}
+                  </p>
+                </div>
+              )}
 
-              {/* Connection Line */}
-              <div className='flex justify-center'>
-                <div className='w-0.5 h-8 border-l-2 border-dashed border-[#F1CB68]'></div>
-              </div>
+              {/* Child Entities */}
+              {hierarchy?.children && hierarchy.children.length > 0 && (
+                <>
+                  {hierarchy.children.map((child, index) => (
+                    <div key={child.id || index}>
+                      {/* Connection Line */}
+                      <div className='flex justify-center'>
+                        <div className='w-0.5 h-8 border-l-2 border-dashed border-[#F1CB68]'></div>
+                      </div>
+                      <div
+                        className={`rounded-lg border-2 border-[#F1CB68] p-4 ${
+                          isDarkMode ? 'bg-white/5' : 'bg-[#F1CB68]/10'
+                        }`}
+                      >
+                        <p
+                          className={`text-center font-semibold ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}
+                        >
+                          {child.name}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
 
-              {/* Child Entity */}
+              {/* Add Entity Button */}
               <div
                 className={`rounded-lg border-2 border-[#F1CB68] p-4 cursor-pointer hover:opacity-80 transition-opacity ${
                   isDarkMode ? 'bg-white/5' : 'bg-[#F1CB68]/10'
@@ -384,25 +694,35 @@ export default function EntityStructurePage() {
               Compliance Status & Documentation
             </h3>
             <div className='space-y-4'>
-              {complianceStatus.map((item, index) => (
-                <div
-                  key={index}
-                  className={`flex items-center justify-between py-3 border-b ${
-                    isDarkMode ? 'border-white/10' : 'border-gray-200'
-                  } ${index === complianceStatus.length - 1 ? 'border-0' : ''}`}
-                >
-                  <span
-                    className={`text-sm md:text-base ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                  <span className={`text-sm md:text-base font-medium ${item.color}`}>
-                    {item.value}
-                  </span>
+              {loadingEntity ? (
+                <div className={`text-center py-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Loading compliance status...
                 </div>
-              ))}
+              ) : complianceStatus.length === 0 ? (
+                <div className={`text-center py-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  No compliance data available
+                </div>
+              ) : (
+                complianceStatus.map((item, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-center justify-between py-3 border-b ${
+                      isDarkMode ? 'border-white/10' : 'border-gray-200'
+                    } ${index === complianceStatus.length - 1 ? 'border-0' : ''}`}
+                  >
+                    <span
+                      className={`text-sm md:text-base ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                    <span className={`text-sm md:text-base font-medium ${item.color}`}>
+                      {item.value}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Document Upload Section */}
@@ -415,15 +735,22 @@ export default function EntityStructurePage() {
                 Supporting Documents
               </h4>
               <div className='space-y-2'>
-                <button
-                  className={`w-full px-4 py-2 rounded-lg border border-dashed transition-colors ${
+                <label
+                  className={`w-full px-4 py-2 rounded-lg border border-dashed transition-colors cursor-pointer flex items-center justify-center ${
                     isDarkMode
                       ? 'border-white/20 hover:border-[#F1CB68] text-gray-400 hover:text-white'
                       : 'border-gray-300 hover:border-[#F1CB68] text-gray-600 hover:text-gray-900'
-                  }`}
+                  } ${uploadingDocument ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  + Upload Document
-                </button>
+                  <input
+                    type='file'
+                    className='hidden'
+                    onChange={handleFileUpload}
+                    disabled={uploadingDocument || !selectedEntityId}
+                    accept='.pdf,.doc,.docx,.xls,.xlsx'
+                  />
+                  {uploadingDocument ? 'Uploading...' : '+ Upload Document'}
+                </label>
                 <p
                   className={`text-xs md:text-sm text-center ${
                     isDarkMode ? 'text-gray-500' : 'text-gray-500'
@@ -499,55 +826,77 @@ export default function EntityStructurePage() {
           {/* Tab Content */}
           {activeTab === 'people' ? (
             <div className='space-y-4'>
-              {people.map((person, index) => (
-                <div
-                  key={index}
-                  className={`flex items-center justify-between py-3 border-b ${
-                    isDarkMode ? 'border-white/10' : 'border-gray-200'
-                  } ${index === people.length - 1 ? 'border-0' : ''}`}
-                >
-                  <div>
-                    <p
-                      className={`text-sm md:text-base font-medium mb-1 ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
+              {loadingPeople ? (
+                <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Loading people and roles...
+                </div>
+              ) : people.length === 0 ? (
+                <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  No people assigned to this entity
+                </div>
+              ) : (
+                <>
+                  {people.map((person, index) => (
+                    <div
+                      key={person.id || index}
+                      className={`flex items-center justify-between py-3 border-b ${
+                        isDarkMode ? 'border-white/10' : 'border-gray-200'
+                      } ${index === people.length - 1 ? 'border-0' : ''}`}
                     >
-                      {person.name}
-                    </p>
-                    <p
-                      className={`text-xs md:text-sm ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}
-                    >
-                      {person.role}
-                    </p>
-                  </div>
+                      <div>
+                        <p
+                          className={`text-sm md:text-base font-medium mb-1 ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}
+                        >
+                          {person.name}
+                        </p>
+                        <p
+                          className={`text-xs md:text-sm ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                          }`}
+                        >
+                          {person.roleDisplay || person.role}
+                        </p>
+                      </div>
+                      <button
+                        className={`text-xs md:text-sm font-medium transition-colors ${
+                          isDarkMode
+                            ? 'text-[#F1CB68] hover:text-[#E5C158]'
+                            : 'text-[#F1CB68] hover:text-[#E5C158]'
+                        }`}
+                      >
+                        Manage
+                      </button>
+                    </div>
+                  ))}
                   <button
-                    className={`text-xs md:text-sm font-medium transition-colors ${
+                    onClick={handleAddPerson}
+                    className={`w-full mt-4 px-4 py-2 rounded-lg border border-dashed transition-colors ${
                       isDarkMode
-                        ? 'text-[#F1CB68] hover:text-[#E5C158]'
-                        : 'text-[#F1CB68] hover:text-[#E5C158]'
+                        ? 'border-white/20 hover:border-[#F1CB68] text-gray-400 hover:text-white'
+                        : 'border-gray-300 hover:border-[#F1CB68] text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    Manage
+                    + Add Person
                   </button>
-                </div>
-              ))}
-              <button
-                className={`w-full mt-4 px-4 py-2 rounded-lg border border-dashed transition-colors ${
-                  isDarkMode
-                    ? 'border-white/20 hover:border-[#F1CB68] text-gray-400 hover:text-white'
-                    : 'border-gray-300 hover:border-[#F1CB68] text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                + Add Person
-              </button>
+                </>
+              )}
             </div>
           ) : (
             <div className='space-y-4'>
               {/* Audit Trail Entries */}
               <div className='space-y-4 max-h-[600px] overflow-y-auto'>
-                {auditTrailEntries.map((entry) => (
+                {loadingAudit ? (
+                  <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Loading audit trail...
+                  </div>
+                ) : auditTrailEntries.length === 0 ? (
+                  <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    No audit trail entries found
+                  </div>
+                ) : (
+                  auditTrailEntries.map((entry) => (
                   <div
                     key={entry.id}
                     className={`rounded-lg p-4 border ${
@@ -668,7 +1017,11 @@ export default function EntityStructurePage() {
                               Download Document
                             </button>
                             <button
-                              onClick={() => setManageMenuOpen(null)}
+                              onClick={() => {
+                                if (confirm('Are you sure you want to delete this entry?')) {
+                                  handleDeleteAuditEntry(entry.id);
+                                }
+                              }}
                               className={`w-full text-left px-4 py-2 text-sm transition-colors border-t ${
                                 isDarkMode
                                   ? 'text-red-400 hover:bg-white/5 border-white/10'
@@ -682,7 +1035,8 @@ export default function EntityStructurePage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  ))
+                )}
               </div>
 
               {/* Add Note Section */}
@@ -701,6 +1055,8 @@ export default function EntityStructurePage() {
                 <textarea
                   placeholder='Add a note or comment...'
                   rows={3}
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
                   className={`w-full px-4 py-3 rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                     isDarkMode
                       ? 'bg-white/5 border-white/10 text-white placeholder-gray-500'
@@ -709,11 +1065,14 @@ export default function EntityStructurePage() {
                 />
                 <div className='flex items-center gap-3 mt-3'>
                   <button
-                    className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-medium hover:bg-[#E5C158] transition-colors'
+                    onClick={handleAddNote}
+                    disabled={!noteText.trim()}
+                    className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-medium hover:bg-[#E5C158] transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
                   >
                     Add Note
                   </button>
                   <button
+                    onClick={() => setNoteText('')}
                     className={`px-4 py-2 rounded-lg font-medium border transition-colors ${
                       isDarkMode
                         ? 'border-white/10 text-white hover:bg-white/5'
@@ -752,16 +1111,23 @@ export default function EntityStructurePage() {
                   >
                     Drag & drop files here or
                   </p>
-                  <button
-                    className='px-4 md:px-6 py-2.5 md:py-3 rounded-full text-sm md:text-base font-medium transition-all hover:opacity-90 cursor-pointer'
+                  <label
+                    className='px-4 md:px-6 py-2.5 md:py-3 rounded-full text-sm md:text-base font-medium transition-all hover:opacity-90 cursor-pointer inline-block'
                     style={{
                       background:
                         'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                       color: '#000000',
                     }}
                   >
-                    Browse Files
-                  </button>
+                    <input
+                      type='file'
+                      className='hidden'
+                      onChange={handleFileUpload}
+                      disabled={uploadingDocument || !selectedEntityId}
+                      accept='.pdf,.doc,.docx,.xls,.xlsx'
+                    />
+                    {uploadingDocument ? 'Uploading...' : 'Browse Files'}
+                  </label>
                 </div>
               </div>
             </div>

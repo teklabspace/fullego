@@ -7,6 +7,16 @@ import UploadSuccessModal from '@/components/documents/UploadSuccessModal';
 import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
+import {
+  listDocuments,
+  uploadDocument,
+  deleteDocument,
+  downloadDocument,
+  shareDocument,
+  getDocumentStatistics,
+  getDocumentPreview,
+} from '@/utils/documentsApi';
+import { toast } from 'react-toastify';
 
 // Document type icon mapping
 const getDocumentIcon = type => {
@@ -154,92 +164,85 @@ export default function DocumentsPage() {
     { name: 'Bank Statements', count: 37 },
   ];
 
-  const [documents, setDocuments] = useState([
-    {
-      id: 1,
-      name: 'Passport Scan',
-      type: 'PDF',
-      uploadedDate: 'May 15, 2023',
-      uploadedDateValue: new Date('2023-05-15'),
-      category: 'Identity',
-      size: 2.5, // in MB
-    },
-    {
-      id: 2,
-      name: 'Tax Return 2022',
-      type: 'PDF',
-      uploadedDate: 'May 10, 2023',
-      uploadedDateValue: new Date('2023-05-10'),
-      category: 'Tax',
-      size: 3.2,
-    },
-    {
-      id: 3,
-      name: 'Investment Summary Q1',
-      type: 'XLSX',
-      uploadedDate: 'Apr 28, 2023',
-      uploadedDateValue: new Date('2023-04-28'),
-      category: 'Investments',
-      size: 1.8,
-    },
-    {
-      id: 4,
-      name: 'Property Deed',
-      type: 'DOC',
-      uploadedDate: 'Apr 22, 2023',
-      uploadedDateValue: new Date('2023-04-22'),
-      category: 'Legal',
-      size: 4.1,
-    },
-    {
-      id: 5,
-      name: 'Bank Statement April',
-      type: 'PDF',
-      uploadedDate: 'Apr 15, 2023',
-      uploadedDateValue: new Date('2023-04-15'),
-      category: 'Bank Statements',
-      size: 2.9,
-    },
-    {
-      id: 6,
-      name: 'Driver License',
-      type: 'PDF',
-      uploadedDate: 'May 01, 2023',
-      uploadedDateValue: new Date('2023-05-01'),
-      category: 'Identity',
-      size: 1.2,
-    },
-    {
-      id: 7,
-      name: 'Birth Certificate',
-      type: 'PDF',
-      uploadedDate: 'Apr 20, 2023',
-      uploadedDateValue: new Date('2023-04-20'),
-      category: 'Identity',
-      size: 1.5,
-    },
-  ]);
-
-  const stats = [
+  const [documents, setDocuments] = useState([]);
+  const [stats, setStats] = useState([
     {
       title: 'Total Documents Stored',
-      value: '128',
+      value: '0',
       subtitle: 'Documents',
       icon: '/icons/document-file.svg',
     },
     {
       title: 'Storage Used',
-      value: '1.2GB',
+      value: '0GB',
       subtitle: 'of 5GB',
       icon: '/icons/storage-grid.svg',
     },
     {
       title: 'Last Uploaded',
-      value: 'May 15, 2023',
-      subtitle: '12:45 PM',
+      value: 'N/A',
+      subtitle: 'N/A',
       icon: '/icons/upload-cloud.svg',
     },
-  ];
+  ]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch documents and statistics on mount
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      try {
+        setLoading(true);
+        const [documentsResponse, statsResponse] = await Promise.allSettled([
+          listDocuments({ category: activeTab === 'Identity' ? undefined : activeTab, sortBy }),
+          getDocumentStatistics(),
+        ]);
+
+        if (documentsResponse.status === 'fulfilled') {
+          const docs = documentsResponse.value.data || documentsResponse.value || [];
+          setDocuments(docs.map(doc => ({
+            id: doc.id,
+            name: doc.name || doc.fileName,
+            type: doc.type || doc.fileType?.toUpperCase() || 'PDF',
+            uploadedDate: doc.uploadedDate || doc.createdAt ? new Date(doc.uploadedDate || doc.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+            uploadedDateValue: doc.uploadedDate || doc.createdAt ? new Date(doc.uploadedDate || doc.createdAt) : new Date(),
+            category: doc.category || 'Identity',
+            size: doc.size || doc.fileSize ? (doc.size || doc.fileSize) / (1024 * 1024) : 0, // Convert bytes to MB
+          })));
+        }
+
+        if (statsResponse.status === 'fulfilled') {
+          const statistics = statsResponse.value.data || statsResponse.value;
+          setStats([
+            {
+              title: 'Total Documents Stored',
+              value: statistics.totalDocuments?.toString() || '0',
+              subtitle: 'Documents',
+              icon: '/icons/document-file.svg',
+            },
+            {
+              title: 'Storage Used',
+              value: statistics.storageUsed || '0GB',
+              subtitle: `of ${statistics.storageLimit || '5GB'}`,
+              icon: '/icons/storage-grid.svg',
+            },
+            {
+              title: 'Last Uploaded',
+              value: statistics.lastUploaded ? new Date(statistics.lastUploaded).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A',
+              subtitle: statistics.lastUploaded ? new Date(statistics.lastUploaded).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+              icon: '/icons/upload-cloud.svg',
+            },
+          ]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch documents:', error);
+        toast.error('Failed to load documents. Please refresh the page.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDocuments();
+  }, [activeTab, sortBy]);
 
   // Filter and sort documents
   const filteredDocuments = documents
@@ -273,17 +276,64 @@ export default function DocumentsPage() {
     console.log('View document:', doc);
   };
 
-  const handleDownload = doc => {
-    console.log('Download document:', doc);
+  const handleDownload = async (doc) => {
+    try {
+      const response = await downloadDocument(doc.id);
+      // Handle file download
+      if (response.url) {
+        window.open(response.url, '_blank');
+      } else {
+        // Create blob URL if response is blob
+        const blob = new Blob([response], { type: 'application/octet-stream' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = doc.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+      toast.success('Document download started!');
+    } catch (error) {
+      console.error('Failed to download document:', error);
+      const errorMsg = error.data?.detail || error.message || 'Failed to download document. Please try again.';
+      toast.error(errorMsg);
+    }
   };
 
-  const handleShare = doc => {
-    console.log('Share document:', doc);
+  const handleShare = async (doc) => {
+    try {
+      const shareData = {
+        generateLink: true,
+        permissions: 'view',
+      };
+      const response = await shareDocument(doc.id, shareData);
+      // Handle share response (show modal with link, etc.)
+      if (response.shareableLink) {
+        toast.success('Document shared successfully!');
+        // Could show modal with shareable link
+      } else {
+        toast.success('Document shared with selected users!');
+      }
+    } catch (error) {
+      console.error('Failed to share document:', error);
+      const errorMsg = error.data?.detail || error.message || 'Failed to share document. Please try again.';
+      toast.error(errorMsg);
+    }
   };
 
-  const handleDelete = id => {
+  const handleDelete = async (id) => {
     if (confirm('Are you sure you want to delete this document?')) {
-      setDocuments(documents.filter(doc => doc.id !== id));
+      try {
+        await deleteDocument(id);
+        setDocuments(documents.filter(doc => doc.id !== id));
+        toast.success('Document deleted successfully!');
+      } catch (error) {
+        console.error('Failed to delete document:', error);
+        const errorMsg = error.data?.detail || error.message || 'Failed to delete document. Please try again.';
+        toast.error(errorMsg);
+      }
     }
   };
 
@@ -291,16 +341,57 @@ export default function DocumentsPage() {
     setIsUploadModalOpen(true);
   };
 
-  const handlePreview = (file, tags) => {
-    setCurrentFile(file);
-    setCurrentTags(tags);
-    setIsPreviewModalOpen(true);
+  const handlePreview = async (file, tags) => {
+    try {
+      // If file has an ID, fetch preview from API
+      if (file.id) {
+        const preview = await getDocumentPreview(file.id);
+        setCurrentFile({ ...file, previewUrl: preview.previewUrl || preview.url });
+      } else {
+        setCurrentFile(file);
+      }
+      setCurrentTags(tags);
+      setIsPreviewModalOpen(true);
+    } catch (error) {
+      console.error('Failed to get document preview:', error);
+      setCurrentFile(file);
+      setCurrentTags(tags);
+      setIsPreviewModalOpen(true);
+    }
   };
 
-  const handleContinue = (file, tags) => {
-    setCurrentFile(file);
-    setCurrentTags(tags);
-    setIsSuccessModalOpen(true);
+  const handleContinue = async (file, tags) => {
+    try {
+      // Upload the file
+      if (file.file) {
+        const response = await uploadDocument(file.file, {
+          category: activeTab,
+          tags: tags || [],
+          description: file.description || '',
+        });
+        
+        // Update documents list
+        const newDoc = {
+          id: response.id || response.data?.id,
+          name: response.name || file.name,
+          type: response.type || file.type,
+          uploadedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          uploadedDateValue: new Date(),
+          category: activeTab,
+          size: response.size ? response.size / (1024 * 1024) : file.size / (1024 * 1024),
+        };
+        setDocuments([newDoc, ...documents]);
+        
+        setCurrentFile(newDoc);
+        setCurrentTags(tags);
+        setIsSuccessModalOpen(true);
+        toast.success('Document uploaded successfully!');
+      }
+    } catch (error) {
+      console.error('Failed to upload document:', error);
+      const errorMsg = error.data?.detail || error.message || 'Failed to upload document. Please try again.';
+      toast.error(errorMsg);
+    }
   };
 
   const handleReturnToDashboard = () => {

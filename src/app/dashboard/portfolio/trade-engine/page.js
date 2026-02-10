@@ -1,12 +1,22 @@
 'use client';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import AssetSearchBar from './components/AssetSearchBar';
 import OrderConfirmationModal from './components/OrderConfirmationModal';
 import OrderForm from './components/OrderForm';
 import OrderSummary from './components/OrderSummary';
 import RecentTrades from './components/RecentTrades';
+import {
+  searchAssets,
+  getAssetDetails,
+  getRecentTrades,
+  getTradingHistory,
+  getBrokerageAccounts,
+  placeOrder,
+} from '@/utils/portfolioApi';
+import TradeEngineSkeleton from '@/components/skeletons/TradeEngineSkeleton';
 
 export default function TradeEnginePage() {
   const { isDarkMode } = useTheme();
@@ -25,59 +35,219 @@ export default function TradeEnginePage() {
   const [notes, setNotes] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
 
-  // Data
-  const recentTrades = [
-    {
-      symbol: 'AAPL',
-      name: 'Apple Inc.',
-      price: '$185.92',
-      change: '+1.2%',
-      positive: true,
-    },
-    {
-      symbol: 'MSFT',
-      name: 'Microsoft Corporation',
-      price: '$354.58',
-      change: '-0.5%',
-      positive: false,
-    },
-    {
-      symbol: 'GOOGLE',
-      name: 'Alphabet Inc.',
-      price: '$131.74',
-      change: '+0.8%',
-      positive: true,
-    },
-    {
-      symbol: 'AMZN',
-      name: 'Amazon.com Inc.',
-      price: '$137.85',
-      change: '-0.3%',
-      positive: false,
-    },
-    {
-      symbol: 'TSLA',
-      name: 'Tesla Inc.',
-      price: '$242.68',
-      change: '-1.5%',
-      positive: false,
-    },
-  ];
+  // Loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const recentAAPlTrades = [
-    { type: 'Buy', shares: 5, price: '$184.63', date: '09/10/2023' },
-    { type: 'Sell', shares: 7, price: '$179.21', date: '08/25/2023' },
-  ];
+  // Data states
+  const [recentTrades, setRecentTrades] = useState([]);
+  const [recentAAPlTrades, setRecentAAPlTrades] = useState([]);
+  const [assetDetails, setAssetDetails] = useState(null);
+  const [brokerageAccounts, setBrokerageAccounts] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+
+  // Fetch initial data
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [tradesRes, accountsRes] = await Promise.all([
+          getRecentTrades({ limit: 5 }),
+          getBrokerageAccounts(),
+        ]);
+
+        if (tradesRes.data) {
+          setRecentTrades(tradesRes.data);
+        }
+
+        if (accountsRes.data) {
+          setBrokerageAccounts(accountsRes.data);
+          if (accountsRes.data.length > 0) {
+            setBrokerageAccount(accountsRes.data[0].accountNumber || '****4321');
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching trade engine data:', err);
+        const errorMessage = err.data?.detail || err.message || 'Failed to load trade engine data';
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInitialData();
+  }, []);
+
+  // Fetch asset details when selected stock changes
+  useEffect(() => {
+    const fetchAssetDetails = async () => {
+      if (!selectedStock) return;
+
+      try {
+        const detailsRes = await getAssetDetails(selectedStock);
+        if (detailsRes.data) {
+          setAssetDetails(detailsRes.data);
+          if (detailsRes.data.currentPrice) {
+            setLimitPrice(detailsRes.data.currentPrice.toString());
+          }
+        }
+
+        // Fetch trading history for the asset
+        try {
+          const historyRes = await getTradingHistory(selectedStock);
+          if (historyRes.data) {
+            setRecentAAPlTrades(historyRes.data);
+          }
+        } catch (historyErr) {
+          // Silently handle trading history errors (endpoint might not exist)
+          if (historyErr.status !== 404) {
+            console.warn('Error fetching trading history:', historyErr);
+          }
+        }
+      } catch (err) {
+        // Handle 404 errors gracefully - asset might not exist in backend yet
+        if (err.status === 404) {
+          // Asset not found in backend - this is expected for some symbols
+          // Set asset details to null and continue with default values
+          setAssetDetails(null);
+          console.log(`Asset ${selectedStock} not found in backend - using default values`);
+        } else {
+          // Log other errors but don't show toast
+          console.warn('Error fetching asset details:', err);
+        }
+      }
+    };
+
+    fetchAssetDetails();
+  }, [selectedStock]);
+
+  // Handle search
+  const handleSearch = async (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      const searchRes = await searchAssets({
+        query,
+        assetClass: assetClass === 'stocks' ? 'stock' : assetClass,
+        limit: 10,
+      });
+
+      if (searchRes.data) {
+        setSearchResults(searchRes.data);
+      }
+    } catch (err) {
+      console.error('Error searching assets:', err);
+      toast.error('Failed to search assets');
+    }
+  };
 
   // Handlers
-  const handlePlaceOrder = () => {
-    setShowConfirmation(true);
+  const handlePlaceOrder = async () => {
+    try {
+      setLoading(true);
+
+      const orderData = {
+        symbol: selectedStock,
+        orderType: orderType,
+        orderMode: orderMode,
+        quantity: parseFloat(quantity),
+        limitPrice: orderMode === 'limit' ? parseFloat(limitPrice) : undefined,
+        brokerageAccount: brokerageAccount,
+        duration: orderDuration,
+        notes: notes,
+      };
+
+      const response = await placeOrder(orderData);
+
+      toast.success('Order placed successfully!');
+      setShowConfirmation(true);
+
+      // Refresh recent trades
+      const tradesRes = await getRecentTrades({ limit: 5 });
+      if (tradesRes.data) {
+        setRecentTrades(tradesRes.data);
+      }
+    } catch (err) {
+      console.error('Error placing order:', err);
+      const errorMessage = err.data?.detail || err.message || 'Failed to place order';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const calculateTotal = () => {
     const total = parseFloat(quantity || 0) * parseFloat(limitPrice || 0);
     return total.toFixed(2);
   };
+
+  // Format currency
+  const formatCurrency = (value) => {
+    if (!value && value !== 0) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  // Show skeleton while loading
+  if (loading && !recentTrades.length) {
+    return (
+      <DashboardLayout>
+        <TradeEngineSkeleton isDarkMode={isDarkMode} />
+      </DashboardLayout>
+    );
+  }
+
+  // Show error state
+  if (error && !recentTrades.length) {
+    return (
+      <DashboardLayout>
+        <div className={`p-6 rounded-lg border text-center ${
+          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+        }`}>
+          <div className='mb-4 flex justify-center'>
+            <svg
+              width='48'
+              height='48'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke={isDarkMode ? '#EF4444' : '#DC2626'}
+              strokeWidth='2'
+            >
+              <circle cx='12' cy='12' r='10' />
+              <line x1='12' y1='8' x2='12' y2='12' />
+              <line x1='12' y1='16' x2='12.01' y2='16' />
+            </svg>
+          </div>
+          <p className={`font-semibold mb-2 text-lg ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            Error loading trade engine
+          </p>
+          <p className={`text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            {error}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+          >
+            Retry
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -99,6 +269,13 @@ export default function TradeEnginePage() {
           setAssetClass={setAssetClass}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
+          onSearch={handleSearch}
+          searchResults={searchResults}
+          onSelectAsset={(asset) => {
+            setSelectedStock(asset.symbol);
+            setSearchQuery(asset.symbol);
+            setSearchResults([]);
+          }}
           isDarkMode={isDarkMode}
         />
 
@@ -141,9 +318,14 @@ export default function TradeEnginePage() {
             quantity={quantity}
             limitPrice={limitPrice}
             calculateTotal={calculateTotal}
-            recentTrades={recentAAPlTrades}
-            isDarkMode={isDarkMode}
-          />
+          recentTrades={recentAAPlTrades.map(trade => ({
+            type: trade.type || trade.orderType,
+            shares: trade.quantity || trade.shares,
+            price: trade.price ? formatCurrency(trade.price) : '$0.00',
+            date: trade.date || trade.executionDate,
+          }))}
+          isDarkMode={isDarkMode}
+        />
         </div>
 
         {/* Order Confirmation Modal */}

@@ -1,7 +1,8 @@
 'use client';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import {
   Area,
   AreaChart,
@@ -13,6 +14,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import {
+  getCryptoPortfolioSummary,
+  getCryptoPerformance,
+  getCryptoBreakdown,
+  getCryptoHoldings,
+} from '@/utils/portfolioApi';
+import CryptoPortfolioSkeleton from '@/components/skeletons/CryptoPortfolioSkeleton';
 
 export default function CryptoPortfolioPage() {
   const { isDarkMode } = useTheme();
@@ -24,194 +32,146 @@ export default function CryptoPortfolioPage() {
     useState('5th Jan - 30th Jan');
   const [portfolioBreakdownTab, setPortfolioBreakdownTab] = useState('value');
 
-  // Data for different time ranges
-  const timeRangeData = {
-    '1h': {
-      valueOverTime: [
-        { time: '12:00', value: 141800 },
-        { time: '12:15', value: 141950 },
-        { time: '12:30', value: 142100 },
-        { time: '12:45', value: 142400 },
-      ],
-      returnRate: [
-        { time: '12:00', value: 18.2 },
-        { time: '12:15', value: 18.3 },
-        { time: '12:30', value: 18.4 },
-        { time: '12:45', value: 18.5 },
-      ],
-      riskExposure: [
-        { time: '12:00', value: 53 },
-        { time: '12:15', value: 54 },
-        { time: '12:30', value: 54 },
-        { time: '12:45', value: 55 },
-      ],
-    },
-    '6h': {
-      valueOverTime: [
-        { time: '08:00', value: 138000 },
-        { time: '09:00', value: 139000 },
-        { time: '10:00', value: 140000 },
-        { time: '11:00', value: 141000 },
-        { time: '12:00', value: 141800 },
-        { time: '13:00', value: 142400 },
-      ],
-      returnRate: [
-        { time: '08:00', value: 17.5 },
-        { time: '09:00', value: 17.8 },
-        { time: '10:00', value: 18.0 },
-        { time: '11:00', value: 18.2 },
-        { time: '12:00', value: 18.3 },
-        { time: '13:00', value: 18.5 },
-      ],
-      riskExposure: [
-        { time: '08:00', value: 50 },
-        { time: '09:00', value: 51 },
-        { time: '10:00', value: 52 },
-        { time: '11:00', value: 53 },
-        { time: '12:00', value: 54 },
-        { time: '13:00', value: 55 },
-      ],
-    },
-    '12h': {
-      valueOverTime: [
-        { time: '02:00', value: 135000 },
-        { time: '04:00', value: 136000 },
-        { time: '06:00', value: 137000 },
-        { time: '08:00', value: 138500 },
-        { time: '10:00', value: 140000 },
-        { time: '12:00', value: 142400 },
-      ],
-      returnRate: [
-        { time: '02:00', value: 16.8 },
-        { time: '04:00', value: 17.2 },
-        { time: '06:00', value: 17.5 },
-        { time: '08:00', value: 17.8 },
-        { time: '10:00', value: 18.1 },
-        { time: '12:00', value: 18.5 },
-      ],
-      riskExposure: [
-        { time: '02:00', value: 48 },
-        { time: '04:00', value: 49 },
-        { time: '06:00', value: 50 },
-        { time: '08:00', value: 52 },
-        { time: '10:00', value: 53 },
-        { time: '12:00', value: 55 },
-      ],
-    },
-    '24h': {
-      valueOverTime: [
-        { time: '00:00', value: 132000 },
-        { time: '04:00', value: 135000 },
-        { time: '08:00', value: 138000 },
-        { time: '12:00', value: 140000 },
-        { time: '16:00', value: 141000 },
-        { time: '20:00', value: 142400 },
-      ],
-      returnRate: [
-        { time: '00:00', value: 16.0 },
-        { time: '04:00', value: 16.8 },
-        { time: '08:00', value: 17.5 },
-        { time: '12:00', value: 18.0 },
-        { time: '16:00', value: 18.2 },
-        { time: '20:00', value: 18.5 },
-      ],
-      riskExposure: [
-        { time: '00:00', value: 45 },
-        { time: '04:00', value: 48 },
-        { time: '08:00', value: 50 },
-        { time: '12:00', value: 52 },
-        { time: '16:00', value: 54 },
-        { time: '20:00', value: 55 },
-      ],
-    },
+  // Loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Data states
+  const [cryptoSummary, setCryptoSummary] = useState(null);
+  const [performanceData, setPerformanceData] = useState([]);
+  const [breakdownData, setBreakdownData] = useState([]);
+  const [holdings, setHoldings] = useState([]);
+
+  // Fetch crypto portfolio data
+  useEffect(() => {
+    const fetchCryptoData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Map performance tab to API metric
+        const metricMap = {
+          'value-over-time': 'value-over-time',
+          'return-rate': 'return-rate',
+          'risk-exposure': 'risk-exposure',
+        };
+
+        // Fetch all data in parallel
+        const [
+          summaryRes,
+          performanceRes,
+          breakdownRes,
+          holdingsRes,
+        ] = await Promise.all([
+          getCryptoPortfolioSummary(),
+          getCryptoPerformance(timeRange, metricMap[performanceTab] || 'value-over-time'),
+          getCryptoBreakdown(portfolioBreakdownTab),
+          getCryptoHoldings({ sortBy: 'value', order: 'desc' }),
+        ]);
+
+        // Set summary
+        if (summaryRes.data) {
+          setCryptoSummary(summaryRes.data);
+        }
+
+        // Set performance data
+        if (performanceRes.data) {
+          setPerformanceData(performanceRes.data);
+        }
+
+        // Set breakdown data
+        if (breakdownRes.data) {
+          setBreakdownData(breakdownRes.data);
+        }
+
+        // Set holdings
+        if (holdingsRes.data) {
+          setHoldings(holdingsRes.data);
+        }
+      } catch (err) {
+        console.error('Error fetching crypto portfolio data:', err);
+        const errorMessage = err.data?.detail || err.message || 'Failed to load crypto portfolio data';
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCryptoData();
+  }, [timeRange, performanceTab, portfolioBreakdownTab]);
+
+  // Format currency
+  const formatCurrency = (value) => {
+    if (!value && value !== 0) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
   };
 
-  // Get chart data based on selected time range and performance tab
+  // Get chart data
   const getChartData = () => {
-    const dataKey =
-      performanceTab === 'value-over-time'
-        ? 'valueOverTime'
-        : performanceTab === 'return-rate'
-        ? 'returnRate'
-        : 'riskExposure';
-
-    return timeRangeData[timeRange][dataKey];
+    return performanceData;
   };
 
-  // Portfolio breakdown data for different tabs
-  const portfolioBreakdownData = {
-    value: [
-      { name: 'BTC', percentage: 40, value: 56960, color: '#F7931A' },
-      { name: 'ETH', percentage: 25, value: 35600, color: '#627EEA' },
-      { name: 'Altcoins', percentage: 20, value: 28480, color: '#00D4AA' },
-      { name: 'Stablecoins', percentage: 15, value: 21360, color: '#26A17B' },
-    ],
-    returnRate: [
-      { name: 'BTC', percentage: 45, value: 22.5, color: '#F7931A' },
-      { name: 'ETH', percentage: 30, value: 18.2, color: '#627EEA' },
-      { name: 'Altcoins', percentage: 15, value: 12.8, color: '#00D4AA' },
-      { name: 'Stablecoins', percentage: 10, value: 2.1, color: '#26A17B' },
-    ],
+  // Get portfolio breakdown
+  const getPortfolioBreakdown = () => {
+    return breakdownData;
   };
 
-  // Get portfolio breakdown based on selected tab
-  const getPortfolioBreakdown = () =>
-    portfolioBreakdownData[portfolioBreakdownTab];
+  // Show skeleton while loading
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <CryptoPortfolioSkeleton isDarkMode={isDarkMode} />
+      </DashboardLayout>
+    );
+  }
 
-  const holdings = [
-    {
-      id: 1,
-      name: 'Bitcoin',
-      symbol: 'BTC',
-      icon: '₿',
-      iconBg: '#F7931A',
-      quantity: 2.35,
-      currentPrice: 38500,
-      change24h: 3.2,
-      change7d: 5.7,
-      marketValue: 90475,
-      portfolioWeight: 40,
-    },
-    {
-      id: 2,
-      name: 'Ethereum',
-      symbol: 'ETH',
-      icon: 'Ξ',
-      iconBg: '#627EEA',
-      quantity: 12.5,
-      currentPrice: 2800,
-      change24h: 2.8,
-      change7d: 4.2,
-      marketValue: 35000,
-      portfolioWeight: 25,
-    },
-    {
-      id: 3,
-      name: 'Litecoin',
-      symbol: 'LTC',
-      icon: 'Ł',
-      iconBg: '#345D9D',
-      quantity: 45,
-      currentPrice: 150,
-      change24h: -1.2,
-      change7d: 2.1,
-      marketValue: 6750,
-      portfolioWeight: 5,
-    },
-    {
-      id: 4,
-      name: 'Tether',
-      symbol: 'USDT',
-      icon: '₮',
-      iconBg: '#26A17B',
-      quantity: 10175,
-      currentPrice: 1,
-      change24h: 0,
-      change7d: 0.1,
-      marketValue: 10175,
-      portfolioWeight: 15,
-    },
-  ];
+  // Show error state
+  if (error && !cryptoSummary) {
+    return (
+      <DashboardLayout>
+        <div className={`p-6 rounded-lg border text-center ${
+          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+        }`}>
+          <div className='mb-4 flex justify-center'>
+            <svg
+              width='48'
+              height='48'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke={isDarkMode ? '#EF4444' : '#DC2626'}
+              strokeWidth='2'
+            >
+              <circle cx='12' cy='12' r='10' />
+              <line x1='12' y1='8' x2='12' y2='12' />
+              <line x1='12' y1='16' x2='12.01' y2='16' />
+            </svg>
+          </div>
+          <p className={`font-semibold mb-2 text-lg ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            Error loading crypto portfolio
+          </p>
+          <p className={`text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            {error}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+          >
+            Retry
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -467,30 +427,30 @@ export default function CryptoPortfolioPage() {
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6'>
           <StatCard
             label='Total Value'
-            value='$142,400'
-            subtitle='+$2.5k (local)'
+            value={cryptoSummary?.totalValue ? formatCurrency(cryptoSummary.totalValue) : '$0.00'}
+            subtitle={cryptoSummary?.totalReturn ? `+${formatCurrency(cryptoSummary.totalReturn)}` : '$0.00'}
             trend='up'
-            trendValue='+18.5%'
+            trendValue={cryptoSummary?.returnPercentage ? `+${cryptoSummary.returnPercentage.toFixed(1)}%` : '0%'}
             isDarkMode={isDarkMode}
           />
           <StatCard
             label='Total Return'
-            value='+18.5%'
-            subtitle='$22,400'
+            value={cryptoSummary?.returnPercentage ? `+${cryptoSummary.returnPercentage.toFixed(1)}%` : '0%'}
+            subtitle={cryptoSummary?.totalReturn ? formatCurrency(cryptoSummary.totalReturn) : '$0.00'}
             trend='up'
-            trendValue='+18.5%'
+            trendValue={cryptoSummary?.returnPercentage ? `+${cryptoSummary.returnPercentage.toFixed(1)}%` : '0%'}
             isDarkMode={isDarkMode}
           />
           <StatCard
             label='Volatility'
-            value='Medium'
-            subtitle='0.034'
+            value={cryptoSummary?.volatility || 'Low'}
+            subtitle={cryptoSummary?.volatilityScore?.toString() || '0.000'}
             isDarkMode={isDarkMode}
           />
           <StatCard
             label='Risk Grade'
-            value='B+'
-            subtitle='Moderate'
+            value={cryptoSummary?.riskGrade || 'N/A'}
+            subtitle={cryptoSummary?.riskLevel || 'Unknown'}
             isDarkMode={isDarkMode}
             highlight
           />
@@ -557,8 +517,9 @@ export default function CryptoPortfolioPage() {
               </div>
               {/* Chart */}
               <div className='h-100'>
-                <ResponsiveContainer width='100%' height='100%'>
-                  <AreaChart data={getChartData()}>
+                {getChartData().length > 0 ? (
+                  <ResponsiveContainer width='100%' height='100%'>
+                    <AreaChart data={getChartData()}>
                     <defs>
                       <linearGradient
                         id='colorValue'
@@ -628,6 +589,11 @@ export default function CryptoPortfolioPage() {
                     />
                   </AreaChart>
                 </ResponsiveContainer>
+                ) : (
+                  <div className='h-full flex items-center justify-center text-gray-400'>
+                    No performance data available
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -729,8 +695,9 @@ export default function CryptoPortfolioPage() {
 
               {/* Bar Chart */}
               <div className='h-48 mb-6'>
-                <ResponsiveContainer width='100%' height='100%'>
-                  <BarChart data={getPortfolioBreakdown()}>
+                {getPortfolioBreakdown().length > 0 ? (
+                  <ResponsiveContainer width='100%' height='100%'>
+                    <BarChart data={getPortfolioBreakdown()}>
                     <XAxis
                       dataKey='name'
                       stroke={isDarkMode ? '#6B7280' : '#9CA3AF'}
@@ -773,11 +740,17 @@ export default function CryptoPortfolioPage() {
                     </defs>
                   </BarChart>
                 </ResponsiveContainer>
+                ) : (
+                  <div className='h-full flex items-center justify-center text-gray-400'>
+                    No breakdown data available
+                  </div>
+                )}
               </div>
 
               {/* Legend */}
               <div className='space-y-3'>
-                {getPortfolioBreakdown().map(item => (
+                {getPortfolioBreakdown().length > 0 ? (
+                  getPortfolioBreakdown().map(item => (
                   <div key={item.name} className='flex items-center gap-3'>
                     <div
                       className='w-3 h-3 rounded-full'
@@ -798,7 +771,12 @@ export default function CryptoPortfolioPage() {
                       {item.percentage}%
                     </span>
                   </div>
-                ))}
+                  ))
+                ) : (
+                  <div className='text-center py-4 text-gray-400 text-sm'>
+                    No breakdown data
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -896,130 +874,138 @@ export default function CryptoPortfolioPage() {
                 </tr>
               </thead>
               <tbody>
-                {holdings.map(holding => (
-                  <tr
-                    key={holding.id}
-                    className={`border-b ${
-                      isDarkMode
-                        ? 'border-[#FFFFFF14] hover:bg-white/5'
-                        : 'border-gray-200 hover:bg-gray-50'
-                    } transition-colors`}
-                  >
-                    <td className='px-6 py-4'>
-                      <div className='flex items-center gap-3'>
-                        <div
-                          className='w-10 h-10 rounded-full flex items-center justify-center text-white font-bold'
-                          style={{ backgroundColor: holding.iconBg }}
-                        >
-                          {holding.icon}
-                        </div>
-                        <div>
+                {holdings.length > 0 ? (
+                  holdings.map(holding => (
+                    <tr
+                      key={holding.id || holding.symbol}
+                      className={`border-b ${
+                        isDarkMode
+                          ? 'border-[#FFFFFF14] hover:bg-white/5'
+                          : 'border-gray-200 hover:bg-gray-50'
+                      } transition-colors`}
+                    >
+                      <td className='px-6 py-4'>
+                        <div className='flex items-center gap-3'>
                           <div
-                            className={`font-semibold ${
+                            className='w-10 h-10 rounded-full flex items-center justify-center text-white font-bold'
+                            style={{ backgroundColor: holding.iconBg || '#F7931A' }}
+                          >
+                            {holding.icon || holding.symbol?.charAt(0) || '?'}
+                          </div>
+                          <div>
+                            <div
+                              className={`font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}
+                            >
+                              {holding.name || 'Unknown'}
+                            </div>
+                            <div
+                              className={`text-xs ${
+                                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                              }`}
+                            >
+                              {holding.symbol || 'N/A'}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td
+                        className={`px-6 py-4 text-right font-medium ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        {holding.quantity?.toLocaleString() || '0'}
+                      </td>
+                      <td
+                        className={`px-6 py-4 text-right font-medium ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        {holding.currentPrice ? formatCurrency(holding.currentPrice) : '$0.00'}
+                      </td>
+                      <td className='px-6 py-4 text-right'>
+                        <div className='flex flex-col items-end gap-1'>
+                          <span
+                            className={`text-sm font-medium ${
+                              (holding.change24h || 0) >= 0
+                                ? 'text-green-500'
+                                : 'text-red-500'
+                            }`}
+                          >
+                            {(holding.change24h || 0) >= 0 ? '+' : ''}
+                            {(holding.change24h || 0).toFixed(2)}% (24h)
+                          </span>
+                          <span
+                            className={`text-xs ${
+                              (holding.change7d || 0) >= 0
+                                ? 'text-green-500'
+                                : 'text-red-500'
+                            }`}
+                          >
+                            {(holding.change7d || 0) >= 0 ? '+' : ''}
+                            {(holding.change7d || 0).toFixed(2)}% (7d)
+                          </span>
+                        </div>
+                      </td>
+                      <td
+                        className={`px-6 py-4 text-right font-semibold ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        {holding.marketValue ? formatCurrency(holding.marketValue) : '$0.00'}
+                      </td>
+                      <td className='px-6 py-4 text-right'>
+                        <div className='flex items-center justify-end gap-2'>
+                          <div className='w-24 h-2 bg-gray-700 rounded-full overflow-hidden'>
+                            <div
+                              className='h-full rounded-full'
+                              style={{
+                                width: `${holding.portfolioWeight || 0}%`,
+                                background:
+                                  'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
+                              }}
+                            />
+                          </div>
+                          <span
+                            className={`text-sm font-semibold min-w-[3rem] ${
                               isDarkMode ? 'text-white' : 'text-gray-900'
                             }`}
                           >
-                            {holding.name}
-                          </div>
-                          <div
-                            className={`text-xs ${
-                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                            }`}
+                            {(holding.portfolioWeight || 0).toFixed(1)}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className='px-6 py-4'>
+                        <button
+                          className={`${
+                            isDarkMode
+                              ? 'text-gray-400 hover:text-white'
+                              : 'text-gray-600 hover:text-gray-900'
+                          } transition-colors`}
+                        >
+                          <svg
+                            width='20'
+                            height='20'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
                           >
-                            {holding.symbol}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td
-                      className={`px-6 py-4 text-right font-medium ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      {holding.quantity}
-                    </td>
-                    <td
-                      className={`px-6 py-4 text-right font-medium ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      ${holding.currentPrice.toLocaleString()}
-                    </td>
-                    <td className='px-6 py-4 text-right'>
-                      <div className='flex flex-col items-end gap-1'>
-                        <span
-                          className={`text-sm font-medium ${
-                            holding.change24h >= 0
-                              ? 'text-green-500'
-                              : 'text-red-500'
-                          }`}
-                        >
-                          {holding.change24h >= 0 ? '+' : ''}
-                          {holding.change24h}% (24h)
-                        </span>
-                        <span
-                          className={`text-xs ${
-                            holding.change7d >= 0
-                              ? 'text-green-500'
-                              : 'text-red-500'
-                          }`}
-                        >
-                          {holding.change7d >= 0 ? '+' : ''}
-                          {holding.change7d}% (7d)
-                        </span>
-                      </div>
-                    </td>
-                    <td
-                      className={`px-6 py-4 text-right font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      ${holding.marketValue.toLocaleString()}
-                    </td>
-                    <td className='px-6 py-4 text-right'>
-                      <div className='flex items-center justify-end gap-2'>
-                        <div className='w-24 h-2 bg-gray-700 rounded-full overflow-hidden'>
-                          <div
-                            className='h-full rounded-full'
-                            style={{
-                              width: `${holding.portfolioWeight}%`,
-                              background:
-                                'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
-                            }}
-                          />
-                        </div>
-                        <span
-                          className={`text-sm font-semibold min-w-[3rem] ${
-                            isDarkMode ? 'text-white' : 'text-gray-900'
-                          }`}
-                        >
-                          {holding.portfolioWeight}%
-                        </span>
-                      </div>
-                    </td>
-                    <td className='px-6 py-4'>
-                      <button
-                        className={`${
-                          isDarkMode
-                            ? 'text-gray-400 hover:text-white'
-                            : 'text-gray-600 hover:text-gray-900'
-                        } transition-colors`}
-                      >
-                        <svg
-                          width='20'
-                          height='20'
-                          viewBox='0 0 24 24'
-                          fill='none'
-                          stroke='currentColor'
-                        >
-                          <circle cx='12' cy='12' r='1' />
-                          <circle cx='12' cy='5' r='1' />
-                          <circle cx='12' cy='19' r='1' />
-                        </svg>
-                      </button>
+                            <circle cx='12' cy='12' r='1' />
+                            <circle cx='12' cy='5' r='1' />
+                            <circle cx='12' cy='19' r='1' />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className='px-6 py-8 text-center text-gray-400'>
+                      No crypto holdings found
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

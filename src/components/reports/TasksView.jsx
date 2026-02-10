@@ -1,87 +1,73 @@
 'use client';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { useState, useEffect } from 'react';
+import { getDashboardOverview, getCrmUpdates } from '@/utils/crmApi';
+import { getReportStatistics } from '@/utils/reportsApi';
+import { toast } from 'react-toastify';
 
 export default function TasksView({ isDarkMode }) {
-  // Mock data for charts
-  const chartData1 = [
-    { value: 20 },
-    { value: 35 },
-    { value: 25 },
-    { value: 45 },
-    { value: 38 },
-    { value: 52 },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [updates, setUpdates] = useState([]);
+  const [reportStats, setReportStats] = useState(null);
 
-  const chartData2 = [
-    { value: 15 },
-    { value: 28 },
-    { value: 32 },
-    { value: 25 },
-    { value: 42 },
-    { value: 48 },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        const [overviewResponse, updatesResponse, reportStatsResponse] = await Promise.allSettled([
+          getDashboardOverview(),
+          getCrmUpdates({ limit: 24 }).catch(err => {
+            if (err.status === 403 || err.status === 401) {
+              return { data: [], message: 'Updates not available' };
+            }
+            throw err;
+          }),
+          getReportStatistics().catch(() => null),
+        ]);
 
-  const chartData3 = [
-    { value: 45 },
-    { value: 38 },
-    { value: 32 },
-    { value: 28 },
-    { value: 18 },
-    { value: 12 },
-  ];
+        if (overviewResponse.status === 'fulfilled') {
+          setDashboardStats(overviewResponse.value.data || overviewResponse.value);
+        }
 
-  const pinnedUpdates = [
-    {
-      id: 1,
-      user: 'Samuel',
-      initials: 'S',
-      message: 'Mentioned you in',
-      description: 'Please review this file for further steps',
-      time: 'Yesterday at 9:42 AM',
-      isRead: false,
-      bgColor: 'bg-blue-500',
-    },
-    {
-      id: 2,
-      user: 'Nick Gonzales',
-      initials: 'NG',
-      message: 'is inviting you to collaborate on',
-      description: 'To: Hania Gonzales, Catherine Romero, Samuel',
-      time: 'Wednesday, 5:43 PM',
-      isRead: false,
-      bgColor: 'bg-purple-500',
-    },
-  ];
+        if (updatesResponse.status === 'fulfilled') {
+          const updatesData = updatesResponse.value.data || updatesResponse.value || [];
+          setUpdates(Array.isArray(updatesData) ? updatesData : []);
+        } else {
+          setUpdates([]);
+        }
 
-  const ticketUpdates = [
-    {
-      id: 1,
-      user: 'Thomas Patel',
-      initials: 'TP',
-      message: 'Worked on',
-      title: 'Ticket 1234 - Unable to process payment',
-      time: '2 days ago',
-      bgColor: 'bg-orange-500',
-    },
-    {
-      id: 2,
-      user: 'Thomas Patel',
-      initials: 'TP',
-      message: 'Closed',
-      title: 'Ticket 5678 - App crash on login',
-      time: '2 days ago',
-      bgColor: 'bg-orange-500',
-    },
-    {
-      id: 3,
-      user: 'Thomas Patel',
-      initials: 'TP',
-      message: 'Resolved',
-      title: 'Ticket 1011 - Feature request: Dark mode',
-      time: '2 days ago',
-      bgColor: 'bg-orange-500',
-    },
-  ];
+        if (reportStatsResponse.status === 'fulfilled' && reportStatsResponse.value) {
+          setReportStats(reportStatsResponse.value.data || reportStatsResponse.value);
+        }
+      } catch (error) {
+        console.error('Failed to fetch reports data:', error);
+        toast.error('Failed to load reports data. Please refresh the page.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Chart data from API - no fallback dummy data
+  const chartData1 = dashboardStats?.totalTasksTrend || dashboardStats?.performanceTrends || [];
+  const chartData2 = dashboardStats?.tasksSolvedTrend || dashboardStats?.performanceTrends || [];
+  const chartData3 = dashboardStats?.tasksUnresolvedTrend || dashboardStats?.performanceTrends || [];
+
+  // Get stat values from API - no fallback dummy data
+  const totalTasks = dashboardStats?.totalTasks ?? dashboardStats?.totalTasksReceived ?? reportStats?.totalReports ?? 0;
+  const tasksSolved = dashboardStats?.tasksSolved ?? dashboardStats?.tasksResolved ?? reportStats?.completedReports ?? 0;
+  const tasksUnresolved = dashboardStats?.tasksUnresolved ?? dashboardStats?.unresolvedTasks ?? reportStats?.pendingReports ?? 0;
+  const totalTasksChange = dashboardStats?.totalTasksChange ?? dashboardStats?.totalTasksReceivedChange ?? reportStats?.totalReportsChange ?? null;
+  const tasksSolvedChange = dashboardStats?.tasksSolvedChange ?? dashboardStats?.tasksResolvedChange ?? reportStats?.completedReportsChange ?? null;
+  const tasksUnresolvedChange = dashboardStats?.tasksUnresolvedChange ?? dashboardStats?.unresolvedTasksChange ?? reportStats?.pendingReportsChange ?? null;
+
+  // Filter updates
+  const pinnedUpdates = updates.filter(u => u.pinned || u.isPinned);
+  const ticketUpdates = updates.filter(u => !u.pinned && !u.isPinned);
 
   return (
     <>
@@ -89,10 +75,10 @@ export default function TasksView({ isDarkMode }) {
       <div className='grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8'>
         <StatCard
           title='Total tasks received'
-          value='164'
-          change='+15%'
+          value={loading ? '...' : totalTasks.toString()}
+          change={totalTasksChange ? `${totalTasksChange > 0 ? '+' : ''}${totalTasksChange}%` : '-'}
           changeLabel='from last week'
-          isPositive={true}
+          isPositive={totalTasksChange === null ? true : totalTasksChange >= 0}
           chartData={chartData1}
           chartColor='#10B981'
           isDarkMode={isDarkMode}
@@ -100,10 +86,10 @@ export default function TasksView({ isDarkMode }) {
 
         <StatCard
           title='Tasks solved'
-          value='159'
-          change='+32%'
+          value={loading ? '...' : tasksSolved.toString()}
+          change={tasksSolvedChange ? `${tasksSolvedChange > 0 ? '+' : ''}${tasksSolvedChange}%` : '-'}
           changeLabel='from last week'
-          isPositive={true}
+          isPositive={tasksSolvedChange === null ? true : tasksSolvedChange >= 0}
           chartData={chartData2}
           chartColor='#10B981'
           isDarkMode={isDarkMode}
@@ -111,10 +97,10 @@ export default function TasksView({ isDarkMode }) {
 
         <StatCard
           title='Tasks unresolved'
-          value='5'
-          change='-54%'
+          value={loading ? '...' : tasksUnresolved.toString()}
+          change={tasksUnresolvedChange ? `${tasksUnresolvedChange > 0 ? '+' : ''}${tasksUnresolvedChange}%` : '-'}
           changeLabel='from last week'
-          isPositive={false}
+          isPositive={tasksUnresolvedChange === null ? false : tasksUnresolvedChange <= 0}
           chartData={chartData3}
           chartColor='#EF4444'
           isDarkMode={isDarkMode}
@@ -159,19 +145,32 @@ export default function TasksView({ isDarkMode }) {
           </div>
 
           <div className='space-y-3'>
-            {pinnedUpdates.map(update => (
-              <UpdateCard
-                key={update.id}
-                user={update.user}
-                initials={update.initials}
-                message={update.message}
-                description={update.description}
-                time={update.time}
-                isRead={update.isRead}
-                bgColor={update.bgColor}
-                isDarkMode={isDarkMode}
-              />
-            ))}
+            {pinnedUpdates.length > 0 ? (
+              pinnedUpdates.map((update, index) => {
+                const userName = update.user || update.userName || update.actor || 'Unknown User';
+                const initials = update.initials || userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                const bgColors = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500'];
+                const bgColor = update.bgColor || bgColors[index % bgColors.length];
+                
+                return (
+                  <UpdateCard
+                    key={update.id || index}
+                    user={userName}
+                    initials={initials}
+                    message={update.message || update.action || 'updated'}
+                    description={update.description || update.subtitle || update.body || ''}
+                    time={update.time || update.timestamp || update.createdAt || 'Just now'}
+                    isRead={!update.isUnread && !update.hasIndicator}
+                    bgColor={bgColor}
+                    isDarkMode={isDarkMode}
+                  />
+                );
+              })
+            ) : (
+              <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                {loading ? 'Loading...' : 'No pinned updates'}
+              </div>
+            )}
           </div>
         </div>
 
@@ -203,18 +202,31 @@ export default function TasksView({ isDarkMode }) {
           </div>
 
           <div className='space-y-3'>
-            {ticketUpdates.map(update => (
-              <TicketCard
-                key={update.id}
-                user={update.user}
-                initials={update.initials}
-                message={update.message}
-                title={update.title}
-                time={update.time}
-                bgColor={update.bgColor}
-                isDarkMode={isDarkMode}
-              />
-            ))}
+            {ticketUpdates.length > 0 ? (
+              ticketUpdates.map((update, index) => {
+                const userName = update.user || update.userName || update.actor || 'Unknown User';
+                const initials = update.initials || userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                const bgColors = ['bg-orange-500', 'bg-pink-500', 'bg-blue-500', 'bg-purple-500'];
+                const bgColor = update.bgColor || bgColors[index % bgColors.length];
+                
+                return (
+                  <TicketCard
+                    key={update.id || index}
+                    user={userName}
+                    initials={initials}
+                    message={update.message || update.action || 'updated'}
+                    title={update.title || update.highlight || update.subject || ''}
+                    time={update.time || update.timestamp || update.createdAt || 'Just now'}
+                    bgColor={bgColor}
+                    isDarkMode={isDarkMode}
+                  />
+                );
+              })
+            ) : (
+              <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                {loading ? 'Loading...' : 'No ticket updates available'}
+              </div>
+            )}
           </div>
         </div>
       </div>

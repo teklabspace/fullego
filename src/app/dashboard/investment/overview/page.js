@@ -1,108 +1,202 @@
 'use client';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
+import {
+    getAssetSummaryCards,
+    getCryptoPrices,
+    getInvestmentActivity,
+    getTraderProfile,
+} from '@/utils/investmentApi';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
 
 export default function InvestmentOverviewPage() {
   const { isDarkMode } = useTheme();
 
-  // Chart data for asset cards
-  const bitcoinChartData = [
-    { value: 20 },
-    { value: 35 },
-    { value: 25 },
-    { value: 45 },
-    { value: 38 },
-    { value: 52 },
-  ];
+  // Loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const ethereumChartData = [
-    { value: 15 },
-    { value: 28 },
-    { value: 32 },
-    { value: 25 },
-    { value: 42 },
-    { value: 48 },
-  ];
+  // Data states
+  const [assetCards, setAssetCards] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [cryptoPrices, setCryptoPrices] = useState([]);
+  const [traderProfile, setTraderProfile] = useState(null);
 
-  // Activity data
-  const activities = [
-    {
-      icon: 'ethereum',
-      transaction: 'Ethereum Purchased',
-      amount: '0.0154 ETH',
-      total: '$10.00',
-      status: 'Pending',
-      date: 'February 21, 2023',
-    },
-    {
-      icon: 'bitcoin',
-      transaction: 'Bitcoin Purchased',
-      amount: '0.3 BTC',
-      total: '$10.00',
-      status: 'Done',
-      date: 'February 14, 2023',
-    },
-    {
-      icon: 'bitcoin',
-      transaction: 'Bitcoin Purchased',
-      amount: '0.025 BTC',
-      total: '$10.00',
-      status: 'Done',
-      date: 'January 14, 2023',
-    },
-    {
-      icon: 'ethereum',
-      transaction: 'Ethereum Purchased',
-      amount: '0.1 ETH',
-      total: '$150.00',
-      status: 'Done',
-      date: 'January 10, 2023',
-    },
-  ];
+  // Fetch all investment overview data
+  useEffect(() => {
+    const fetchInvestmentData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  // Cryptocurrency price tracker
-  const cryptoPrices = [
-    {
-      name: 'BITCOIN',
-      icon: 'bitcoin',
-      updated: '5 seconds ago',
-      change: '-2.64%',
-      changeType: 'negative',
-      price: '$12,729',
-    },
-    {
-      name: 'ETHEREUM',
-      icon: 'ethereum',
-      updated: '10 seconds ago',
-      change: '+1.25%',
-      changeType: 'positive',
-      price: '$2,450',
-    },
-    {
-      name: 'DOGECOIN',
-      icon: 'doge',
-      updated: '15 seconds ago',
-      change: '-0.85%',
-      changeType: 'negative',
-      price: '$0.085',
-    },
-  ];
+        // Fetch all data in parallel with individual error handling
+        const results = await Promise.allSettled([
+          getAssetSummaryCards(),
+          getInvestmentActivity({ limit: 10 }),
+          getCryptoPrices(),
+          getTraderProfile(),
+        ]);
 
-  // Trader profile data
-  const traderProfile = {
-    name: 'Olivia',
-    accountType: 'User Account',
-    joined: 'June 22, 2020',
-    assetsValue: '$1,328,240.00',
-    assets: [
-      { name: 'Bitcoin', amount: '23.5 BTC' },
-      { name: 'Ethereum', amount: '190.45 ETH' },
-      { name: 'Doge', amount: '238,500 DOGE' },
-      { name: 'Ripple', amount: '46,100 XRP' },
-    ],
+        // Handle asset cards
+        if (results[0].status === 'fulfilled' && results[0].value.data) {
+          setAssetCards(Array.isArray(results[0].value.data) ? results[0].value.data : []);
+        } else if (results[0].status === 'rejected') {
+          const err = results[0].reason;
+          // Handle 405 (Method Not Allowed) or 400 (Bad Request) - backend issues, handle gracefully
+          if (err.status === 405 || err.status === 400 || 
+              err.message?.includes('Method Not Allowed') || 
+              err.data?.detail?.includes('Method Not Allowed') ||
+              err.data?.detail?.includes('unsupported operand')) {
+            // Silently handle - endpoint has issues or not implemented yet
+            setAssetCards([]);
+          } else {
+            console.error('Error fetching asset cards:', err);
+          }
+        }
+
+        // Handle activities
+        if (results[1].status === 'fulfilled' && results[1].value.data) {
+          setActivities(Array.isArray(results[1].value.data) ? results[1].value.data : []);
+        } else if (results[1].status === 'rejected') {
+          const err = results[1].reason;
+          if (err.status === 405 || err.status === 400 || 
+              err.message?.includes('Method Not Allowed') || 
+              err.data?.detail?.includes('Method Not Allowed') ||
+              err.data?.detail?.includes('unsupported operand')) {
+            // Silently handle - endpoint has issues or not implemented yet
+            setActivities([]);
+          } else {
+            console.error('Error fetching activities:', err);
+          }
+        }
+
+        // Handle crypto prices
+        if (results[2].status === 'fulfilled' && results[2].value.data) {
+          setCryptoPrices(Array.isArray(results[2].value.data) ? results[2].value.data : []);
+        } else if (results[2].status === 'rejected') {
+          const err = results[2].reason;
+          if (err.status === 405 || err.status === 400 || 
+              err.message?.includes('Method Not Allowed') || 
+              err.data?.detail?.includes('Method Not Allowed') ||
+              err.data?.detail?.includes('unsupported operand')) {
+            // Silently handle - endpoint has issues or not implemented yet
+            setCryptoPrices([]);
+          } else {
+            console.error('Error fetching crypto prices:', err);
+          }
+        }
+
+        // Handle trader profile
+        if (results[3].status === 'fulfilled' && results[3].value.data) {
+          setTraderProfile(results[3].value.data);
+        } else if (results[3].status === 'rejected') {
+          const err = results[3].reason;
+          if (err.status === 405 || err.status === 400 || 
+              err.message?.includes('Method Not Allowed') || 
+              err.data?.detail?.includes('Method Not Allowed') ||
+              err.data?.detail?.includes('unsupported operand')) {
+            // Silently handle - endpoint has issues or not implemented yet
+            setTraderProfile(null);
+          } else {
+            console.error('Error fetching trader profile:', err);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching investment overview data:', err);
+        // Only set error if it's not a 405 or 400 (endpoint issues or backend bugs)
+        if (err.status !== 405 && err.status !== 400 && 
+            !err.message?.includes('Method Not Allowed') && 
+            !err.data?.detail?.includes('Method Not Allowed') &&
+            !err.data?.detail?.includes('unsupported operand')) {
+          const errorMessage = err.data?.detail || err.message || 'Failed to load investment data';
+          setError(errorMessage);
+          toast.error(errorMessage);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInvestmentData();
+  }, []);
+
+  // Format currency
+  const formatCurrency = (value) => {
+    if (!value && value !== 0) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
   };
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  // Get icon for asset
+  const getAssetIcon = (symbol) => {
+    const symbolUpper = symbol?.toUpperCase() || '';
+    if (symbolUpper.includes('BTC') || symbolUpper.includes('BITCOIN')) return 'bitcoin';
+    if (symbolUpper.includes('ETH') || symbolUpper.includes('ETHEREUM')) return 'ethereum';
+    if (symbolUpper.includes('DOGE') || symbolUpper.includes('DOGECOIN')) return 'doge';
+    return 'ethereum';
+  };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className='flex items-center justify-center min-h-[400px]'>
+          <div className='text-center'>
+            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
+            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+              Loading investment data...
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show error state only for critical errors (not 405 or 400 - endpoint issues)
+  if (error && !error.includes('Method Not Allowed') && !error.includes('unsupported operand') && !assetCards.length && !activities.length && !cryptoPrices.length && !traderProfile) {
+    return (
+      <DashboardLayout>
+        <div className={`p-6 rounded-lg border text-center ${
+          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+        }`}>
+          <p className={`font-semibold mb-2 text-lg ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            Error loading investment data
+          </p>
+          <p className={`text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            {error}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+          >
+            Retry
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -127,32 +221,39 @@ export default function InvestmentOverviewPage() {
 
           {/* Asset Summary Cards */}
           <div className='grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8'>
-            {/* Bitcoin Card */}
-            <AssetCard
-              name='Bitcoin'
-              value='1,820'
-              profit='+1.07%'
-              loss='-0.17%'
-              neutral='0.00%'
-              chartData={bitcoinChartData}
-              chartColor='#F1CB68'
-              isGradient={true}
-              isDarkMode={isDarkMode}
-            />
-
-            {/* Ethereum Card */}
-            <AssetCard
-              name='Ethereum'
-              value='1,100'
-              profit='+1.07%'
-              loss='-0.17%'
-              neutral='0.00%'
-              chartData={ethereumChartData}
-              chartColor='#F1CB68'
-              isGradient={false}
-              isDarkMode={isDarkMode}
-            />
-
+            {assetCards.length > 0 ? (
+              assetCards.slice(0, 2).map((asset, index) => (
+                <AssetCard
+                  key={asset.id || asset.symbol || index}
+                  name={asset.name || asset.symbol || 'Asset'}
+                  value={asset.value ? formatCurrency(asset.value) : '$0.00'}
+                  profit={asset.profitPercentage ? `+${asset.profitPercentage.toFixed(2)}%` : '+0.00%'}
+                  loss={asset.lossPercentage ? `-${Math.abs(asset.lossPercentage).toFixed(2)}%` : '-0.00%'}
+                  neutral='0.00%'
+                  chartData={asset.chartData || asset.historyData || [{ value: 0 }]}
+                  chartColor='#F1CB68'
+                  isGradient={index === 0}
+                  isDarkMode={isDarkMode}
+                />
+              ))
+            ) : (
+              <>
+                <div className={`rounded-2xl p-6 border ${
+                  isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+                }`}>
+                  <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                    No asset data available
+                  </p>
+                </div>
+                <div className={`rounded-2xl p-6 border ${
+                  isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+                }`}>
+                  <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                    No asset data available
+                  </p>
+                </div>
+              </>
+            )}
             {/* New Asset Card */}
             <NewAssetCard isDarkMode={isDarkMode} />
           </div>
@@ -242,85 +343,96 @@ export default function InvestmentOverviewPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {activities.map((activity, index) => (
-                      <tr
-                        key={index}
-                        className={`border-b ${
-                          isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
-                        } ${
-                          index % 2 === 0
-                            ? isDarkMode
-                              ? 'bg-[#1A1A1D]'
-                              : 'bg-gray-50'
-                            : ''
-                        }`}
-                      >
-                        <td className='px-6 py-4'>
-                          <div className='flex items-center gap-3'>
-                            <div
-                              className={`w-10 h-7 rounded-full flex items-center justify-center ${
-                                activity.icon === 'bitcoin'
-                                  ? isDarkMode
-                                    ? 'bg-orange-500/30 '
-                                    : 'bg-orange-500/20'
-                                  : isDarkMode
-                                  ? 'bg-blue-500/30'
-                                  : 'bg-blue-500/20'
+                    {activities.length > 0 ? (
+                      activities.map((activity, index) => {
+                        const assetIcon = getAssetIcon(activity.asset || activity.symbol);
+                        return (
+                          <tr
+                            key={activity.id || index}
+                            className={`border-b ${
+                              isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                            } ${
+                              index % 2 === 0
+                                ? isDarkMode
+                                  ? 'bg-[#1A1A1D]'
+                                  : 'bg-gray-50'
+                                : ''
+                            }`}
+                          >
+                            <td className='px-6 py-4'>
+                              <div className='flex items-center gap-3'>
+                                <div
+                                  className={`w-10 h-7 rounded-full flex items-center justify-center ${
+                                    assetIcon === 'bitcoin'
+                                      ? isDarkMode
+                                        ? 'bg-orange-500/30 '
+                                        : 'bg-orange-500/20'
+                                      : isDarkMode
+                                      ? 'bg-blue-500/30'
+                                      : 'bg-blue-500/20'
+                                  }`}
+                                >
+                                  {assetIcon === 'bitcoin' ? (
+                                    <span className='text-orange-500 font-bold text-sm'>
+                                      ₿
+                                    </span>
+                                  ) : (
+                                    <span className='text-blue-500 font-bold text-sm'>
+                                      Ξ
+                                    </span>
+                                  )}
+                                </div>
+                                <span
+                                  className={`text-sm font-medium ${
+                                    isDarkMode ? 'text-white' : 'text-gray-900'
+                                  }`}
+                                >
+                                  {activity.transaction || `${activity.type || 'Transaction'} - ${activity.asset || activity.symbol || 'Asset'}`}
+                                </span>
+                              </div>
+                            </td>
+                            <td
+                              className={`px-6 py-4 text-sm ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-700'
                               }`}
                             >
-                              {activity.icon === 'bitcoin' ? (
-                                <span className='text-orange-500 font-bold text-sm'>
-                                  ₿
-                                </span>
-                              ) : (
-                                <span className='text-blue-500 font-bold text-sm'>
-                                  Ξ
-                                </span>
-                              )}
-                            </div>
-                            <span
-                              className={`text-sm font-medium ${
+                              {activity.amount || activity.quantity || 'N/A'}
+                            </td>
+                            <td
+                              className={`px-6 py-4 text-sm font-medium ${
                                 isDarkMode ? 'text-white' : 'text-gray-900'
                               }`}
                             >
-                              {activity.transaction}
-                            </span>
-                          </div>
-                        </td>
-                        <td
-                          className={`px-6 py-4 text-sm ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                          }`}
-                        >
-                          {activity.amount}
-                        </td>
-                        <td
-                          className={`px-6 py-4 text-sm font-medium ${
-                            isDarkMode ? 'text-white' : 'text-gray-900'
-                          }`}
-                        >
-                          {activity.total}
-                        </td>
-                        <td className='px-6 py-4'>
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              activity.status === 'Done'
-                                ? 'bg-green-500/20 text-green-500'
-                                : 'bg-yellow-500/20 text-yellow-500'
-                            }`}
-                          >
-                            {activity.status}
-                          </span>
-                        </td>
-                        <td
-                          className={`px-6 py-4 text-sm ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                          }`}
-                        >
-                          {activity.date}
+                              {activity.total ? formatCurrency(activity.total) : activity.totalValue ? formatCurrency(activity.totalValue) : '$0.00'}
+                            </td>
+                            <td className='px-6 py-4'>
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  (activity.status === 'Done' || activity.status === 'completed' || activity.status === 'filled')
+                                    ? 'bg-green-500/20 text-green-500'
+                                    : 'bg-yellow-500/20 text-yellow-500'
+                                }`}
+                              >
+                                {activity.status || 'Pending'}
+                              </span>
+                            </td>
+                            <td
+                              className={`px-6 py-4 text-sm ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                              }`}
+                            >
+                              {activity.date ? formatDate(activity.date) : activity.createdAt ? formatDate(activity.createdAt) : 'N/A'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className='px-6 py-8 text-center text-gray-400'>
+                          No activity found
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -374,82 +486,97 @@ export default function InvestmentOverviewPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {cryptoPrices.map((crypto, index) => (
-                    <tr
-                      key={index}
-                      className={`border-b ${
-                        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
-                      }`}
-                    >
-                      <td className='px-6 py-4'>
-                        <div className='flex items-center gap-3'>
-                          <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                              crypto.icon === 'bitcoin'
-                                ? isDarkMode
-                                  ? 'bg-orange-500/30'
-                                  : 'bg-orange-500/20'
-                                : crypto.icon === 'ethereum'
-                                ? isDarkMode
-                                  ? 'bg-blue-500/30'
-                                  : 'bg-blue-500/20'
-                                : isDarkMode
-                                ? 'bg-yellow-500/30'
-                                : 'bg-yellow-500/20'
+                  {cryptoPrices.length > 0 ? (
+                    cryptoPrices.map((crypto, index) => {
+                      const cryptoIcon = getAssetIcon(crypto.symbol || crypto.name);
+                      const changePercentage = crypto.changePercentage || crypto.change || 0;
+                      const isPositive = changePercentage >= 0;
+                      return (
+                        <tr
+                          key={crypto.id || crypto.symbol || index}
+                          className={`border-b ${
+                            isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                          }`}
+                        >
+                          <td className='px-6 py-4'>
+                            <div className='flex items-center gap-3'>
+                              <div
+                                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                  cryptoIcon === 'bitcoin'
+                                    ? isDarkMode
+                                      ? 'bg-orange-500/30'
+                                      : 'bg-orange-500/20'
+                                    : cryptoIcon === 'ethereum'
+                                    ? isDarkMode
+                                      ? 'bg-blue-500/30'
+                                      : 'bg-blue-500/20'
+                                    : isDarkMode
+                                    ? 'bg-yellow-500/30'
+                                    : 'bg-yellow-500/20'
+                                }`}
+                              >
+                                {cryptoIcon === 'bitcoin' ? (
+                                  <span className='text-orange-500 font-bold text-sm'>
+                                    ₿
+                                  </span>
+                                ) : cryptoIcon === 'ethereum' ? (
+                                  <span className='text-blue-500 font-bold text-sm'>
+                                    Ξ
+                                  </span>
+                                ) : (
+                                  <span className='text-yellow-500 font-bold text-sm'>
+                                    Ð
+                                  </span>
+                                )}
+                              </div>
+                              <span
+                                className={`text-sm font-medium ${
+                                  isDarkMode ? 'text-white' : 'text-gray-900'
+                                }`}
+                              >
+                                {crypto.name || crypto.symbol || 'Unknown'}
+                              </span>
+                            </div>
+                          </td>
+                          <td
+                            className={`px-6 py-4 text-sm ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}
                           >
-                            {crypto.icon === 'bitcoin' ? (
-                              <span className='text-orange-500 font-bold text-sm'>
-                                ₿
-                              </span>
-                            ) : crypto.icon === 'ethereum' ? (
-                              <span className='text-blue-500 font-bold text-sm'>
-                                Ξ
-                              </span>
-                            ) : (
-                              <span className='text-yellow-500 font-bold text-sm'>
-                                Ð
-                              </span>
-                            )}
-                          </div>
-                          <span
-                            className={`text-sm font-medium ${
+                            {crypto.updated || crypto.updatedAt ? 
+                              (crypto.updated || new Date(crypto.updatedAt).toLocaleTimeString()) : 
+                              'Just now'}
+                          </td>
+                          <td className='px-6 py-4'>
+                            <span
+                              className={`text-sm font-medium ${
+                                isPositive
+                                  ? 'text-green-500'
+                                  : 'text-red-500'
+                              }`}
+                            >
+                              {!isPositive && '↓ '}
+                              {isPositive && '↑ '}
+                              {Math.abs(changePercentage).toFixed(2)}%
+                            </span>
+                          </td>
+                          <td
+                            className={`px-6 py-4 text-sm font-medium ${
                               isDarkMode ? 'text-white' : 'text-gray-900'
                             }`}
                           >
-                            {crypto.name}
-                          </span>
-                        </div>
-                      </td>
-                      <td
-                        className={`px-6 py-4 text-sm ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}
-                      >
-                        {crypto.updated}
-                      </td>
-                      <td className='px-6 py-4'>
-                        <span
-                          className={`text-sm font-medium ${
-                            crypto.changeType === 'positive'
-                              ? 'text-green-500'
-                              : 'text-red-500'
-                          }`}
-                        >
-                          {crypto.changeType === 'negative' && '↓ '}
-                          {crypto.changeType === 'positive' && '↑ '}
-                          {crypto.change}
-                        </span>
-                      </td>
-                      <td
-                        className={`px-6 py-4 text-sm font-medium ${
-                          isDarkMode ? 'text-white' : 'text-gray-900'
-                        }`}
-                      >
-                        {crypto.price}
+                            {crypto.price ? formatCurrency(crypto.price) : '$0.00'}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className='px-6 py-8 text-center text-gray-400'>
+                        No crypto prices available
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -458,10 +585,22 @@ export default function InvestmentOverviewPage() {
 
         {/* Trader Profile Sidebar */}
         <div className='w-full lg:w-80 shrink-0'>
-          <TraderProfileSidebar
-            profile={traderProfile}
-            isDarkMode={isDarkMode}
-          />
+          {traderProfile ? (
+            <TraderProfileSidebar
+              profile={traderProfile}
+              isDarkMode={isDarkMode}
+            />
+          ) : (
+            <div className={`rounded-2xl border p-6 ${
+              isDarkMode
+                ? 'bg-[#1C1C1E] border-[#FFFFFF14]'
+                : 'bg-white border-gray-200'
+            }`}>
+              <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                Profile data not available
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>
@@ -627,6 +766,26 @@ function NewAssetCard({ isDarkMode }) {
 
 // Trader Profile Sidebar Component
 function TraderProfileSidebar({ profile, isDarkMode }) {
+  const formatCurrency = (value) => {
+    if (!value && value !== 0) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
   return (
     <div
       className={`rounded-2xl border p-6 ${
@@ -663,14 +822,14 @@ function TraderProfileSidebar({ profile, isDarkMode }) {
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}
             >
-              {profile.name}
+              {profile.name || profile.firstName || 'User'}
             </p>
             <p
               className={`text-xs ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-600'
               }`}
             >
-              {profile.accountType}
+              {profile.accountType || profile.accountType || 'User Account'}
             </p>
           </div>
         </div>
@@ -699,7 +858,7 @@ function TraderProfileSidebar({ profile, isDarkMode }) {
                 isDarkMode ? 'text-gray-300' : 'text-gray-700'
               }`}
             >
-              {profile.joined}
+              {profile.joined ? formatDate(profile.joined) : profile.createdAt ? formatDate(profile.createdAt) : 'N/A'}
             </span>
           </div>
           <div className='flex justify-between items-center'>
@@ -715,62 +874,68 @@ function TraderProfileSidebar({ profile, isDarkMode }) {
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}
             >
-              {profile.assetsValue}
+              {profile.assetsValue ? formatCurrency(profile.assetsValue) : profile.totalAssetsValue ? formatCurrency(profile.totalAssetsValue) : '$0.00'}
             </span>
           </div>
         </div>
       </div>
 
       {/* Assets List */}
-      <div className='mb-6'>
-        <h3
-          className={`text-sm font-semibold mb-3 ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}
-        >
-          Assets
-        </h3>
-        <div className='space-y-2'>
-          {profile.assets.map((asset, index) => (
-            <div key={index} className='flex justify-between items-center'>
-              <span
-                className={`text-xs ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}
-              >
-                {asset.name}
-              </span>
-              <span
-                className={`text-xs font-medium ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
-                }`}
-              >
-                {asset.amount}
-              </span>
-            </div>
-          ))}
+      {profile.assets && profile.assets.length > 0 && (
+        <div className='mb-6'>
+          <h3
+            className={`text-sm font-semibold mb-3 ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}
+          >
+            Assets
+          </h3>
+          <div className='space-y-2'>
+            {profile.assets.slice(0, 4).map((asset, index) => (
+              <div key={asset.id || index} className='flex justify-between items-center'>
+                <span
+                  className={`text-xs ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}
+                >
+                  {asset.name || asset.symbol || 'Asset'}
+                </span>
+                <span
+                  className={`text-xs font-medium ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  {asset.amount || asset.quantity || '0'}
+                </span>
+              </div>
+            ))}
+          </div>
+          {profile.assets.length > 4 && (
+            <button
+              className={`mt-3 text-xs transition-colors ${
+                isDarkMode
+                  ? 'text-gray-400 hover:text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              More assets...
+            </button>
+          )}
         </div>
-        <button
-          className={`mt-3 text-xs transition-colors ${
-            isDarkMode
-              ? 'text-gray-400 hover:text-white'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          More assets...
-        </button>
-      </div>
+      )}
 
       {/* Trade Now Button */}
-      <button
-        className={`w-full py-3 rounded-lg font-medium transition-all ${
-          isDarkMode
-            ? 'bg-gray-700 text-white hover:bg-gray-600'
-            : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
-        }`}
-      >
-        Trade Now
-      </button>
+      <Link href='/dashboard/portfolio/trade-engine'>
+        <button
+          className={`w-full py-3 rounded-lg font-medium transition-all ${
+            isDarkMode
+              ? 'bg-gray-700 text-white hover:bg-gray-600'
+              : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+          }`}
+        >
+          Trade Now
+        </button>
+      </Link>
     </div>
   );
 }

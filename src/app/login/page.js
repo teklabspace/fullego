@@ -1,6 +1,9 @@
 'use client';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { login } from '@/utils/authApi';
+import { toast } from 'react-toastify';
 
 const carouselSlides = [
   {
@@ -24,10 +27,18 @@ const carouselSlides = [
 ];
 
 export default function LoginPage() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  // 2FA state
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [tempToken, setTempToken] = useState(null);
 
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -40,12 +51,132 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    // Log signin data
-    console.log('Login Data:', { email, password, rememberMe });
-    // Redirect to welcome page
-    window.location.href = '/welcome';
+    setError('');
+    setIsLoading(true);
+
+    // Client-side validation
+    if (!email || !password) {
+      setError('Email and password are required');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!email.includes('@')) {
+      setError('Please enter a valid email address');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // First login attempt (without totp_code)
+      const response = await login(email, password);
+      console.log('Login response:', response);
+      
+      // Check if 2FA is required
+      if (response.requires_2fa) {
+        // Store temp token if provided (for potential future use)
+        if (response.temp_token) {
+          setTempToken(response.temp_token);
+        }
+        // Show 2FA input screen
+        setRequires2FA(true);
+        setIsLoading(false);
+        return;
+      }
+      
+      // No 2FA required - proceed with normal login flow
+      await handleLoginSuccess(response);
+    } catch (err) {
+      // Don't reveal if 2FA is enabled for security (generic error message)
+      const errorMessage = err.data?.detail || err.message || 'Login failed. Please check your credentials.';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      setIsLoading(false);
+    }
+  };
+
+  // Handle 2FA verification
+  const handle2FAVerify = async (e) => {
+    e.preventDefault();
+    setError('');
+    
+    // Validate: 6-digit TOTP code or 8-character backup code
+    if (!twoFactorCode || (twoFactorCode.length !== 6 && twoFactorCode.length !== 8)) {
+      setError('Please enter a valid 6-digit code or 8-character backup code');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Call login again with totp_code parameter (as per backend documentation)
+      // Backend accepts both TOTP codes (6 digits) and backup codes (8 characters)
+      const response = await login(email, password, twoFactorCode);
+      
+      // Check if still requires 2FA (invalid code)
+      if (response.requires_2fa) {
+        setError('Invalid code. Please check and try again.');
+        toast.error('Invalid code. Please check and try again.');
+        setIsLoading(false);
+        // Clear the input for retry
+        setTwoFactorCode('');
+        return;
+      }
+      
+      // 2FA verified - proceed with login
+      await handleLoginSuccess(response);
+    } catch (err) {
+      // Generic error message for security (don't reveal if it's a code issue or password issue)
+      const errorMessage = err.data?.detail || err.message || 'Verification failed. Please try again.';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      setIsLoading(false);
+      // Clear the input for retry
+      setTwoFactorCode('');
+    }
+  };
+
+  // Handle successful login (common logic for both 2FA and non-2FA)
+  const handleLoginSuccess = async (response) => {
+    // Get user verification status from response
+    const user = response.user || {};
+    const isEmailVerified = user.is_email_verified || false;
+    const isKYCVerified = user.is_kyc_verified || false;
+    const isVerified = user.is_verified || false;
+    
+    console.log('User verification status:', {
+      isEmailVerified,
+      isKYCVerified,
+      isVerified,
+      role: user.role,
+    });
+    
+    // Redirect based on verification status
+    if (isEmailVerified && isKYCVerified) {
+      // Both verified - go to dashboard
+      toast.success('Welcome back!');
+      router.push('/dashboard');
+    } else if (isEmailVerified && !isKYCVerified) {
+      // Email verified but KYC not - go to profile selection and Persona verification
+      toast.info('Please complete your KYC verification');
+      router.push('/choose-profile');
+    } else {
+      // Neither verified - redirect to signup to complete account setup
+      toast.warning('Please verify your email and complete account setup');
+      router.push('/signup');
+    }
+    
+    setIsLoading(false);
+  };
+
+  // Go back to email/password form
+  const handleBackToLogin = () => {
+    setRequires2FA(false);
+    setTwoFactorCode('');
+    setTempToken(null);
+    setError('');
   };
 
   const handleGoogleLogin = () => {
@@ -77,7 +208,15 @@ export default function LoginPage() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className='space-y-6'>
+          {!requires2FA ? (
+            <form onSubmit={handleSubmit} className='space-y-6'>
+            {/* Error Message */}
+            {error && (
+              <div className='bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm'>
+                {error}
+              </div>
+            )}
+
             {/* Email Field */}
             <div>
               <label htmlFor='email' className='block text-white text-sm mb-2'>
@@ -169,9 +308,10 @@ export default function LoginPage() {
             {/* Sign In Button */}
             <button
               type='submit'
-              className='w-full bg-[#F1CB68] hover:bg-[#D6A738] text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
+              disabled={isLoading}
+              className='w-full bg-[#F1CB68] hover:bg-[#D6A738] disabled:opacity-50 disabled:cursor-not-allowed text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
             >
-              Get Started
+              {isLoading ? 'Signing in...' : 'Get Started'}
             </button>
 
             {/* Create Account Button */}
@@ -222,6 +362,94 @@ export default function LoginPage() {
               Google
             </button>
           </form>
+          ) : (
+            <form onSubmit={handle2FAVerify} className='space-y-6'>
+              {/* 2FA Header */}
+              <div className='mb-6'>
+                <button
+                  type='button'
+                  onClick={handleBackToLogin}
+                  className='mb-4 text-gray-400 hover:text-white transition-colors flex items-center gap-2 text-sm'
+                >
+                  <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                    <line x1='19' y1='12' x2='5' y2='12' />
+                    <polyline points='12 19 5 12 12 5' />
+                  </svg>
+                  Back to login
+                </button>
+                <h2 className='text-white text-2xl font-semibold mb-2'>
+                  Two-Factor Authentication
+                </h2>
+                <p className='text-gray-400 text-sm'>
+                  Enter the 6-digit code from your authenticator app
+                </p>
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className='bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm'>
+                  {error}
+                </div>
+              )}
+
+              {/* 2FA Code Input */}
+              <div>
+                <label htmlFor='2fa-code' className='block text-white text-sm mb-2'>
+                  Authentication Code
+                </label>
+                <input
+                  type='text'
+                  id='2fa-code'
+                  inputMode='numeric'
+                  pattern='[0-9]{6,8}'
+                  value={twoFactorCode}
+                  onChange={(e) => {
+                    // Allow 6-digit TOTP codes or 8-character backup codes
+                    const value = e.target.value.replace(/[^0-9A-Za-z]/g, '').slice(0, 8);
+                    setTwoFactorCode(value);
+                    setError('');
+                  }}
+                  placeholder='000000'
+                  maxLength={8}
+                  autoFocus
+                  autoComplete='one-time-code'
+                  className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors text-center text-2xl font-mono tracking-widest'
+                  required
+                />
+                <div className='mt-2 space-y-1'>
+                  <p className='text-gray-500 text-xs text-center'>
+                    Enter the 6-digit code from your authenticator app
+                  </p>
+                  <p className='text-gray-600 text-xs text-center'>
+                    Or use an 8-character backup code if you lost your device
+                  </p>
+                </div>
+              </div>
+
+              {/* Verify Button */}
+              <button
+                type='submit'
+                disabled={isLoading || (twoFactorCode.length !== 6 && twoFactorCode.length !== 8)}
+                className='w-full bg-[#F1CB68] hover:bg-[#D6A738] disabled:opacity-50 disabled:cursor-not-allowed text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
+              >
+                {isLoading ? 'Verifying...' : 'Verify & Sign In'}
+              </button>
+
+              {/* Help Link */}
+              <div className='text-center'>
+                <button
+                  type='button'
+                  className='text-gray-500 hover:text-gray-400 text-xs transition-colors'
+                  onClick={() => {
+                    // Could link to support or show help modal
+                    toast.info('If you lost your device, use a backup code or contact support');
+                  }}
+                >
+                  Lost your device?
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
 

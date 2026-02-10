@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
+import { requestOTP, verifyOTP } from '@/utils/authApi';
 
 const carouselSlides = [
   {
@@ -26,9 +27,58 @@ const carouselSlides = [
 export default function ForgotPasswordPage() {
   const [step, setStep] = useState(1); // 1: email, 2: OTP
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '']);
+  const [otp, setOtp] = useState(['', '', '', '', '', '']); // 6 digits for OTP
   const [currentSlide, setCurrentSlide] = useState(0);
-  const inputRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [otpFromResponse, setOtpFromResponse] = useState('');
+  const [isVerificationFlow, setIsVerificationFlow] = useState(false);
+  const inputRefs = [
+    useRef(null),
+    useRef(null),
+    useRef(null),
+    useRef(null),
+    useRef(null),
+    useRef(null),
+  ];
+
+  const handleEmailSubmitForVerification = async (emailToUse) => {
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const response = await requestOTP(emailToUse);
+      if (response.otp) {
+        setOtpFromResponse(response.otp);
+        console.log('OTP (dev mode):', response.otp);
+      }
+    } catch (err) {
+      setError(
+        err.data?.detail || err.message || 'Failed to send OTP. Please try again.'
+      );
+      setStep(1); // Go back to email step on error
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Check if this is a verification flow from registration
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('verify') === 'true') {
+        setIsVerificationFlow(true);
+        const pendingEmail = sessionStorage.getItem('pending_verification_email');
+        if (pendingEmail) {
+          setEmail(pendingEmail);
+          setStep(2); // Go directly to OTP step
+          // Auto-request OTP
+          handleEmailSubmitForVerification(pendingEmail);
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-rotate carousel
   useEffect(() => {
@@ -39,11 +89,26 @@ export default function ForgotPasswordPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleEmailSubmit = e => {
+  const handleEmailSubmit = async e => {
     e.preventDefault();
-    console.log('Email:', email);
-    // Send OTP to email
-    setStep(2);
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const response = await requestOTP(email);
+      // Store OTP if returned in development mode
+      if (response.otp) {
+        setOtpFromResponse(response.otp);
+        console.log('OTP (dev mode):', response.otp);
+      }
+      setStep(2);
+    } catch (err) {
+      setError(
+        err.data?.detail || err.message || 'Failed to send OTP. Please try again.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleOtpChange = (index, value) => {
@@ -53,7 +118,7 @@ export default function ForgotPasswordPage() {
       setOtp(newOtp);
 
       // Auto focus next input
-      if (value && index < 3) {
+      if (value && index < 5) {
         inputRefs[index + 1].current?.focus();
       }
     }
@@ -65,18 +130,60 @@ export default function ForgotPasswordPage() {
     }
   };
 
-  const handleOtpSubmit = e => {
+  const handleOtpSubmit = async e => {
     e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
     const otpCode = otp.join('');
-    console.log('OTP:', otpCode);
-    // Verify OTP and redirect
-    window.location.href = '/reset-password';
+    if (otpCode.length !== 6) {
+      setError('Please enter the complete 6-digit OTP code');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      await verifyOTP(email, otpCode);
+      
+      // Clear pending verification email
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('pending_verification_email');
+      }
+
+      // Redirect based on flow type
+      if (isVerificationFlow) {
+        window.location.href = '/welcome';
+      } else {
+        window.location.href = '/reset-password';
+      }
+    } catch (err) {
+      setError(err.data?.detail || err.message || 'An error occurred');
+      setOtp(['', '', '', '', '', '']);
+      inputRefs[0].current?.focus();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleResend = () => {
-    console.log('Resending OTP to:', email);
-    setOtp(['', '', '', '']);
-    inputRefs[0].current?.focus();
+  const handleResend = async () => {
+    setError('');
+    setIsLoading(true);
+    setOtp(['', '', '', '', '', '']);
+
+    try {
+      const response = await requestOTP(email);
+      if (response.otp) {
+        setOtpFromResponse(response.otp);
+        console.log('OTP (dev mode):', response.otp);
+      }
+      inputRefs[0].current?.focus();
+    } catch (err) {
+      setError(
+        err.data?.detail || err.message || 'Failed to resend OTP. Please try again.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -106,6 +213,13 @@ export default function ForgotPasswordPage() {
               </div>
 
               <form onSubmit={handleEmailSubmit} className='space-y-6'>
+                {/* Error Message */}
+                {error && (
+                  <div className='bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm'>
+                    {error}
+                  </div>
+                )}
+
                 <div>
                   <label htmlFor='email' className='block text-white text-sm mb-2'>
                     Email
@@ -123,9 +237,10 @@ export default function ForgotPasswordPage() {
 
                 <button
                   type='submit'
-                  className='w-full bg-[#F1CB68] hover:bg-[#D6A738] text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
+                  disabled={isLoading}
+                  className='w-full bg-[#F1CB68] hover:bg-[#D6A738] disabled:opacity-50 disabled:cursor-not-allowed text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
                 >
-                  Continue
+                  {isLoading ? 'Sending...' : 'Continue'}
                 </button>
 
                 <div className='text-center'>
@@ -161,7 +276,7 @@ export default function ForgotPasswordPage() {
                   OTP verification
                 </h1>
                 <p className='text-gray-400 text-sm'>
-                  We've sent a 4 digit code to {email}
+                  We've sent a 6 digit code to {email}
                   <br />
                   Not your email?{' '}
                   <button
@@ -171,9 +286,21 @@ export default function ForgotPasswordPage() {
                     Change it
                   </button>
                 </p>
+                {otpFromResponse && (
+                  <div className='bg-yellow-500/10 border border-yellow-500/50 text-yellow-400 px-4 py-3 rounded-xl text-sm'>
+                    Development Mode: OTP is {otpFromResponse}
+                  </div>
+                )}
               </div>
 
               <form onSubmit={handleOtpSubmit} className='space-y-6'>
+                {/* Error Message */}
+                {error && (
+                  <div className='bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm'>
+                    {error}
+                  </div>
+                )}
+
                 {/* OTP Input */}
                 <div className='flex gap-3 justify-center'>
                   {otp.map((digit, index) => (
@@ -193,9 +320,10 @@ export default function ForgotPasswordPage() {
 
                 <button
                   type='submit'
-                  className='w-full bg-[#F1CB68] hover:bg-[#D6A738] text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
+                  disabled={isLoading}
+                  className='w-full bg-[#F1CB68] hover:bg-[#D6A738] disabled:opacity-50 disabled:cursor-not-allowed text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
                 >
-                  Submit
+                  {isLoading ? 'Verifying...' : 'Submit'}
                 </button>
 
                 <div className='text-center'>
@@ -205,9 +333,10 @@ export default function ForgotPasswordPage() {
                   <button
                     type='button'
                     onClick={handleResend}
-                    className='text-[#F1CB68] text-sm hover:text-[#D6A738] transition-colors'
+                    disabled={isLoading}
+                    className='text-[#F1CB68] text-sm hover:text-[#D6A738] disabled:opacity-50 transition-colors'
                   >
-                    Resend
+                    {isLoading ? 'Sending...' : 'Resend'}
                   </button>
                 </div>
               </form>

@@ -2,12 +2,25 @@
 import Navbar from '@/components/dashboard/Navbar';
 import Sidebar from '@/components/dashboard/Sidebar';
 import { useTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AssignmentModal from '@/components/dashboard/AssignmentModal';
 import DocumentUploadModal from '@/components/dashboard/DocumentUploadModal';
+import {
+  listAppraisals,
+  getAppraisal,
+  updateAppraisalStatus,
+  assignAppraisal,
+  uploadAppraisalDocuments,
+  addAppraisalComment,
+  getAppraisalComments,
+  updateAppraisalValuation,
+  downloadValuationReport,
+  getAppraisalStatistics,
+} from '@/utils/conciergeApi';
+import { toast } from 'react-toastify';
 
-// Mock appraisal data
+// Mock appraisal data (fallback)
 const mockAppraisals = [
   {
     id: 1,
@@ -88,68 +101,149 @@ export default function ConciergeServicePage() {
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
-  const [appraisals, setAppraisals] = useState(mockAppraisals);
+  const [appraisals, setAppraisals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    total: 0,
+    inProgress: 0,
+    completed: 0,
+    awaitingInfo: 0,
+  });
 
-  // Calculate stats
-  const stats = {
-    total: appraisals.length,
-    inProgress: appraisals.filter(a => a.status === 'In Progress').length,
-    completed: appraisals.filter(a => a.status === 'Completed').length,
-    awaitingInfo: appraisals.filter(a => a.status === 'Awaiting Info').length,
-  };
+  // Fetch appraisals and statistics on mount
+  useEffect(() => {
+    const fetchAppraisals = async () => {
+      try {
+        setLoading(true);
+        const [appraisalsResponse, statsResponse] = await Promise.allSettled([
+          listAppraisals(),
+          getAppraisalStatistics(),
+        ]);
 
-  const handleAssignConcierge = assignmentData => {
+        if (appraisalsResponse.status === 'fulfilled') {
+          const appraisalsData = appraisalsResponse.value.data || appraisalsResponse.value || [];
+          setAppraisals(appraisalsData.map(ap => ({
+            id: ap.id || ap.appraisalId,
+            assetName: ap.assetName || ap.asset_name,
+            assetImage: ap.assetImage || ap.asset_image || 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400',
+            category: ap.category,
+            requestDate: ap.requestDate || ap.request_date,
+            status: ap.status,
+            assignedProvider: ap.assignedProvider || ap.assigned_provider,
+            appraisedValue: ap.appraisedValue || ap.appraised_value,
+            valuationDate: ap.valuationDate || ap.valuation_date,
+            assignedTo: ap.assignedTo || ap.assigned_to,
+            comments: ap.comments || [],
+            documents: ap.documents || [],
+          })));
+        }
+
+        if (statsResponse.status === 'fulfilled') {
+          const statistics = statsResponse.value.data || statsResponse.value;
+          setStats({
+            total: statistics.totalRequests || 0,
+            inProgress: statistics.inProgress || 0,
+            completed: statistics.completed || 0,
+            awaitingInfo: statistics.awaitingInfo || 0,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch appraisals:', error);
+        toast.error('Failed to load appraisals. Using fallback data.');
+        // Fallback to mock data
+        setAppraisals(mockAppraisals);
+        setStats({
+          total: mockAppraisals.length,
+          inProgress: mockAppraisals.filter(a => a.status === 'In Progress').length,
+          completed: mockAppraisals.filter(a => a.status === 'Completed').length,
+          awaitingInfo: mockAppraisals.filter(a => a.status === 'Awaiting Info').length,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAppraisals();
+  }, []);
+
+  const handleAssignConcierge = async (assignmentData) => {
     if (selectedAppraisal) {
-      const updatedAppraisals = appraisals.map(a =>
-        a.id === selectedAppraisal.id
-          ? {
-              ...a,
-              assignedTo: assignmentData.userName,
-              comments: [
-                ...(a.comments || []),
-                {
-                  id: Date.now(),
-                  from: 'System',
-                  message: `Task assigned to ${assignmentData.userName}`,
-                  date: new Date().toISOString(),
-                },
-              ],
-            }
-          : a
-      );
-      setAppraisals(updatedAppraisals);
-      setSelectedAppraisal({
-        ...selectedAppraisal,
-        assignedTo: assignmentData.userName,
-        comments: updatedAppraisals.find(a => a.id === selectedAppraisal.id)
-          .comments,
-      });
+      try {
+        await assignAppraisal(selectedAppraisal.id, {
+          userId: assignmentData.userId,
+          userName: assignmentData.userName,
+          provider: assignmentData.provider,
+          internalNote: assignmentData.internalNote,
+        });
+
+        // Update local state
+        const updatedAppraisals = appraisals.map(a =>
+          a.id === selectedAppraisal.id
+            ? {
+                ...a,
+                assignedTo: assignmentData.userName,
+                comments: [
+                  ...(a.comments || []),
+                  {
+                    id: Date.now(),
+                    from: 'System',
+                    message: `Task assigned to ${assignmentData.userName}`,
+                    date: new Date().toISOString(),
+                  },
+                ],
+              }
+            : a
+        );
+        setAppraisals(updatedAppraisals);
+        setSelectedAppraisal({
+          ...selectedAppraisal,
+          assignedTo: assignmentData.userName,
+          comments: updatedAppraisals.find(a => a.id === selectedAppraisal.id)
+            .comments,
+        });
+        toast.success('Appraisal assigned successfully!');
+      } catch (error) {
+        console.error('Failed to assign appraisal:', error);
+        const errorMsg = error.data?.detail || error.message || 'Failed to assign appraisal. Please try again.';
+        toast.error(errorMsg);
+      }
     }
   };
 
-  const handleDocumentUpload = uploadData => {
+  const handleDocumentUpload = async (uploadData) => {
     if (selectedAppraisal) {
-      const updatedAppraisals = appraisals.map(a =>
-        a.id === selectedAppraisal.id
-          ? {
-              ...a,
-              documents: [
-                ...(a.documents || []),
-                ...uploadData.files.map(f => ({
-                  name: f.name,
-                  size: f.size,
-                  type: f.type,
-                })),
-              ],
-            }
-          : a
-      );
-      setAppraisals(updatedAppraisals);
-      setSelectedAppraisal({
-        ...selectedAppraisal,
-        documents: updatedAppraisals.find(a => a.id === selectedAppraisal.id)
-          .documents,
-      });
+      try {
+        const files = uploadData.files.map(f => f.file || f);
+        await uploadAppraisalDocuments(selectedAppraisal.id, files);
+
+        // Update local state
+        const updatedAppraisals = appraisals.map(a =>
+          a.id === selectedAppraisal.id
+            ? {
+                ...a,
+                documents: [
+                  ...(a.documents || []),
+                  ...uploadData.files.map(f => ({
+                    name: f.name,
+                    size: f.size,
+                    type: f.type,
+                  })),
+                ],
+              }
+            : a
+        );
+        setAppraisals(updatedAppraisals);
+        setSelectedAppraisal({
+          ...selectedAppraisal,
+          documents: updatedAppraisals.find(a => a.id === selectedAppraisal.id)
+            .documents,
+        });
+        toast.success('Documents uploaded successfully!');
+      } catch (error) {
+        console.error('Failed to upload documents:', error);
+        const errorMsg = error.data?.detail || error.message || 'Failed to upload documents. Please try again.';
+        toast.error(errorMsg);
+      }
     }
   };
 
@@ -418,29 +512,33 @@ export default function ConciergeServicePage() {
           getStatusColor={getStatusColor}
           onAssign={() => setAssignmentModalOpen(true)}
           onDocumentUpload={() => setDocumentModalOpen(true)}
-          onCommentAdd={comment => {
-            const updatedAppraisals = appraisals.map(a =>
-              a.id === selectedAppraisal.id
-                ? {
-                    ...a,
-                    comments: [
-                      ...(a.comments || []),
-                      {
-                        id: Date.now(),
-                        from: 'CRM Staff',
-                        message: comment,
-                        date: new Date().toISOString(),
-                      },
-                    ],
-                  }
-                : a
-            );
-            setAppraisals(updatedAppraisals);
-            setSelectedAppraisal({
-              ...selectedAppraisal,
-              comments: updatedAppraisals.find(a => a.id === selectedAppraisal.id)
-                .comments,
-            });
+          onCommentAdd={async (comment) => {
+            try {
+              await addAppraisalComment(selectedAppraisal.id, {
+                comment,
+                from: 'CRM Staff',
+              });
+              
+              // Fetch updated comments
+              const commentsResponse = await getAppraisalComments(selectedAppraisal.id);
+              const updatedComments = commentsResponse.data || commentsResponse || [];
+              
+              const updatedAppraisals = appraisals.map(a =>
+                a.id === selectedAppraisal.id
+                  ? { ...a, comments: updatedComments }
+                  : a
+              );
+              setAppraisals(updatedAppraisals);
+              setSelectedAppraisal({
+                ...selectedAppraisal,
+                comments: updatedComments,
+              });
+              toast.success('Comment added successfully!');
+            } catch (error) {
+              console.error('Failed to add comment:', error);
+              const errorMsg = error.data?.detail || error.message || 'Failed to add comment. Please try again.';
+              toast.error(errorMsg);
+            }
           }}
         />
       )}

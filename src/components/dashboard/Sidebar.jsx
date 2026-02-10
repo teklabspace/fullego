@@ -1,8 +1,9 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { clearTokens } from '@/utils/authApi';
 
 const menuSections = [
   {
@@ -167,7 +168,14 @@ const menuSections = [
 
 export default function Sidebar({ isOpen, onClose }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { isDarkMode } = useTheme();
+
+  const handleLogout = (e) => {
+    e.preventDefault();
+    clearTokens();
+    router.push('/login');
+  };
 
   // Initialize openSubmenu based on current pathname
   const getInitialOpenSubmenu = () => {
@@ -522,39 +530,59 @@ export default function Sidebar({ isOpen, onClose }) {
                           )}
                         </>
                       ) : (
-                        <Link
-                          href={item.href}
-                          onClick={onClose}
-                          className={`
-                            flex items-center gap-3 px-4 py-2.5 rounded-[24px] w-[222px] h-[48px]
-                            transition-all duration-200
-                            ${
-                              item.isLogout
-                                ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
-                                : isActive(item.href)
+                        item.isLogout ? (
+                          <button
+                            onClick={(e) => {
+                              handleLogout(e);
+                              onClose();
+                            }}
+                            className={`
+                              flex items-center gap-3 px-4 py-2.5 rounded-[24px] w-[222px] h-[48px]
+                              transition-all duration-200
+                              text-red-400 hover:text-red-300 hover:bg-red-500/10
+                              cursor-pointer
+                            `}
+                          >
+                            <Icon
+                              name={item.icon}
+                              size={20}
+                              style={{
+                                filter: 'brightness(0) saturate(100%) invert(27%) sepia(89%) saturate(6449%) hue-rotate(351deg) brightness(95%) contrast(94%)',
+                              }}
+                            />
+                            <span className='font-medium'>{item.label}</span>
+                          </button>
+                        ) : (
+                          <Link
+                            href={item.href}
+                            onClick={onClose}
+                            className={`
+                              flex items-center gap-3 px-4 py-2.5 rounded-[24px] w-[222px] h-[48px]
+                              transition-all duration-200
+                              ${isActive(item.href)
                                 ? isDarkMode
                                   ? 'text-white border border-[#FFFFFF1A]'
                                   : 'text-[#101014] border border-[#F1CB68]'
                                 : isDarkMode
                                 ? 'text-gray-400 hover:text-white hover:bg-[#2B2B30]/50'
                                 : 'text-[#101014]/70 hover:text-[#101014] hover:bg-gray-100'
+                              }
+                            `}
+                            style={
+                              isActive(item.href)
+                                ? isDarkMode
+                                  ? {
+                                      background:
+                                        'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
+                                    }
+                                  : {
+                                      background: '#FFFFFF',
+                                      boxShadow:
+                                        '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                                    }
+                                : {}
                             }
-                          `}
-                          style={
-                            isActive(item.href) && !item.isLogout
-                              ? isDarkMode
-                                ? {
-                                    background:
-                                      'linear-gradient(94.02deg, #222126 0%, #111116 100%)',
-                                  }
-                                : {
-                                    background: '#FFFFFF',
-                                    boxShadow:
-                                      '0px 4px 12px rgba(0, 0, 0, 0.1)',
-                                  }
-                              : {}
-                          }
-                        >
+                          >
                           <Icon
                             name={item.icon}
                             size={20}
@@ -581,6 +609,7 @@ export default function Sidebar({ isOpen, onClose }) {
                           />
                           <span className='font-medium'>{item.label}</span>
                         </Link>
+                        )
                       )}
                     </div>
                   ))}

@@ -1,65 +1,131 @@
 'use client';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
+import { getInvestmentStrategies } from '@/utils/investmentApi';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
 
 export default function StrategiesPage() {
   const { isDarkMode } = useTheme();
   const [strategiesFilter, setStrategiesFilter] = useState('all');
   const [openSourceOnly, setOpenSourceOnly] = useState(false);
 
-  // Investment Strategies Data
-  const strategies = [
-    {
-      id: 'lanz-strategy-6',
-      title: 'LANZ Strategy 6.0',
-      description:
-        '◆LANZ Strategy 6.0 — Precision Backtesting Based on 09:00 NY Candle, Dynamic SL/TP, and Lot Size per Trade. LANZ Strategy 6.0 is the simulation version of the original LANZ',
-      author: 'rau_u_lanz',
-      date: 'Jul 21',
-      comments: 53,
-      boosts: 53,
-      image: '/images/strategy-lanz.png', // Placeholder - you can add actual images
-      chartType: 'candlestick',
-    },
-    {
-      id: 'ny-liquidity-reversal',
-      title: 'NY Liquidity Reversal - Debug',
-      description:
-        '70 percent 1 rate strategy, no red folder news, trades from only 730 to noon, 20 EMA plus voluntarily breakout, 1 and one entry per direction per session per asset',
-      author: 'Shervoo',
-      date: '21 hours ago',
-      comments: 53,
-      boosts: 53,
-      image: '/images/strategy-ny.png',
-      chartType: 'line',
-    },
-    {
-      id: 'sweep-liquidity',
-      title: 'Sweep &',
-      description:
-        'liquidity and boom, easy 2rr babyyy price always always reverse after LQ.sweep',
-      author: 'anuragfx1',
-      date: '20 hours ago',
-      comments: 53,
-      boosts: 53,
-      image: '/images/strategy-sweep.png',
-      chartType: 'candlestick',
-    },
-    {
-      id: 'adx-supertrend',
-      title: 'ADX + Supertrend Persistent Entry',
-      description:
-        'buy condition should match below condition below. ADX DI plus should above of DI minuse. Supertrend should be bullish',
-      author: 'rkthakur2610',
-      date: 'Jul 21',
-      comments: 53,
-      boosts: 53,
-      image: '/images/strategy-adx.png',
-      chartType: 'candlestick',
-    },
-  ];
+  // Loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Data states
+  const [strategies, setStrategies] = useState([]);
+
+  // Fetch investment strategies
+  useEffect(() => {
+    const fetchStrategies = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const strategiesRes = await getInvestmentStrategies({
+          filter: strategiesFilter,
+          openSourceOnly: openSourceOnly,
+          sortBy: 'date',
+          limit: 20,
+        });
+
+        if (strategiesRes.data) {
+          const formattedStrategies = Array.isArray(strategiesRes.data) ? strategiesRes.data.map(strategy => ({
+            id: strategy.id,
+            title: strategy.title || strategy.name,
+            description: strategy.description,
+            author: strategy.author || strategy.authorName || 'Unknown',
+            date: formatDate(strategy.date || strategy.createdAt),
+            comments: strategy.comments || strategy.commentCount || 0,
+            boosts: strategy.boosts || strategy.boostCount || 0,
+            chartType: strategy.chartType || 'candlestick',
+            image: strategy.image || null,
+          })) : [];
+          setStrategies(formattedStrategies);
+        }
+      } catch (err) {
+        console.error('Error fetching investment strategies:', err);
+        // Handle 405 (Method Not Allowed) or 400 (Bad Request) - backend issues, handle gracefully
+        if (err.status === 405 || err.status === 400 || 
+            err.message?.includes('Method Not Allowed') || 
+            err.data?.detail?.includes('Method Not Allowed') ||
+            err.data?.detail?.includes('unsupported operand')) {
+          // Silently handle - endpoint has issues or not implemented yet
+          setStrategies([]);
+        } else {
+          const errorMessage = err.data?.detail || err.message || 'Failed to load strategies';
+          setError(errorMessage);
+          toast.error(errorMessage);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStrategies();
+  }, [strategiesFilter, openSourceOnly]);
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Recently';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+    if (diffDays < 7) return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className='flex items-center justify-center min-h-[400px]'>
+          <div className='text-center'>
+            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
+            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+              Loading strategies...
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show error state only for critical errors (not 405 or 400 - endpoint issues)
+  if (error && !error.includes('Method Not Allowed') && !error.includes('unsupported operand') && !strategies.length) {
+    return (
+      <DashboardLayout>
+        <div className={`p-6 rounded-lg border text-center ${
+          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+        }`}>
+          <p className={`font-semibold mb-2 text-lg ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            Error loading strategies
+          </p>
+          <p className={`text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            {error}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+          >
+            Retry
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -167,14 +233,24 @@ export default function StrategiesPage() {
 
         {/* Strategies Grid */}
         <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-          {strategies.map((strategy, index) => (
-            <Link
-              key={strategy.id}
-              href={`/dashboard/investment/strategies/${strategy.id}`}
-            >
-              <StrategyCard strategy={strategy} isDarkMode={isDarkMode} />
-            </Link>
-          ))}
+          {strategies.length > 0 ? (
+            strategies.map((strategy) => (
+              <Link
+                key={strategy.id}
+                href={`/dashboard/investment/strategies/${strategy.id}`}
+              >
+                <StrategyCard strategy={strategy} isDarkMode={isDarkMode} />
+              </Link>
+            ))
+          ) : (
+            <div className={`col-span-full rounded-2xl p-6 border text-center ${
+              isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+            }`}>
+              <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                No strategies found. {strategiesFilter === 'my' ? 'You haven\'t created any strategies yet.' : 'Be the first to create a strategy!'}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>

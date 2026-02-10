@@ -1,29 +1,64 @@
 'use client';
 import Image from 'next/image';
 import { useState } from 'react';
+import { createTicket } from '@/utils/supportTicketsApi';
+import { toast } from 'react-toastify';
 
-export default function NewTicketModal({ isOpen, setIsOpen }) {
+export default function NewTicketModal({ isOpen, setIsOpen, onTicketCreated }) {
   const [formData, setFormData] = useState({
     subject: '',
     category: '',
     priority: '',
     description: '',
     issuer: '',
+    channel: 'web',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = e => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('New ticket:', formData);
-    // Add your ticket creation logic here
-    setIsOpen(false);
-    // Reset form
-    setFormData({
-      subject: '',
-      category: '',
-      priority: '',
-      description: '',
-      issuer: '',
-    });
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const ticketData = {
+        subject: formData.subject,
+        description: formData.description,
+        category: formData.category,
+        priority: formData.priority,
+        issuer: formData.issuer,
+        channel: formData.channel || 'web',
+      };
+
+      const response = await createTicket(ticketData);
+      
+      toast.success('Ticket created successfully!');
+      
+      // Call callback to refresh tickets list
+      if (onTicketCreated) {
+        onTicketCreated(response);
+      }
+      
+      setIsOpen(false);
+      
+      // Reset form
+      setFormData({
+        subject: '',
+        category: '',
+        priority: '',
+        description: '',
+        issuer: '',
+        channel: 'web',
+      });
+    } catch (err) {
+      console.error('Failed to create ticket:', err);
+      const errorMsg = err.data?.detail || err.message || 'Failed to create ticket. Please try again.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) {
@@ -67,6 +102,12 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
 
         {/* Form */}
         <form id='ticket-form' onSubmit={handleSubmit} className='p-4 md:p-6 space-y-4 md:space-y-6 overflow-y-auto flex-1 ticket-modal-scrollbar'>
+          {/* Error Message */}
+          {error && (
+            <div className='bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg text-sm'>
+              {error}
+            </div>
+          )}
           {/* Subject */}
           <div>
             <label className='block text-white text-sm font-medium mb-2'>
@@ -255,13 +296,14 @@ export default function NewTicketModal({ isOpen, setIsOpen }) {
           <button
             type='submit'
             form='ticket-form'
-            className='px-8 py-2.5 md:py-3 rounded-full text-sm font-bold transition-all hover:opacity-90 cursor-pointer order-1 sm:order-2'
+            disabled={isSubmitting}
+            className='px-8 py-2.5 md:py-3 rounded-full text-sm font-bold transition-all hover:opacity-90 cursor-pointer order-1 sm:order-2 disabled:opacity-50 disabled:cursor-not-allowed'
             style={{
               background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               color: '#000000',
             }}
           >
-            Submit Ticket
+            {isSubmitting ? 'Creating...' : 'Submit Ticket'}
           </button>
         </div>
 

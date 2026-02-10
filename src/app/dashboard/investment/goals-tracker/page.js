@@ -1,137 +1,206 @@
 'use client';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
-import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { getInvestmentGoals } from '@/utils/investmentApi';
+import { searchAssets } from '@/utils/portfolioApi';
+import { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
+import { Line, LineChart, ResponsiveContainer } from 'recharts';
 
 export default function GoalsTrackerPage() {
   const { isDarkMode } = useTheme();
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Investment Goals Data
-  const investmentGoals = [
-    {
-      name: 'Bitcoin',
-      symbol: 'BTC',
-      icon: '₿',
-      currentValue: '$4,135.00',
-      quantity: '3.0216595255',
-      goalCompletion: 95,
-      gradient: 'linear-gradient(135deg, #F1CB68 0%, #D4A017 100%)',
-      progressColor: '#FF6B35',
-    },
-    {
-      name: 'Litecoin',
-      symbol: 'LTC',
-      icon: 'Ł',
-      currentValue: '$3,236.00',
-      quantity: '12.9921124',
-      goalCompletion: 62,
-      gradient: 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)',
-      progressColor: '#60A5FA',
-    },
-    {
-      name: 'Ripple',
-      symbol: 'XRP',
-      icon: 'XRP',
-      currentValue: '$9,182.00',
-      quantity: '210.1120034',
-      goalCompletion: 81,
-      gradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
-      progressColor: '#60A5FA',
-    },
-    {
-      name: 'Dash',
-      symbol: 'DSH',
-      icon: 'D',
-      currentValue: '$1,251.00',
-      quantity: '402.1223950',
-      goalCompletion: 36,
-      gradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-      progressColor: '#34D399',
-    },
-  ];
+  // Loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Marketplace assets
-  const marketplaceAssets = [
-    {
-      index: 1,
-      name: 'Bitcoin',
-      symbol: 'BTC',
-      icon: '₿',
-      iconColor: 'bg-orange-500/20 text-orange-500',
-      price: '$7.000,32',
-      change: '+10%',
-      changeType: 'positive',
-      currentValue: '$7.001,32',
-      chartData: [20, 35, 25, 45, 38, 52],
-      hasSell: true,
-    },
-    {
-      index: 2,
-      name: 'Litecoin',
-      symbol: 'LTC',
-      icon: 'Ł',
-      iconColor: 'bg-teal-500/20 text-teal-500',
-      price: '$7.000,32',
-      change: '+10%',
-      changeType: 'positive',
-      currentValue: '$7.001,32',
-      chartData: [20, 35, 25, 45, 38, 52],
-      hasSell: true,
-    },
-    {
-      index: 3,
-      name: 'Ripple',
-      symbol: 'RPL',
-      icon: 'XRP',
-      iconColor: 'bg-blue-500/20 text-blue-500',
-      price: '$7.000,32',
-      change: '+10%',
-      changeType: 'positive',
-      currentValue: '$7.001,32',
-      chartData: [20, 35, 25, 45, 38, 52],
-      hasSell: true,
-    },
-    {
-      index: 4,
-      name: 'Dash',
-      symbol: 'DSH',
-      icon: 'D',
-      iconColor: 'bg-green-500/20 text-green-500',
-      price: '$7.000,32',
-      change: '+10%',
-      changeType: 'positive',
-      currentValue: '$7.001,32',
-      chartData: [20, 35, 25, 45, 38, 52],
-      hasSell: true,
-    },
-    {
-      index: 5,
-      name: 'DigiDollar',
-      symbol: 'BTC',
-      icon: 'DD',
-      iconColor: 'bg-purple-500/20 text-purple-500',
-      price: '$9,250.50',
-      change: '+16%',
-      changeType: 'positive',
-      currentValue: '$5,500.00',
-      chartData: [20, 25, 30, 35, 40, 45],
-      hasSell: false,
-    },
-    {
-      index: 6,
-      name: 'Bitcoin',
-      symbol: 'BTC',
-      icon: '₿',
-      iconColor: 'bg-orange-500/20 text-orange-500',
-      price: '$7.000,32',
-      change: '+10%',
-      changeType: 'positive',
-      currentValue: '$7.001,32',
-      chartData: [20, 35, 25, 45, 38, 52],
-      hasSell: false,
-    },
-  ];
+  // Data states
+  const [investmentGoals, setInvestmentGoals] = useState([]);
+  const [marketplaceAssets, setMarketplaceAssets] = useState([]);
+
+  // Fetch investment goals
+  useEffect(() => {
+    const fetchGoals = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const goalsRes = await getInvestmentGoals({ status: 'active' });
+        
+        if (goalsRes.data) {
+          const formattedGoals = Array.isArray(goalsRes.data) ? goalsRes.data.map(goal => ({
+            id: goal.id,
+            name: goal.assetName || goal.name || goal.symbol,
+            symbol: goal.symbol || goal.assetSymbol,
+            icon: getCryptoIcon(goal.symbol || goal.assetSymbol),
+            currentValue: goal.currentValue || goal.currentValueFormatted,
+            quantity: goal.currentQuantity || goal.quantity,
+            goalCompletion: goal.completionPercentage || goal.goalCompletion || 0,
+            gradient: getGradientForSymbol(goal.symbol || goal.assetSymbol),
+            progressColor: getProgressColor(goal.completionPercentage || goal.goalCompletion || 0),
+          })) : [];
+          setInvestmentGoals(formattedGoals);
+        }
+      } catch (err) {
+        console.error('Error fetching investment goals:', err);
+        // Handle 405 (Method Not Allowed) or 400 (Bad Request) - backend issues, handle gracefully
+        if (err.status === 405 || err.status === 400 || 
+            err.message?.includes('Method Not Allowed') || 
+            err.data?.detail?.includes('Method Not Allowed') ||
+            err.data?.detail?.includes('unsupported operand')) {
+          // Silently handle - endpoint has issues or not implemented yet
+          setInvestmentGoals([]);
+        } else {
+          const errorMessage = err.data?.detail || err.message || 'Failed to load goals';
+          setError(errorMessage);
+          toast.error(errorMessage);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGoals();
+  }, []);
+
+  // Search marketplace assets
+  const handleSearch = async (query) => {
+    if (!query.trim()) {
+      setMarketplaceAssets([]);
+      return;
+    }
+
+    try {
+      const searchRes = await searchAssets({
+        query,
+        assetClass: 'crypto',
+        limit: 10,
+      });
+
+      if (searchRes.data) {
+        const formattedAssets = Array.isArray(searchRes.data) ? searchRes.data.map((asset, index) => ({
+          id: asset.id || index,
+          index: index + 1,
+          name: asset.name,
+          symbol: asset.symbol,
+          icon: getCryptoIcon(asset.symbol),
+          iconColor: getIconColor(asset.symbol),
+          price: asset.currentPrice ? formatCurrency(asset.currentPrice) : '$0.00',
+          change: asset.changePercentage ? `${asset.changePercentage >= 0 ? '+' : ''}${asset.changePercentage.toFixed(2)}%` : '0.00%',
+          changeType: (asset.changePercentage || 0) >= 0 ? 'positive' : 'negative',
+          currentValue: asset.currentPrice ? formatCurrency(asset.currentPrice) : '$0.00',
+          chartData: asset.historyData || [20, 35, 25, 45, 38, 52],
+          hasSell: asset.quantity > 0,
+        })) : [];
+        setMarketplaceAssets(formattedAssets);
+      }
+    } catch (err) {
+      console.error('Error searching assets:', err);
+      // Handle 405 (Method Not Allowed) or 400 (Bad Request) - backend issues, handle gracefully
+      if (err.status === 405 || err.status === 400 || 
+          err.message?.includes('Method Not Allowed') || 
+          err.data?.detail?.includes('Method Not Allowed') ||
+          err.data?.detail?.includes('unsupported operand')) {
+        // Silently handle - endpoint has issues or not implemented yet
+        setMarketplaceAssets([]);
+      } else {
+        toast.error('Failed to search assets');
+      }
+    }
+  };
+
+  // Helper functions
+  const getCryptoIcon = (symbol) => {
+    const symbolUpper = symbol?.toUpperCase() || '';
+    if (symbolUpper.includes('BTC') || symbolUpper.includes('BITCOIN')) return '₿';
+    if (symbolUpper.includes('ETH') || symbolUpper.includes('ETHEREUM')) return 'Ξ';
+    if (symbolUpper.includes('LTC') || symbolUpper.includes('LITECOIN')) return 'Ł';
+    if (symbolUpper.includes('XRP') || symbolUpper.includes('RIPPLE')) return 'XRP';
+    if (symbolUpper.includes('DSH') || symbolUpper.includes('DASH')) return 'D';
+    return symbol?.charAt(0) || '?';
+  };
+
+  const getGradientForSymbol = (symbol) => {
+    const symbolUpper = symbol?.toUpperCase() || '';
+    if (symbolUpper.includes('BTC')) return 'linear-gradient(135deg, #F1CB68 0%, #D4A017 100%)';
+    if (symbolUpper.includes('LTC')) return 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)';
+    if (symbolUpper.includes('XRP')) return 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)';
+    if (symbolUpper.includes('DSH')) return 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+    return 'linear-gradient(135deg, #F1CB68 0%, #D4A017 100%)';
+  };
+
+  const getProgressColor = (completion) => {
+    if (completion >= 80) return '#FF6B35';
+    if (completion >= 50) return '#60A5FA';
+    return '#34D399';
+  };
+
+  const getIconColor = (symbol) => {
+    const symbolUpper = symbol?.toUpperCase() || '';
+    if (symbolUpper.includes('BTC')) return 'bg-orange-500/20 text-orange-500';
+    if (symbolUpper.includes('LTC')) return 'bg-teal-500/20 text-teal-500';
+    if (symbolUpper.includes('XRP')) return 'bg-blue-500/20 text-blue-500';
+    if (symbolUpper.includes('DSH')) return 'bg-green-500/20 text-green-500';
+    return 'bg-purple-500/20 text-purple-500';
+  };
+
+  const formatCurrency = (value) => {
+    if (!value && value !== 0) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className='flex items-center justify-center min-h-[400px]'>
+          <div className='text-center'>
+            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
+            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+              Loading investment goals...
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show error state only for critical errors (not 405 or 400 - endpoint issues)
+  if (error && !error.includes('Method Not Allowed') && !error.includes('unsupported operand') && !investmentGoals.length) {
+    return (
+      <DashboardLayout>
+        <div className={`p-6 rounded-lg border text-center ${
+          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+        }`}>
+          <p className={`font-semibold mb-2 text-lg ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            Error loading goals
+          </p>
+          <p className={`text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            {error}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+          >
+            Retry
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Marketplace assets (for search results)
+  const displayMarketplaceAssets = marketplaceAssets.length > 0 ? marketplaceAssets : [];
 
   return (
     <DashboardLayout>
@@ -152,9 +221,19 @@ export default function GoalsTrackerPage() {
 
         {/* Investment Goals Cards */}
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8'>
-          {investmentGoals.map((goal, index) => (
-            <GoalCard key={index} goal={goal} isDarkMode={isDarkMode} />
-          ))}
+          {investmentGoals.length > 0 ? (
+            investmentGoals.map((goal) => (
+              <GoalCard key={goal.id || goal.symbol} goal={goal} isDarkMode={isDarkMode} />
+            ))
+          ) : (
+            <div className={`col-span-full rounded-2xl p-6 border text-center ${
+              isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+            }`}>
+              <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                No investment goals found. Create your first goal to get started!
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Marketplace Section */}
@@ -171,6 +250,11 @@ export default function GoalsTrackerPage() {
               <input
                 type='text'
                 placeholder='Search all assets'
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  handleSearch(e.target.value);
+                }}
                 className={`w-full sm:w-auto pl-10 pr-4 py-2 rounded-lg text-sm border ${
                   isDarkMode
                     ? 'bg-[#2C2C2E] border-[#FFFFFF14] text-white placeholder-gray-500'
@@ -197,13 +281,25 @@ export default function GoalsTrackerPage() {
           </div>
 
           <div className='space-y-3'>
-            {marketplaceAssets.map((asset, index) => (
-              <MarketplaceAssetCard
-                key={index}
-                asset={asset}
-                isDarkMode={isDarkMode}
-              />
-            ))}
+            {displayMarketplaceAssets.length > 0 ? (
+              displayMarketplaceAssets.map((asset) => (
+                <MarketplaceAssetCard
+                  key={asset.id || asset.index}
+                  asset={asset}
+                  isDarkMode={isDarkMode}
+                />
+              ))
+            ) : (
+              <div className={`rounded-xl p-6 border text-center ${
+                isDarkMode
+                  ? 'bg-[#1C1C1E] border-[#FFFFFF14]'
+                  : 'bg-white border-gray-200'
+              }`}>
+                <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                  {searchQuery ? 'No assets found. Try a different search.' : 'Search for assets to see marketplace results.'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -213,11 +309,22 @@ export default function GoalsTrackerPage() {
 
 // Goal Card Component
 function GoalCard({ goal, isDarkMode }) {
+  const formatCurrency = (value) => {
+    if (typeof value === 'string' && value.startsWith('$')) return value;
+    if (!value && value !== 0) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
   return (
     <div
       className='rounded-2xl p-6 border-0 overflow-hidden relative'
       style={{
-        background: goal.gradient,
+        background: goal.gradient || 'linear-gradient(135deg, #F1CB68 0%, #D4A017 100%)',
       }}
     >
       {/* Wavy Pattern Background */}
@@ -250,15 +357,19 @@ function GoalCard({ goal, isDarkMode }) {
                 <div className='w-2 h-2 rounded-full bg-white' />
               </div>
             ) : (
-              <span className='text-white font-bold text-lg'>{goal.icon}</span>
+              <span className='text-white font-bold text-lg'>{goal.icon || goal.symbol?.charAt(0) || '?'}</span>
             )}
           </div>
-          <h3 className='text-white text-lg font-bold'>{goal.name}</h3>
+          <h3 className='text-white text-lg font-bold'>{goal.name || goal.symbol || 'Goal'}</h3>
         </div>
 
         {/* Value */}
-        <p className='text-white text-3xl font-bold mb-2'>{goal.currentValue}</p>
-        <p className='text-white/80 text-sm mb-4'>{goal.quantity}</p>
+        <p className='text-white text-3xl font-bold mb-2'>
+          {typeof goal.currentValue === 'string' ? goal.currentValue : formatCurrency(goal.currentValue)}
+        </p>
+        <p className='text-white/80 text-sm mb-4'>
+          {goal.quantity || '0'} {goal.symbol || ''}
+        </p>
 
         {/* Goal Completion */}
         <div>
@@ -267,15 +378,15 @@ function GoalCard({ goal, isDarkMode }) {
               Goal Completion
             </span>
             <span className='text-white text-xs font-bold'>
-              {goal.goalCompletion}%
+              {Math.round(goal.goalCompletion || 0)}%
             </span>
           </div>
           <div className='w-full h-2 bg-white/20 rounded-full overflow-hidden'>
             <div
               className='h-full rounded-full transition-all'
               style={{
-                width: `${goal.goalCompletion}%`,
-                backgroundColor: goal.progressColor,
+                width: `${Math.min(100, Math.max(0, goal.goalCompletion || 0))}%`,
+                backgroundColor: goal.progressColor || '#FF6B35',
               }}
             />
           </div>

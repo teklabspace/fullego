@@ -4,7 +4,8 @@ import Footer from '@/components/layout/Footer';
 import Navbar from '@/components/layout/Navbar';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { listListings, searchMarketplace, getMarketHighlights, getMarketTrends } from '@/utils/marketplaceApi';
 
 const categories = [
   { id: 'All', name: 'All', icon: 'grid.svg' },
@@ -164,12 +165,136 @@ export default function Marketplace() {
   const [priceRange, setPriceRange] = useState([100, 10000]);
   const [returnRange, setReturnRange] = useState([1, 30]);
 
+  // API data states
+  const [listings, setListings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const toggleAssetType = type => {
     setAssetTypes(prev => ({ ...prev, [type]: !prev[type] }));
   };
 
+  // Fetch marketplace listings
+  useEffect(() => {
+    const fetchListings = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Build search params from filters
+        const searchParams = {};
+        if (activeCategory !== 'All') {
+          searchParams.assetType = activeCategory;
+        }
+        const selectedAssetTypes = Object.keys(assetTypes).filter(
+          key => assetTypes[key]
+        );
+        if (selectedAssetTypes.length > 0) {
+          searchParams.assetType = selectedAssetTypes[0]; // Use first selected type
+        }
+        if (priceRange[0] > 0) {
+          searchParams.minPrice = priceRange[0] * 1000;
+        }
+        if (priceRange[1] < 10000) {
+          searchParams.maxPrice = priceRange[1] * 1000;
+        }
+        if (sortBy === 'price-low-high' || sortBy === 'price-high-low') {
+          searchParams.sortBy = 'price';
+        } else if (sortBy === 'return-low-high' || sortBy === 'return-high-low') {
+          searchParams.sortBy = 'return';
+        }
+
+        // Fetch listings - use searchMarketplace if filters are applied, otherwise use listListings
+        let listingsRes;
+        if (Object.keys(searchParams).length > 0) {
+          listingsRes = await searchMarketplace(searchParams);
+        } else {
+          listingsRes = await listListings({ statusFilter: 'active' });
+        }
+        
+        // Log the response for debugging
+        console.log('Marketplace API Response:', listingsRes);
+        
+        // Handle different response structures
+        let listingsData = null;
+        if (Array.isArray(listingsRes)) {
+          // Direct array response
+          listingsData = listingsRes;
+        } else if (listingsRes?.data) {
+          // Response with data property
+          listingsData = Array.isArray(listingsRes.data) ? listingsRes.data : null;
+        } else if (listingsRes?.listings) {
+          // Response with listings property
+          listingsData = Array.isArray(listingsRes.listings) ? listingsRes.listings : null;
+        } else if (listingsRes?.results) {
+          // Response with results property
+          listingsData = Array.isArray(listingsRes.results) ? listingsRes.results : null;
+        }
+        
+        if (listingsData && listingsData.length > 0) {
+          // Transform API data to match UI structure
+          const transformedListings = listingsData.map(listing => ({
+            id: listing.id,
+            name: listing.title || listing.assetName || listing.name || 'Untitled Listing',
+            category: listing.assetType || listing.category || 'Others',
+            assetType: listing.assetType || listing.category || 'Others',
+            minimum: listing.askingPrice 
+              ? `$${listing.askingPrice.toLocaleString()}` 
+              : listing.minimumInvestment 
+                ? `$${listing.minimumInvestment.toLocaleString()}`
+                : listing.minimumValue
+                  ? `$${listing.minimumValue.toLocaleString()}`
+                  : '$0',
+            minimumValue: listing.askingPrice || listing.minimumInvestment || listing.minimumValue || 0,
+            targetIRR: listing.expectedReturn 
+              ? `${listing.expectedReturn}%`
+              : listing.targetIrr 
+                ? `${listing.targetIrr}%`
+                : listing.returnValue
+                  ? `${listing.returnValue}%`
+                  : '0%',
+            returnValue: parseFloat(
+              listing.expectedReturn?.toString().replace('%', '') || 
+              listing.targetIrr?.toString().replace('%', '') || 
+              listing.returnValue?.toString().replace('%', '') ||
+              '0'
+            ),
+            riskLevel: listing.riskLevel || listing.risk || 'Medium',
+            type: listing.type || '#Service',
+            subType: listing.subType || '#Commercial',
+            image: listing.image || listing.thumbnail || listing.assetImage || listing.imageUrl || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400',
+            status: listing.status || 'active',
+            currency: listing.currency || 'USD',
+            description: listing.description || '',
+            createdAt: listing.createdAt || listing.created_at || new Date().toISOString(),
+          }));
+          console.log('Transformed listings:', transformedListings);
+          setListings(transformedListings);
+        } else {
+          // No listings found - show empty state
+          console.log('No listings found in API response. Response structure:', listingsRes);
+          setListings([]);
+          // Only show error if we got a response but it's empty/unexpected
+          if (listingsRes && !listingsData) {
+            setError('Unexpected API response format');
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching marketplace listings:', err);
+        // Don't fallback to dummy data - show error or empty state
+        setError(err.data?.detail || err.message || 'Failed to load listings');
+        setListings([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchListings();
+  }, [activeCategory, assetTypes, priceRange, returnRange, sortBy]);
+
   const getFilteredFunds = () => {
-    let filtered = [...allInvestmentFunds];
+    // Only use API listings - no fallback to dummy data
+    let filtered = [...listings];
 
     if (activeCategory !== 'All') {
       filtered = filtered.filter(fund => fund.category === activeCategory);
@@ -783,17 +908,48 @@ export default function Marketplace() {
             )}
           </div>
 
+          {/* Loading State */}
+          {loading && (
+            <div className='flex items-center justify-center min-h-[400px]'>
+              <div className='text-center'>
+                <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
+                <p className='text-gray-400'>Loading marketplace listings...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && !loading && (
+            <div className='mb-6 p-4 rounded-lg border border-red-500/30 bg-red-500/10 text-center'>
+              <p className='text-red-400 text-sm'>{error}</p>
+            </div>
+          )}
+
           {/* Investment Cards Grid */}
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12'>
-            {investmentFunds.map((fund, index) => (
-              <InvestmentCard
-                key={fund.id}
-                fund={fund}
-                index={index}
-                onViewDetails={handleViewDetails}
-              />
-            ))}
-          </div>
+          {!loading && investmentFunds.length > 0 && (
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12'>
+              {investmentFunds.map((fund, index) => (
+                <InvestmentCard
+                  key={fund.id}
+                  fund={fund}
+                  index={index}
+                  onViewDetails={handleViewDetails}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!loading && investmentFunds.length === 0 && !error && (
+            <div className='text-center py-12'>
+              <p className='text-gray-400 text-lg mb-4'>
+                No listings available at the moment.
+              </p>
+              <p className='text-gray-500 text-sm'>
+                Please check back later or try adjusting your filters.
+              </p>
+            </div>
+          )}
 
           {/* CTA Section */}
           {investmentFunds.length === 0 && (

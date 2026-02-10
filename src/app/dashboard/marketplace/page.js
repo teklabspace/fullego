@@ -5,6 +5,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
+import { listListings, searchMarketplace, getMyOffers, getMarketHighlights, getMarketTrends, getWatchlist } from '@/utils/marketplaceApi';
 
 export default function MarketplacePage() {
   const { isDarkMode } = useTheme();
@@ -38,6 +39,15 @@ export default function MarketplacePage() {
   const [priceRange, setPriceRange] = useState([100, 10000]);
   const [returnRange, setReturnRange] = useState([1, 30]);
 
+  // API data states
+  const [listings, setListings] = useState([]);
+  const [myOffers, setMyOffers] = useState([]);
+  const [marketHighlights, setMarketHighlights] = useState([]);
+  const [marketTrends, setMarketTrends] = useState([]);
+  const [watchlistItems, setWatchlistItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   // Set active tab based on pathname changes
   useEffect(() => {
     const currentPath =
@@ -52,6 +62,257 @@ export default function MarketplacePage() {
     }
   }, [pathname, activeTab]);
 
+  // Fetch marketplace listings
+  useEffect(() => {
+    const fetchListings = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Build search params from filters
+        const searchParams = {};
+        if (activeCategory !== 'All') {
+          searchParams.assetType = activeCategory;
+        }
+        const selectedAssetTypes = Object.keys(assetTypes).filter(
+          key => assetTypes[key]
+        );
+        if (selectedAssetTypes.length > 0) {
+          searchParams.assetType = selectedAssetTypes[0]; // Use first selected type
+        }
+        if (priceRange[0] > 0) {
+          searchParams.minPrice = priceRange[0] * 1000;
+        }
+        if (priceRange[1] < 10000) {
+          searchParams.maxPrice = priceRange[1] * 1000;
+        }
+        if (sortBy === 'price-low-high' || sortBy === 'price-high-low') {
+          searchParams.sortBy = 'price';
+        }
+
+        // Fetch listings
+        const listingsRes = await listListings({ statusFilter: 'active' });
+        
+        if (listingsRes.data && Array.isArray(listingsRes.data)) {
+          // Transform API data to match UI structure
+          const transformedListings = listingsRes.data.map(listing => ({
+            id: listing.id,
+            name: listing.title || listing.assetName || 'Untitled Listing',
+            category: listing.assetType || listing.category || 'Others',
+            assetType: listing.assetType || listing.category || 'Others',
+            minimum: listing.askingPrice ? `$${listing.askingPrice.toLocaleString()}` : '$0',
+            minimumValue: listing.askingPrice || 0,
+            targetIRR: listing.expectedReturn || '0%',
+            returnValue: parseFloat(listing.expectedReturn?.replace('%', '')) || 0,
+            riskLevel: listing.riskLevel || 'Medium',
+            type: listing.type || '#Service',
+            subType: listing.subType || '#Commercial',
+            status: listing.status || 'active',
+            currency: listing.currency || 'USD',
+            description: listing.description || '',
+            createdAt: listing.createdAt || new Date().toISOString(),
+          }));
+          setListings(transformedListings);
+        } else {
+          setListings([]);
+        }
+      } catch (err) {
+        console.error('Error fetching marketplace listings:', err);
+        // Handle 405 or 400 errors gracefully
+        if (err.status === 405 || err.status === 400 || 
+            err.message?.includes('Method Not Allowed') || 
+            err.data?.detail?.includes('Method Not Allowed') ||
+            err.data?.detail?.includes('unsupported operand')) {
+          // Silently handle - endpoint has issues or not implemented yet
+          setListings([]);
+        } else {
+          setError(err.data?.detail || err.message || 'Failed to load listings');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (activeTab === 'browse') {
+      fetchListings();
+    }
+  }, [activeTab, activeCategory, assetTypes, priceRange, sortBy]);
+
+  // Fetch Market Highlights and Watchlist data
+  useEffect(() => {
+    const fetchMarketData = async () => {
+      try {
+        // Fetch Market Highlights
+        const [highlightsRes, trendsRes, watchlistRes] = await Promise.allSettled([
+          getMarketHighlights({ timeRange: '1d' }),
+          getMarketTrends({ timeRange: '30d', granularity: 'daily' }),
+          getWatchlist(),
+        ]);
+
+        // Handle Market Highlights
+        if (highlightsRes.status === 'fulfilled') {
+          try {
+            const highlightsData = highlightsRes.value.data || highlightsRes.value;
+            if (highlightsData.highlights && Array.isArray(highlightsData.highlights)) {
+              setMarketHighlights(highlightsData.highlights);
+            } else if (Array.isArray(highlightsData)) {
+              setMarketHighlights(highlightsData);
+            } else {
+              setMarketHighlights([]);
+            }
+          } catch (err) {
+            // Handle 405, 400, or 422 errors gracefully
+            if (highlightsRes.value?.status === 405 || 
+                highlightsRes.value?.status === 400 || 
+                highlightsRes.value?.status === 422 ||
+                err.status === 405 || 
+                err.status === 400 || 
+                err.status === 422) {
+              setMarketHighlights([]);
+            }
+          }
+        } else {
+          // Rejected promise - check if it's a 405/400/422 error
+          const error = highlightsRes.reason;
+          if (error?.status === 405 || error?.status === 400 || error?.status === 422) {
+            setMarketHighlights([]);
+          }
+        }
+
+        // Handle Market Trends
+        if (trendsRes.status === 'fulfilled') {
+          try {
+            const trendsData = trendsRes.value.data || trendsRes.value;
+            if (trendsData.trends && Array.isArray(trendsData.trends)) {
+              setMarketTrends(trendsData.trends);
+            } else if (Array.isArray(trendsData)) {
+              setMarketTrends(trendsData);
+            } else {
+              setMarketTrends([]);
+            }
+          } catch (err) {
+            // Handle 405, 400, or 422 errors gracefully
+            if (trendsRes.value?.status === 405 || 
+                trendsRes.value?.status === 400 || 
+                trendsRes.value?.status === 422 ||
+                err.status === 405 || 
+                err.status === 400 || 
+                err.status === 422) {
+              setMarketTrends([]);
+            }
+          }
+        } else {
+          // Rejected promise - check if it's a 405/400/422 error
+          const error = trendsRes.reason;
+          if (error?.status === 405 || error?.status === 400 || error?.status === 422) {
+            setMarketTrends([]);
+          }
+        }
+
+        // Handle Watchlist
+        if (watchlistRes.status === 'fulfilled') {
+          try {
+            const watchlistData = watchlistRes.value.data || watchlistRes.value;
+            if (Array.isArray(watchlistData)) {
+              setWatchlistItems(watchlistData);
+            } else {
+              setWatchlistItems([]);
+            }
+          } catch (err) {
+            // Handle 405, 400, or 422 errors gracefully
+            if (watchlistRes.value?.status === 405 || 
+                watchlistRes.value?.status === 400 || 
+                watchlistRes.value?.status === 422 ||
+                err.status === 405 || 
+                err.status === 400 || 
+                err.status === 422) {
+              setWatchlistItems([]);
+            }
+          }
+        } else {
+          // Rejected promise - check if it's a 405/400/422 error
+          const error = watchlistRes.reason;
+          if (error?.status === 405 || error?.status === 400 || error?.status === 422) {
+            setWatchlistItems([]);
+          }
+        }
+      } catch (err) {
+        // General error handling - don't break the UI
+        console.error('Error fetching market data:', err);
+      }
+    };
+
+    if (activeTab === 'browse') {
+      fetchMarketData();
+    }
+  }, [activeTab]);
+
+  // Fetch user's offers
+  useEffect(() => {
+    const fetchMyOffers = async () => {
+      try {
+        const offersRes = await getMyOffers();
+        
+        if (offersRes.data && Array.isArray(offersRes.data)) {
+          // Transform API data to match UI structure
+          const transformedOffers = offersRes.data.map(offer => ({
+            id: offer.id,
+            assetName: offer.listingTitle || offer.assetName || 'Unknown Asset',
+            assetThumbnail: offer.assetThumbnail || offer.thumbnail || 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400',
+            category: offer.assetType || offer.category || 'Other',
+            offerAmount: offer.offerAmount ? `$${offer.offerAmount.toLocaleString()}` : '$0',
+            offerAmountValue: offer.offerAmount || 0,
+            currency: offer.currency || 'USD',
+            offerStatus: offer.status === 'pending' ? 'Pending' : 
+                        offer.status === 'accepted' ? 'Accepted' :
+                        offer.status === 'rejected' ? 'Rejected' :
+                        offer.status === 'countered' ? 'Countered' :
+                        offer.status === 'expired' ? 'Expired' :
+                        offer.status === 'withdrawn' ? 'Withdrawn' : 'Pending',
+            role: offer.role || 'Buyer',
+            counterparty: offer.sellerName || offer.counterparty || 'Unknown',
+            counterpartyId: offer.sellerId || offer.counterpartyId || '',
+            dateUpdated: offer.updatedAt || offer.createdAt || new Date().toISOString(),
+            listingId: offer.listingId || offer.id,
+            message: offer.message || '',
+          }));
+          setMyOffers(transformedOffers);
+        } else {
+          setMyOffers([]);
+        }
+      } catch (err) {
+        // Check if this is a 422 error with UUID validation issue (backend routing problem)
+        // The error detail is an array with objects like: {loc: ['path', 'offer_id'], msg: '...', type: 'uuid_parsing'}
+        const is422UUIDError = err.status === 422 && (
+          err.message?.includes('valid UUID') ||
+          err.message?.includes('uuid_parsing') ||
+          (Array.isArray(err.data?.detail) && err.data.detail.some(d => 
+            (typeof d === 'object' && (d?.msg?.includes('valid UUID') || d?.type === 'uuid_parsing')) ||
+            (typeof d === 'string' && d.includes('valid UUID'))
+          )) ||
+          (typeof err.data?.detail === 'string' && err.data.detail.includes('valid UUID'))
+        );
+
+        // Handle 405, 400, or 422 UUID errors gracefully
+        // 422 UUID errors = backend routing issue (treating "my" as UUID parameter)
+        if (err.status === 405 || err.status === 400 || is422UUIDError || 
+            err.message?.includes('Method Not Allowed') || 
+            err.data?.detail?.includes('Method Not Allowed') ||
+            err.data?.detail?.includes('unsupported operand')) {
+          // Silently handle - endpoint has issues, backend routing problem, or not implemented yet
+          setMyOffers([]);
+        } else {
+          // Only log unexpected errors
+          console.error('Error fetching my offers:', err);
+        }
+      }
+    };
+
+    if (activeTab === 'active-offers') {
+      fetchMyOffers();
+    }
+  }, [activeTab]);
+
   const categories = [
     'All',
     'Private Equity',
@@ -63,28 +324,33 @@ export default function MarketplacePage() {
     'Arts & Collectibles',
   ];
 
-  const marketData = [
-    { name: 'Private Equity', value: '+2.4%', isPositive: true },
-    { name: 'Real Estate', value: '+1.2%', isPositive: true },
-    { name: 'Private Credit', value: '-0.7%', isPositive: false },
-  ];
+  // Transform market highlights API data to UI format
+  const marketData = (marketHighlights && Array.isArray(marketHighlights) ? marketHighlights : []).map(highlight => ({
+    name: highlight.category || highlight.name || 'Unknown',
+    value: highlight.changePercentage 
+      ? `${highlight.changePercentage > 0 ? '+' : ''}${highlight.changePercentage.toFixed(1)}%`
+      : highlight.value || '0%',
+    isPositive: highlight.isPositive !== undefined 
+      ? highlight.isPositive 
+      : (highlight.changePercentage > 0 || highlight.trend === 'up'),
+  }));
 
-  const chartData = [
-    { value: 20 },
-    { value: 35 },
-    { value: 25 },
-    { value: 45 },
-    { value: 38 },
-    { value: 52 },
-    { value: 48 },
-    { value: 60 },
-  ];
+  // Transform market trends API data to chart format
+  const chartData = marketTrends.length > 0
+    ? marketTrends.map(trend => ({ value: trend.value || 0 }))
+    : [{ value: 20 }, { value: 35 }, { value: 25 }, { value: 45 }, { value: 38 }, { value: 52 }, { value: 48 }, { value: 60 }];
 
-  const watchlistItems = [
-    { name: 'Global Healthcare Fund', icon: '⭐' },
-    { name: 'Asia Growth Markets', icon: '⭐' },
-    { name: 'Sustainable Infrastructure', icon: '⭐' },
-  ];
+  // Transform watchlist API data to UI format
+  const transformedWatchlistItems = (watchlistItems && Array.isArray(watchlistItems) ? watchlistItems : []).map(item => ({
+    id: item.id,
+    name: item.listingTitle || item.name || 'Unknown Listing',
+    icon: '⭐',
+    listingId: item.listingId,
+    price: item.askingPrice,
+    currency: item.currency || 'USD',
+    priceChange: item.priceChangeSinceAdded,
+    priceChangePercentage: item.priceChangePercentage,
+  }));
 
   const allInvestmentFunds = [
     {
@@ -174,7 +440,9 @@ export default function MarketplacePage() {
 
   // Filter and sort logic
   const getFilteredFunds = () => {
-    let filtered = [...allInvestmentFunds];
+    // Only use API data - no fallback to static data
+    const dataSource = listings;
+    let filtered = [...dataSource];
 
     // Filter by category
     if (activeCategory !== 'All') {
@@ -250,7 +518,7 @@ export default function MarketplacePage() {
                 >
                   <button
                     onClick={() => {
-                      setActiveTab('browse');
+                      // Navigate immediately - don't wait for data
                       router.push('/dashboard/marketplace');
                     }}
                     className={`px-6 py-3 text-sm font-medium transition-all relative ${
@@ -277,7 +545,7 @@ export default function MarketplacePage() {
                   </button>
                   <button
                     onClick={() => {
-                      setActiveTab('active-offers');
+                      // Navigate immediately - don't wait for data
                       router.push('/dashboard/marketplace/active-offers');
                     }}
                     className={`px-6 py-3 text-sm font-medium transition-all relative ${
@@ -382,15 +650,29 @@ export default function MarketplacePage() {
                     {/* Left Section - Cards */}
                     <div className='flex-1'>
                       {/* Investment Cards Grid */}
-                      <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3'>
-                        {investmentFunds.map(fund => (
-                          <InvestmentCard
-                            key={fund.id}
-                            fund={fund}
-                            isDarkMode={isDarkMode}
-                          />
-                        ))}
-                      </div>
+                      {loading ? (
+                        <div className='flex items-center justify-center py-12'>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Loading listings...
+                          </p>
+                        </div>
+                      ) : investmentFunds.length > 0 ? (
+                        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3'>
+                          {investmentFunds.map(fund => (
+                            <InvestmentCard
+                              key={fund.id}
+                              fund={fund}
+                              isDarkMode={isDarkMode}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className='flex items-center justify-center py-12'>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            No listings available
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Right Sidebar - Watchlist */}
@@ -480,41 +762,54 @@ export default function MarketplacePage() {
                         </div>
 
                         <div className='space-y-3'>
-                          {watchlistItems.map((item, index) => (
-                            <div
-                              key={index}
-                              className='flex items-center justify-between'
-                            >
-                              <div className='flex items-center gap-2'>
-                                <span className='text-yellow-500'>
-                                  {item.icon}
-                                </span>
-                                <span
-                                  className={`text-sm ${
-                                    isDarkMode
-                                      ? 'text-gray-300'
-                                      : 'text-gray-700'
-                                  }`}
-                                >
-                                  {item.name}
-                                </span>
-                              </div>
-                              <button
-                                className={`${
-                                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                                }`}
+                          {transformedWatchlistItems.length > 0 ? (
+                            transformedWatchlistItems.map((item) => (
+                              <div
+                                key={item.id || item.listingId}
+                                className='flex items-center justify-between'
                               >
-                                <svg
-                                  width='16'
-                                  height='16'
-                                  viewBox='0 0 24 24'
-                                  fill='currentColor'
+                                <div className='flex items-center gap-2 flex-1 min-w-0'>
+                                  <span className='text-yellow-500 shrink-0'>
+                                    {item.icon}
+                                  </span>
+                                  <span
+                                    className={`text-sm truncate ${
+                                      isDarkMode
+                                        ? 'text-gray-300'
+                                        : 'text-gray-700'
+                                    }`}
+                                    title={item.name}
+                                  >
+                                    {item.name}
+                                  </span>
+                                </div>
+                                <button
+                                  className={`shrink-0 ml-2 ${
+                                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                  }`}
+                                  onClick={() => {
+                                    // TODO: Implement remove from watchlist
+                                    console.log('Remove from watchlist', item.id);
+                                  }}
                                 >
-                                  <circle cx='12' cy='12' r='2' />
-                                </svg>
-                              </button>
-                            </div>
-                          ))}
+                                  <svg
+                                    width='16'
+                                    height='16'
+                                    viewBox='0 0 24 24'
+                                    fill='currentColor'
+                                  >
+                                    <circle cx='12' cy='12' r='2' />
+                                  </svg>
+                                </button>
+                              </div>
+                            ))
+                          ) : (
+                            <p className={`text-sm text-center py-4 ${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              No items in watchlist
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -524,7 +819,7 @@ export default function MarketplacePage() {
 
               {/* Active Offers Tab Content */}
               {activeTab === 'active-offers' && (
-                <ActiveOffersContent isDarkMode={isDarkMode} router={router} />
+                <ActiveOffersContent isDarkMode={isDarkMode} router={router} myOffers={myOffers} />
               )}
             </div>
           </div>
@@ -677,21 +972,24 @@ const mockOffers = [
 ];
 
 // Active Offers Content Component
-function ActiveOffersContent({ isDarkMode, router }) {
+function ActiveOffersContent({ isDarkMode, router, myOffers = [] }) {
   const [activeFilter, setActiveFilter] = useState('My Offers'); // Default filter
   const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
 
   // Filter offers based on active filter
   const getFilteredOffers = () => {
+    // Only use API data - no fallback to static data
+    const dataSource = myOffers;
+    
     switch (activeFilter) {
       case 'My Listings':
-        return mockOffers.filter(offer => offer.role === 'Lister');
+        return dataSource.filter(offer => offer.role === 'Lister' || offer.role === 'Seller');
       case 'My Offers':
-        return mockOffers.filter(offer => offer.role === 'Buyer');
+        return dataSource.filter(offer => offer.role === 'Buyer');
       case 'Received Offers':
-        return mockOffers.filter(offer => offer.role === 'Seller');
+        return dataSource.filter(offer => offer.role === 'Seller' || offer.role === 'Lister');
       default:
-        return mockOffers;
+        return dataSource;
     }
   };
 
@@ -954,7 +1252,7 @@ function ActiveOffersContent({ isDarkMode, router }) {
       )}
 
       {/* Empty State */}
-      {filteredOffers.length === 0 && (
+      {filteredOffers.length === 0 && myOffers.length === 0 && (
         <div
           className={`rounded-xl border p-12 text-center ${
             isDarkMode

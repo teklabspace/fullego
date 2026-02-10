@@ -1,6 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
+import { uploadKYCDocument, submitKYC } from '@/utils/kycApi';
 
 const steps = [
   { id: 1, title: 'Account Setup', status: 'completed' },
@@ -13,9 +14,12 @@ export default function IdentityVerificationPage() {
   const router = useRouter();
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
   const fileInputRef = useRef(null);
 
-  const handleUploadPhoto = event => {
+  const handleUploadPhoto = async event => {
     const file = event.target.files[0];
     if (file) {
       setPhoto(file);
@@ -32,7 +36,19 @@ export default function IdentityVerificationPage() {
         fileType: file.type,
         uploadedAt: new Date().toISOString(),
       });
-      console.log('Uploaded File Object:', file);
+
+      // Upload to API
+      setIsUploading(true);
+      setError('');
+      try {
+        const response = await uploadKYCDocument(file);
+        console.log('Selfie uploaded to API:', response);
+      } catch (err) {
+        console.error('Failed to upload selfie:', err);
+        setError(err.data?.detail || 'Failed to upload selfie');
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
@@ -60,7 +76,7 @@ export default function IdentityVerificationPage() {
         ctx.drawImage(video, 0, 0);
         
         // Convert canvas to blob
-        canvas.toBlob(blob => {
+        canvas.toBlob(async blob => {
           const file = new File([blob], 'captured-photo.jpg', { type: 'image/jpeg' });
           
           // Set the photo state
@@ -80,10 +96,22 @@ export default function IdentityVerificationPage() {
             fileType: file.type,
             capturedAt: new Date().toISOString(),
           });
-          console.log('Captured File Object:', file);
           
           // Stop camera stream
           stream.getTracks().forEach(track => track.stop());
+
+          // Upload to API
+          setIsUploading(true);
+          setError('');
+          try {
+            const response = await uploadKYCDocument(file);
+            console.log('Captured photo uploaded to API:', response);
+          } catch (err) {
+            console.error('Failed to upload captured photo:', err);
+            setError(err.data?.detail || 'Failed to upload photo');
+          } finally {
+            setIsUploading(false);
+          }
         }, 'image/jpeg');
       };
     } catch (error) {
@@ -92,43 +120,59 @@ export default function IdentityVerificationPage() {
     }
   };
 
-  const handleCompleteVerification = () => {
-    // Collect all steps data from localStorage
-    const step1Data = localStorage.getItem('profileSelection');
-    const step2Data = localStorage.getItem('documentsData');
+  const handleCompleteVerification = async () => {
+    setIsSubmitting(true);
+    setError('');
 
-    const allStepsData = {
-      step1_profileSelection: step1Data ? JSON.parse(step1Data) : null,
-      step2_documents: step2Data ? JSON.parse(step2Data) : null,
-      step3_identityPhoto: {
-        photoUploaded: !!photo,
-        photoDetails: photo
-          ? {
-              name: photo.name,
-              size: photo.size,
-              type: photo.type,
-            }
-          : null,
-        timestamp: new Date().toISOString(),
-      },
-    };
+    try {
+      // Submit KYC for review
+      const submitResponse = await submitKYC();
+      console.log('KYC Submitted:', submitResponse);
 
-    console.log('=== ALL VERIFICATION STEPS DATA ===');
-    console.log(
-      'Step 1 - Profile Selection:',
-      allStepsData.step1_profileSelection
-    );
-    console.log('Step 2 - Documents:', allStepsData.step2_documents);
-    console.log('Step 3 - Identity Photo:', allStepsData.step3_identityPhoto);
-    console.log('===================================');
-    console.log('Complete Data Object:', allStepsData);
+      // Collect all steps data from localStorage
+      const step1Data = localStorage.getItem('profileSelection');
+      const step2Data = localStorage.getItem('documentsData');
 
-    // Clear localStorage after collecting data
-    localStorage.removeItem('profileSelection');
-    localStorage.removeItem('documentsData');
+      const allStepsData = {
+        step1_profileSelection: step1Data ? JSON.parse(step1Data) : null,
+        step2_documents: step2Data ? JSON.parse(step2Data) : null,
+        step3_identityPhoto: {
+          photoUploaded: !!photo,
+          photoDetails: photo
+            ? {
+                name: photo.name,
+                size: photo.size,
+                type: photo.type,
+              }
+            : null,
+          timestamp: new Date().toISOString(),
+        },
+        kycSubmitResponse: submitResponse,
+      };
 
-    // Navigate to verification success page
-    router.push('/verification-success');
+      console.log('=== ALL VERIFICATION STEPS DATA ===');
+      console.log(
+        'Step 1 - Profile Selection:',
+        allStepsData.step1_profileSelection
+      );
+      console.log('Step 2 - Documents:', allStepsData.step2_documents);
+      console.log('Step 3 - Identity Photo:', allStepsData.step3_identityPhoto);
+      console.log('KYC Submit Response:', allStepsData.kycSubmitResponse);
+      console.log('===================================');
+      console.log('Complete Data Object:', allStepsData);
+
+      // Clear localStorage after collecting data
+      localStorage.removeItem('profileSelection');
+      localStorage.removeItem('documentsData');
+
+      // Navigate to verification success page
+      router.push('/verification-success');
+    } catch (err) {
+      console.error('Failed to submit KYC:', err);
+      setError(err.data?.detail || 'Failed to submit verification. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -304,12 +348,22 @@ export default function IdentityVerificationPage() {
 
         {/* Action Buttons */}
         <div className='flex flex-col sm:flex-row gap-4 justify-center mb-8'>
+          {/* Error Message */}
+          {error && (
+            <div className='w-full bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm text-center'>
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className='flex flex-col sm:flex-row gap-4 justify-center mb-8'>
           {!photo ? (
             <>
               {/* Show Capture and Upload buttons when no photo */}
               <button
                 onClick={handleCapturePhoto}
-                className='flex items-center justify-center gap-2 bg-white text-[#0B0D12] font-semibold px-6 md:px-8 py-3 rounded-lg transition-all hover:bg-gray-100 text-sm md:text-base'
+                disabled={isUploading}
+                className='flex items-center justify-center gap-2 bg-white text-[#0B0D12] font-semibold px-6 md:px-8 py-3 rounded-lg transition-all hover:bg-gray-100 disabled:opacity-50 text-sm md:text-base'
               >
                 <svg
                   width='20'
@@ -327,7 +381,8 @@ export default function IdentityVerificationPage() {
 
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className='flex items-center justify-center gap-2 bg-transparent border-2 border-[#F1CB68] text-[#F1CB68] font-semibold px-6 md:px-8 py-3 rounded-lg transition-all hover:bg-[#F1CB68] hover:text-[#0B0D12] text-sm md:text-base'
+                disabled={isUploading}
+                className='flex items-center justify-center gap-2 bg-transparent border-2 border-[#F1CB68] text-[#F1CB68] font-semibold px-6 md:px-8 py-3 rounded-lg transition-all hover:bg-[#F1CB68] hover:text-[#0B0D12] disabled:opacity-50 text-sm md:text-base'
               >
                 <svg
                   width='20'
@@ -341,19 +396,20 @@ export default function IdentityVerificationPage() {
                   <polyline points='17 8 12 3 7 8' />
                   <line x1='12' y1='3' x2='12' y2='15' />
                 </svg>
-                Upload Photo
+                {isUploading ? 'Uploading...' : 'Upload Photo'}
               </button>
             </>
           ) : (
             /* Show Complete Verification button when photo exists */
             <button
               onClick={handleCompleteVerification}
-              className='w-full sm:w-auto text-[#0B0D12] cursor-pointer font-semibold px-8 md:px-12 py-3 md:py-4 rounded-full transition-all text-base md:text-lg shadow-lg hover:shadow-xl transform hover:scale-105'
+              disabled={isSubmitting || isUploading}
+              className='w-full sm:w-auto text-[#0B0D12] cursor-pointer font-semibold px-8 md:px-12 py-3 md:py-4 rounded-full transition-all text-base md:text-lg shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:transform-none'
               style={{
                 background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               }}
             >
-              Complete Verification
+              {isSubmitting ? 'Submitting...' : 'Complete Verification'}
             </button>
           )}
 

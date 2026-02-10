@@ -10,6 +10,12 @@ import { useTheme } from '@/context/ThemeContext';
 import { getCategoryIcon } from '@/utils/categoryIcons';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import {
+  createAsset,
+  uploadFile,
+  uploadAssetPhoto,
+  uploadAssetDocument,
+} from '@/utils/assetsApi';
 
 const steps = [
   { id: 1, title: 'Basic Information' },
@@ -86,6 +92,7 @@ export default function AddAssetPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [valuationType, setValuationType] = useState('manual');
   const [estimatedValue, setEstimatedValue] = useState('');
+  const [uploadPromises, setUploadPromises] = useState(new Map()); // Track active uploads
 
   // Get categories grouped by category group
   const categoriesByGroup = useMemo(() => {
@@ -159,22 +166,283 @@ export default function AddAssetPage() {
     }));
   };
 
-  const handleNext = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+
+  const handleNext = async () => {
     if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
     } else {
       // Submit form - Step 3 is the final step
-      console.log('Form Data:', {
-        ...formData,
-        category: selectedCategory,
-        categoryGroup: selectedCategoryGroup,
-        assetPhotos: assetPhotos.length,
-        supportingDocs: supportingDocs.length,
-        valuationType,
-        estimatedValue,
-      });
-      // You can add API call here to save the asset
-      router.push('/dashboard/assets');
+      try {
+        setIsSubmitting(true);
+        setSubmitError(null);
+
+        console.log('🚀 Starting Asset Creation Process');
+        console.log('📋 Form Data:', formData);
+        console.log('📸 Photos:', assetPhotos.length);
+        console.log('📄 Documents:', supportingDocs.length);
+
+        // Wait for all uploads to complete first
+        console.log('⏳ Waiting for all file uploads to complete...');
+        
+        // Get all active upload promises
+        let activeUploads = Array.from(uploadPromises.values());
+        if (activeUploads.length > 0) {
+          console.log(`⏳ Waiting for ${activeUploads.length} active upload(s) to complete...`);
+          try {
+            await Promise.allSettled(activeUploads);
+            console.log('✅ All active uploads completed');
+            // Give a small delay for state updates
+            await new Promise(resolve => setTimeout(resolve, 100));
+          } catch (err) {
+            console.error('❌ Some uploads failed:', err);
+          }
+        }
+
+        // Re-check for any remaining active uploads (in case new ones started)
+        let maxWaitTime = 30000; // 30 seconds max wait
+        const startTime = Date.now();
+        while (uploadPromises.size > 0 && (Date.now() - startTime) < maxWaitTime) {
+          activeUploads = Array.from(uploadPromises.values());
+          if (activeUploads.length > 0) {
+            console.log(`⏳ Still waiting for ${activeUploads.length} upload(s)...`);
+            await Promise.allSettled(activeUploads);
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+
+        // Check upload status and collect IDs
+        const photoIds = [];
+        const documentIds = [];
+        const uploadErrors = [];
+
+        // Collect photo IDs from completed uploads
+        console.log('📸 Checking photo upload status...');
+        for (let i = 0; i < assetPhotos.length; i++) {
+          const photo = assetPhotos[i];
+          if (photo.status === 'completed' && photo.uploadedId) {
+            photoIds.push(photo.uploadedId);
+            console.log(`✅ Photo ${i + 1} ready: ${photo.uploadedId} (${photo.name})`);
+          } else if (photo.status === 'error') {
+            uploadErrors.push({
+              type: 'photo',
+              index: i,
+              fileName: photo.name,
+              error: new Error(photo.error || 'Upload failed'),
+            });
+            console.error(`❌ Photo ${i + 1} failed: ${photo.name} - ${photo.error}`);
+          } else if (photo.status === 'uploading' || !photo.uploadedId) {
+            // Still uploading or not started
+            const statusMsg = photo.status === 'uploading' 
+              ? 'Upload still in progress' 
+              : 'Upload not completed';
+            console.log(`⏳ Photo ${i + 1} not ready: ${photo.name} (${statusMsg})`);
+            uploadErrors.push({
+              type: 'photo',
+              index: i,
+              fileName: photo.name,
+              error: new Error(statusMsg),
+            });
+          }
+        }
+
+        // Collect document IDs from completed uploads
+        console.log('📄 Checking document upload status...');
+        for (let i = 0; i < supportingDocs.length; i++) {
+          const doc = supportingDocs[i];
+          if (doc.status === 'completed' && doc.uploadedId) {
+            documentIds.push(doc.uploadedId);
+            console.log(`✅ Document ${i + 1} ready: ${doc.uploadedId} (${doc.name})`);
+          } else if (doc.status === 'error') {
+            uploadErrors.push({
+              type: 'document',
+              index: i,
+              fileName: doc.name,
+              error: new Error(doc.error || 'Upload failed'),
+            });
+            console.error(`❌ Document ${i + 1} failed: ${doc.name} - ${doc.error}`);
+          } else if (doc.status === 'uploading' || !doc.uploadedId) {
+            // Still uploading or not started
+            const statusMsg = doc.status === 'uploading' 
+              ? 'Upload still in progress' 
+              : 'Upload not completed';
+            console.log(`⏳ Document ${i + 1} not ready: ${doc.name} (${statusMsg})`);
+            uploadErrors.push({
+              type: 'document',
+              index: i,
+              fileName: doc.name,
+              error: new Error(statusMsg),
+            });
+          }
+        }
+
+        // Validation: Check if any uploads failed or are still in progress
+        if (uploadErrors.length > 0) {
+          const errorSummary = uploadErrors.map(e => {
+            const errorMsg = e.error.isCorsError 
+              ? 'CORS Error (Backend configuration issue)'
+              : e.error.message;
+            return `${e.type} "${e.fileName}": ${errorMsg}`;
+          }).join('\n');
+          
+          // Check if all errors are CORS errors
+          const allCorsErrors = uploadErrors.every(e => e.error?.isCorsError);
+          const errorMessage = allCorsErrors
+            ? `CORS Error: Backend must allow requests from ${typeof window !== 'undefined' ? window.location.origin : 'frontend'}. Please configure CORS on backend server.\n\nFailed files:\n${uploadErrors.map(e => `- ${e.type}: ${e.fileName}`).join('\n')}`
+            : `Failed to upload ${uploadErrors.length} file(s). Please wait for uploads to complete or fix errors before creating asset.\n\nErrors:\n${errorSummary}`;
+          
+          console.error('❌ Asset creation cancelled due to upload failures:', uploadErrors);
+          setSubmitError(errorMessage);
+          setIsSubmitting(false);
+          return; // Stop here - don't create asset
+        }
+
+        // Log upload summary
+        console.log('✅ All files uploaded successfully:', {
+          photos: photoIds.length,
+          documents: documentIds.length,
+          photoIds,
+          documentIds,
+        });
+
+        // Prepare asset data
+        const categoryObj = allCategories.find(c => c.id === selectedCategory);
+        const assetData = {
+          name: formData.asset_name || formData.name || '',
+          category: categoryObj?.name || selectedCategory,
+          categoryGroup: selectedCategoryGroup || categoryObj?.categoryGroup || 'Assets',
+          description: formData.description || '',
+          location: formData.location || '',
+          estimatedValue: estimatedValue ? parseFloat(estimatedValue.replace(/[^0-9.-]+/g, '')) : undefined,
+          currentValue: estimatedValue ? parseFloat(estimatedValue.replace(/[^0-9.-]+/g, '')) : undefined,
+          condition: formData.condition || undefined,
+          ownershipType: formData.ownership_type || undefined,
+          acquisitionDate: formData.acquisition_date || formData.purchase_date || undefined,
+          purchasePrice: formData.purchase_price ? parseFloat(formData.purchase_price.replace(/[^0-9.-]+/g, '')) : undefined,
+          currency: formData.currency || 'USD',
+          valuationType: valuationType || 'manual',
+          // Backend expects UUIDs (IDs), not URLs!
+          // Send both 'images' and 'photos' arrays with IDs to support different backend expectations
+          photos: photoIds.length > 0 ? photoIds : undefined,
+          images: photoIds.length > 0 ? photoIds : undefined, // Some backends expect 'images'
+          documents: documentIds.length > 0 ? documentIds : undefined,
+          specifications: {
+            // Include all category-specific fields
+            ...formData,
+            // Remove non-specification fields
+            asset_name: undefined,
+            name: undefined,
+            category: undefined,
+            categoryGroup: undefined,
+            description: undefined,
+            location: undefined,
+            estimated_value: undefined,
+            current_value: undefined,
+            condition: undefined,
+            ownership_type: undefined,
+            acquisition_date: undefined,
+            purchase_date: undefined,
+            purchase_price: undefined,
+            currency: undefined,
+            valuation_type: undefined,
+            photos: undefined,
+            images: undefined,
+            documents: undefined,
+          },
+        };
+
+        // Remove undefined values
+        Object.keys(assetData).forEach(key => {
+          if (assetData[key] === undefined) {
+            delete assetData[key];
+          }
+        });
+        if (assetData.specifications) {
+          Object.keys(assetData.specifications).forEach(key => {
+            if (assetData.specifications[key] === undefined) {
+              delete assetData.specifications[key];
+            }
+          });
+        }
+
+        // Log complete asset payload before creation
+        console.log('📦 Complete Asset Creation Payload:', JSON.stringify(assetData, null, 2));
+        console.log('📊 Payload Summary:', {
+          name: assetData.name,
+          category: assetData.category,
+          categoryGroup: assetData.categoryGroup,
+          estimatedValue: assetData.estimatedValue,
+          currency: assetData.currency,
+          photosCount: assetData.photos?.length || 0,
+          photosIds: assetData.photos,
+          imagesCount: assetData.images?.length || 0,
+          imagesIds: assetData.images,
+          documentsCount: assetData.documents?.length || 0,
+          documentIds: assetData.documents,
+          specificationsKeys: Object.keys(assetData.specifications || {}),
+        });
+
+        // Create the asset
+        console.log('🔄 Creating asset...');
+        const response = await createAsset(assetData);
+        
+        console.log('✅ Asset created successfully:', {
+          assetId: response.data?.id,
+          name: response.data?.name,
+          category: response.data?.category,
+        });
+
+        // Asset created successfully with photo and document IDs
+        if (response.data?.id) {
+          const assetId = response.data.id;
+          console.log('🔗 Asset ID received:', assetId);
+          console.log('📎 Asset created with IDs:', {
+            photos: photoIds.length,
+            documents: documentIds.length,
+            photoIds: photoIds,
+            documentIds: documentIds,
+          });
+        }
+
+        // Redirect to assets page
+        console.log('✅ Asset creation complete. Redirecting...');
+        router.push('/dashboard/assets');
+      } catch (err) {
+        console.error('❌ Error creating asset:', err);
+        console.error('❌ Error details:', {
+          message: err.message,
+          status: err.status,
+          data: err.data,
+          fullError: err,
+        });
+        
+        // Extract detailed error message
+        let errorMessage = 'Failed to create asset. Please try again.';
+        if (err.data) {
+          if (Array.isArray(err.data.detail)) {
+            // Backend validation errors (422)
+            const validationErrors = err.data.detail.map(error => {
+              if (typeof error === 'string') return error;
+              if (error.msg) return `${error.loc?.join('.') || 'Field'}: ${error.msg}`;
+              if (error.msg) return error.msg;
+              return JSON.stringify(error);
+            }).join('\n');
+            errorMessage = `Validation Error:\n${validationErrors}`;
+          } else if (typeof err.data.detail === 'string') {
+            errorMessage = err.data.detail;
+          } else if (err.data.message) {
+            errorMessage = err.data.message;
+          } else if (err.data.error) {
+            errorMessage = err.data.error;
+          }
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
+        
+        setSubmitError(errorMessage);
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -220,55 +488,237 @@ export default function AddAssetPage() {
       name: file.name,
       size: (file.size / (1024 * 1024)).toFixed(2),
       progress: 0,
+      status: 'uploading', // 'uploading', 'completed', 'error'
       error: null,
+      uploadedId: null, // Store the UUID from backend after successful upload
     }));
 
     if (type === 'photo') {
       setAssetPhotos(prev => [...prev, ...newFiles]);
-      // Simulate upload progress
+      // Start actual uploads immediately
       newFiles.forEach(fileObj => {
-        simulateUpload(fileObj.id, type);
+        startUpload(fileObj, type);
       });
-    } else {
+    } else if (type === 'doc') {
       setSupportingDocs(prev => [...prev, ...newFiles]);
       newFiles.forEach(fileObj => {
-        simulateUpload(fileObj.id, type);
+        startUpload(fileObj, type);
       });
     }
   };
 
-  const simulateUpload = (fileId, type) => {
-    const interval = setInterval(() => {
+  const startUpload = async (fileObj, type) => {
+    const fileId = fileObj.id;
+
+    // Update status to uploading
+    if (type === 'photo') {
+      setAssetPhotos(prev =>
+        prev.map(file =>
+          file.id === fileId ? { ...file, status: 'uploading', progress: 0 } : file
+        )
+      );
+    } else {
+      setSupportingDocs(prev =>
+        prev.map(file =>
+          file.id === fileId ? { ...file, status: 'uploading', progress: 0 } : file
+        )
+      );
+    }
+
+    try {
+      // Create upload promise
+      const uploadPromise = uploadFileWithProgress(
+        fileObj.file,
+        type === 'photo' ? 'photo' : 'document',
+        fileId,
+        type
+      );
+
+      // Store the promise
+      setUploadPromises(prev => {
+        const newMap = new Map(prev);
+        newMap.set(fileId, uploadPromise);
+        return newMap;
+      });
+
+      // Wait for upload to complete
+      const result = await uploadPromise;
+
+      // Update with success
       if (type === 'photo') {
         setAssetPhotos(prev =>
-          prev.map(file => {
-            if (file.id === fileId) {
-              const newProgress = Math.min(file.progress + 10, 100);
-              if (newProgress === 100) clearInterval(interval);
-              return { ...file, progress: newProgress };
-            }
-            return file;
-          })
+          prev.map(file =>
+            file.id === fileId
+              ? {
+                  ...file,
+                  status: 'completed',
+                  progress: 100,
+                  uploadedId: result.id,
+                  error: null,
+                }
+              : file
+          )
         );
       } else {
         setSupportingDocs(prev =>
-          prev.map(file => {
-            if (file.id === fileId) {
-              const newProgress = Math.min(file.progress + 10, 100);
-              if (newProgress === 100) clearInterval(interval);
-              return { ...file, progress: newProgress };
-            }
-            return file;
-          })
+          prev.map(file =>
+            file.id === fileId
+              ? {
+                  ...file,
+                  status: 'completed',
+                  progress: 100,
+                  uploadedId: result.id,
+                  error: null,
+                }
+              : file
+          )
         );
       }
-    }, 200);
+
+      // Remove from promises map
+      setUploadPromises(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(fileId);
+        return newMap;
+      });
+
+      console.log(`✅ ${type === 'photo' ? 'Photo' : 'Document'} uploaded successfully:`, {
+        fileId,
+        uploadedId: result.id,
+        fileName: fileObj.name,
+      });
+    } catch (error) {
+      console.error(`❌ Upload failed for ${type}:`, error);
+      
+      // Update with error
+      if (type === 'photo') {
+        setAssetPhotos(prev =>
+          prev.map(file =>
+            file.id === fileId
+              ? {
+                  ...file,
+                  status: 'error',
+                  error: error.message || 'Upload failed',
+                }
+              : file
+          )
+        );
+      } else {
+        setSupportingDocs(prev =>
+          prev.map(file =>
+            file.id === fileId
+              ? {
+                  ...file,
+                  status: 'error',
+                  error: error.message || 'Upload failed',
+                }
+              : file
+          )
+        );
+      }
+
+      // Remove from promises map
+      setUploadPromises(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(fileId);
+        return newMap;
+      });
+    }
+  };
+
+  const uploadFileWithProgress = async (file, fileType, fileId, type) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('file_type', fileType);
+
+    const headers = {};
+    if (typeof window !== 'undefined') {
+      const accessToken = localStorage.getItem('access_token');
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+    }
+
+    const { API_BASE_URL, API_BASE_PATH, API_ENDPOINTS } = await import('@/config/api');
+    const url = `${API_BASE_URL.replace(/\/$/, '')}${API_BASE_PATH}${API_ENDPOINTS.FILES.UPLOAD}`;
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const progress = Math.round((e.loaded / e.total) * 100);
+          // Update progress in state
+          if (type === 'photo') {
+            setAssetPhotos(prev =>
+              prev.map(file =>
+                file.id === fileId ? { ...file, progress } : file
+              )
+            );
+          } else {
+            setSupportingDocs(prev =>
+              prev.map(file =>
+                file.id === fileId ? { ...file, progress } : file
+              )
+            );
+          }
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            if (response.data?.id) {
+              resolve({ id: response.data.id, ...response.data });
+            } else {
+              reject(new Error('Upload succeeded but no ID returned'));
+            }
+          } catch (err) {
+            reject(new Error('Failed to parse upload response'));
+          }
+        } else {
+          try {
+            const error = JSON.parse(xhr.responseText);
+            reject(new Error(error.detail || error.message || 'Upload failed'));
+          } catch {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error during upload'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload aborted'));
+      });
+
+      xhr.open('POST', url);
+      Object.keys(headers).forEach(key => {
+        xhr.setRequestHeader(key, headers[key]);
+      });
+      xhr.send(formData);
+    });
   };
 
   const removeFile = (fileId, type) => {
+    // Cancel upload if in progress
+    const promise = uploadPromises.get(fileId);
+    if (promise) {
+      // Note: We can't actually cancel XMLHttpRequest easily, but we'll remove it from tracking
+      setUploadPromises(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(fileId);
+        return newMap;
+      });
+    }
+
     if (type === 'photo') {
       setAssetPhotos(prev => prev.filter(file => file.id !== fileId));
-    } else {
+    } else if (type === 'doc') {
       setSupportingDocs(prev => prev.filter(file => file.id !== fileId));
     }
   };
@@ -889,17 +1339,17 @@ export default function AddAssetPage() {
                   >
                     Cancel
                   </button>
-                  <button
-                    onClick={handleNext}
-                    disabled={!selectedCategory}
-                    className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-                      selectedCategory
-                        ? 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
-                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                    }`}
-                  >
-                    Next Step
-                  </button>
+                <button
+                  onClick={handleNext}
+                  disabled={!selectedCategory || isSubmitting}
+                  className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                    selectedCategory && !isSubmitting
+                      ? 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  {isSubmitting ? 'Processing...' : 'Next Step'}
+                </button>
                 </div>
               </div>
             )}
@@ -924,62 +1374,131 @@ export default function AddAssetPage() {
             <div className='bg-gradient-to-r from-[#222126] to-[#111116] border border-[#FFFFFF14] rounded-2xl p-6 md:p-8'>
               {/* Upload Section */}
               <div className='mb-8'>
-                <h3 className='text-xl font-semibold text-white mb-2'>
-                  Upload Photos & Documents
-                </h3>
+                <div className='flex items-center justify-between mb-2'>
+                  <h3 className='text-xl font-semibold text-white'>
+                    Upload Photos & Documents
+                  </h3>
+                  {(assetPhotos.length > 0 || supportingDocs.length > 0) && (
+                    <div className='flex items-center gap-4'>
+                      {assetPhotos.length > 0 && (
+                        <div className='flex items-center gap-2 px-3 py-1 bg-[#F1CB68]/20 border border-[#F1CB68]/50 rounded-full'>
+                          <span className='text-[#F1CB68] text-sm font-medium'>
+                            {assetPhotos.length} Photo{assetPhotos.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      )}
+                      {supportingDocs.length > 0 && (
+                        <div className='flex items-center gap-2 px-3 py-1 bg-[#F1CB68]/20 border border-[#F1CB68]/50 rounded-full'>
+                          <span className='text-[#F1CB68] text-sm font-medium'>
+                            {supportingDocs.length} Document{supportingDocs.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <p className='text-gray-400 text-sm mb-6'>
                   Provide clear photos of proof of ownership for your asset.
                   High-resolution images are recommended.
                 </p>
 
-                {/* Drag & Drop Area */}
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={e => handleDrop(e, 'photo')}
-                  className={`border-2 border-dashed rounded-2xl p-8 md:p-12 text-center transition-colors ${
-                    isDragging
-                      ? 'border-[#F1CB68] bg-[#F1CB68]/5'
-                      : 'border-[#FFFFFF14] hover:border-[#F1CB68]/50'
-                  }`}
-                >
-                  <div className='flex flex-col items-center'>
-                    {/* Cloud Icon */}
-                    <div className='mb-4'>
-                      <svg
-                        width='64'
-                        height='64'
-                        viewBox='0 0 64 64'
-                        fill='none'
-                        stroke='#F1CB68'
-                        strokeWidth='2'
+                {/* Upload Areas Grid */}
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-6 mb-6'>
+                  {/* Photos Upload Area */}
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={e => handleDrop(e, 'photo')}
+                    className={`border-2 border-dashed rounded-2xl p-6 text-center transition-colors ${
+                      isDragging
+                        ? 'border-[#F1CB68] bg-[#F1CB68]/5'
+                        : 'border-[#FFFFFF14] hover:border-[#F1CB68]/50'
+                    }`}
+                  >
+                    <div className='flex flex-col items-center'>
+                      {/* Image Icon */}
+                      <div className='mb-4'>
+                        <svg
+                          width='48'
+                          height='48'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          stroke='#F1CB68'
+                          strokeWidth='2'
+                        >
+                          <rect x='3' y='3' width='18' height='18' rx='2' />
+                          <circle cx='8.5' cy='8.5' r='1.5' />
+                          <polyline points='21 15 16 10 5 21' />
+                        </svg>
+                      </div>
+                      <p className='text-white font-medium mb-1'>Upload Photos</p>
+                      <p className='text-gray-400 text-xs mb-4'>
+                        JPG, PNG (Max 10MB)
+                      </p>
+                      <input
+                        type='file'
+                        id='photo-upload'
+                        multiple
+                        accept='image/*'
+                        onChange={e => handleFileSelect(e, 'photo')}
+                        className='hidden'
+                      />
+                      <label
+                        htmlFor='photo-upload'
+                        className='px-4 py-2 bg-[#F1CB68] text-[#0B0D12] rounded-lg text-sm font-semibold cursor-pointer hover:bg-[#d4b55a] transition-colors inline-block'
                       >
-                        <path d='M32 20v24M32 20l-8 8M32 20l8 8' />
-                        <path d='M16 40c-4 0-8-4-8-8s4-8 8-8c0-8 8-16 16-16s16 8 16 16c4 0 8 4 8 8s-4 8-8 8' />
-                      </svg>
+                        Select Photos
+                      </label>
                     </div>
+                  </div>
 
-                    <p className='text-white text-lg mb-2'>
-                      Drag & drop files here, or click to browser
-                    </p>
-                    <p className='text-gray-400 text-sm mb-6'>
-                      Supports: JPG/PNG/PDF Max file size: 10MB
-                    </p>
-
-                    <input
-                      type='file'
-                      id='file-upload'
-                      multiple
-                      accept='image/*,application/pdf'
-                      onChange={e => handleFileSelect(e, 'photo')}
-                      className='hidden'
-                    />
-                    <label
-                      htmlFor='file-upload'
-                      className='px-6 py-3 bg-[#F1CB68] text-[#0B0D12] rounded-lg font-semibold cursor-pointer hover:bg-[#d4b55a] transition-colors'
-                    >
-                      Select files
-                    </label>
+                  {/* Documents Upload Area */}
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={e => handleDrop(e, 'doc')}
+                    className={`border-2 border-dashed rounded-2xl p-6 text-center transition-colors ${
+                      isDragging
+                        ? 'border-[#F1CB68] bg-[#F1CB68]/5'
+                        : 'border-[#FFFFFF14] hover:border-[#F1CB68]/50'
+                    }`}
+                  >
+                    <div className='flex flex-col items-center'>
+                      {/* Document Icon */}
+                      <div className='mb-4'>
+                        <svg
+                          width='48'
+                          height='48'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          stroke='#F1CB68'
+                          strokeWidth='2'
+                        >
+                          <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+                          <polyline points='14 2 14 8 20 8' />
+                          <line x1='16' y1='13' x2='8' y2='13' />
+                          <line x1='16' y1='17' x2='8' y2='17' />
+                        </svg>
+                      </div>
+                      <p className='text-white font-medium mb-1'>Upload Documents</p>
+                      <p className='text-gray-400 text-xs mb-4'>
+                        PDF only (Max 10MB)
+                      </p>
+                      <input
+                        type='file'
+                        id='doc-upload'
+                        multiple
+                        accept='application/pdf'
+                        onChange={e => handleFileSelect(e, 'doc')}
+                        className='hidden'
+                      />
+                      <label
+                        htmlFor='doc-upload'
+                        className='px-4 py-2 bg-[#F1CB68] text-[#0B0D12] rounded-lg text-sm font-semibold cursor-pointer hover:bg-[#d4b55a] transition-colors inline-block'
+                      >
+                        Select Documents
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -987,17 +1506,29 @@ export default function AddAssetPage() {
               {/* Assets Photos Section */}
               {assetPhotos.length > 0 && (
                 <div className='mb-8'>
-                  <h4 className='text-lg font-semibold text-white mb-4'>
-                    Assets Photos
+                  <h4 className='text-lg font-semibold text-white mb-4 flex items-center gap-2'>
+                    <svg
+                      width='20'
+                      height='20'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='#F1CB68'
+                      strokeWidth='2'
+                    >
+                      <rect x='3' y='3' width='18' height='18' rx='2' />
+                      <circle cx='8.5' cy='8.5' r='1.5' />
+                      <polyline points='21 15 16 10 5 21' />
+                    </svg>
+                    Assets Photos ({assetPhotos.length})
                   </h4>
-                  <div className='space-y-3'>
+                  <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
                     {assetPhotos.map(photo => (
                       <div
                         key={photo.id}
-                        className='flex items-center gap-4 bg-[#2A2A2D] rounded-xl p-4'
+                        className='flex items-center gap-4 bg-[#2A2A2D] border border-[#FFFFFF14] rounded-xl p-4 hover:border-[#F1CB68]/50 transition-colors relative group'
                       >
                         {/* Thumbnail */}
-                        <div className='w-16 h-16 rounded-lg overflow-hidden bg-[#1a1a1d] flex-shrink-0'>
+                        <div className='w-16 h-16 rounded-lg overflow-hidden bg-[#1a1a1d] flex-shrink-0 border border-[#FFFFFF14]'>
                           <img
                             src={URL.createObjectURL(photo.file)}
                             alt={photo.name}
@@ -1007,45 +1538,87 @@ export default function AddAssetPage() {
 
                         {/* File Info */}
                         <div className='flex-1 min-w-0'>
-                          <p className='text-white font-medium truncate'>
+                          <p className='text-white font-medium truncate text-sm'>
                             {photo.name}
                           </p>
-                          <p className='text-gray-400 text-sm'>
-                            {photo.size} Mb
+                          <p className='text-gray-400 text-xs mt-1'>
+                            {photo.size} MB
                           </p>
-
-                          {/* Progress Bar */}
-                          {photo.progress < 100 ? (
+                          {photo.status === 'uploading' ? (
                             <div className='mt-2'>
                               <div className='flex items-center gap-2 mb-1'>
-                                <span className='text-xs text-gray-400'>
-                                  Uploading... ({photo.progress}%)
+                                <div className='flex-1 h-1.5 bg-[#1a1a1d] rounded-full overflow-hidden'>
+                                  <div
+                                    className='h-full bg-[#F1CB68] transition-all duration-300'
+                                    style={{ width: `${photo.progress}%` }}
+                                  />
+                                </div>
+                                <span className='text-xs text-gray-400 min-w-[3rem] text-right'>
+                                  {photo.progress}%
                                 </span>
                               </div>
-                              <div className='w-full h-1.5 bg-[#1a1a1d] rounded-full overflow-hidden'>
-                                <div
-                                  className='h-full bg-[#F1CB68] transition-all duration-300'
-                                  style={{ width: `${photo.progress}%` }}
-                                />
-                              </div>
+                              <span className='text-xs text-[#F1CB68]'>
+                                Uploading...
+                              </span>
                             </div>
-                          ) : null}
+                          ) : photo.status === 'completed' ? (
+                            <div className='mt-2 flex items-center gap-2'>
+                              <svg
+                                width='14'
+                                height='14'
+                                viewBox='0 0 24 24'
+                                fill='none'
+                                stroke='#10B981'
+                                strokeWidth='2'
+                              >
+                                <path d='M20 6L9 17l-5-5' />
+                              </svg>
+                              <span className='text-xs text-green-400'>
+                                Uploaded
+                              </span>
+                            </div>
+                          ) : photo.status === 'error' ? (
+                            <div className='mt-2 flex items-center gap-2'>
+                              <svg
+                                width='14'
+                                height='14'
+                                viewBox='0 0 24 24'
+                                fill='none'
+                                stroke='#EF4444'
+                                strokeWidth='2'
+                              >
+                                <circle cx='12' cy='12' r='10' />
+                                <path d='M12 8v4M12 16h.01' />
+                              </svg>
+                              <span className='text-xs text-red-400'>
+                                {photo.error || 'Upload failed'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className='mt-2 flex items-center gap-2'>
+                              <span className='text-xs text-[#F1CB68]'>
+                                Selected
+                              </span>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Delete Button */}
+                        {/* Remove Button - Cross Icon */}
                         <button
                           onClick={() => removeFile(photo.id, 'photo')}
-                          className='text-red-500 hover:text-red-400 transition-colors p-2'
+                          className='text-gray-400 hover:text-red-500 transition-colors p-2 hover:bg-red-500/10 rounded-lg flex-shrink-0'
+                          title='Remove photo'
                         >
                           <svg
-                            width='20'
-                            height='20'
+                            width='18'
+                            height='18'
                             viewBox='0 0 24 24'
                             fill='none'
                             stroke='currentColor'
-                            strokeWidth='2'
+                            strokeWidth='2.5'
+                            strokeLinecap='round'
                           >
-                            <path d='M3 6h18M8 6V4h8v2M19 6v14H5V6h14z' />
+                            <path d='M18 6L6 18M6 6l12 12' />
                           </svg>
                         </button>
                       </div>
@@ -1057,81 +1630,149 @@ export default function AddAssetPage() {
               {/* Supporting Documents Section */}
               {supportingDocs.length > 0 && (
                 <div className='mb-8'>
-                  <h4 className='text-lg font-semibold text-white mb-4'>
-                    Supporting Documents
+                  <h4 className='text-lg font-semibold text-white mb-4 flex items-center gap-2'>
+                    <svg
+                      width='20'
+                      height='20'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='#F1CB68'
+                      strokeWidth='2'
+                    >
+                      <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+                      <polyline points='14 2 14 8 20 8' />
+                      <line x1='16' y1='13' x2='8' y2='13' />
+                      <line x1='16' y1='17' x2='8' y2='17' />
+                      <polyline points='10 9 9 9 8 9' />
+                    </svg>
+                    Supporting Documents ({supportingDocs.length})
                   </h4>
-                  <div className='space-y-3'>
+                  <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
                     {supportingDocs.map(doc => (
                       <div
                         key={doc.id}
-                        className='flex items-center gap-4 bg-[#2A2A2D] rounded-xl p-4'
+                        className='flex items-center gap-4 bg-[#2A2A2D] border border-[#FFFFFF14] rounded-xl p-4 hover:border-[#F1CB68]/50 transition-colors relative group'
                       >
-                        {/* PDF Icon */}
-                        <div className='w-16 h-16 rounded-lg bg-[#F1CB68]/10 flex items-center justify-center flex-shrink-0'>
-                          <svg
-                            width='32'
-                            height='32'
-                            viewBox='0 0 24 24'
-                            fill='#F1CB68'
-                          >
-                            <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z' />
-                            <path d='M14 2v6h6' stroke='#F1CB68' fill='none' />
-                            <text
-                              x='12'
-                              y='17'
-                              fontSize='6'
-                              fill='#0B0D12'
-                              textAnchor='middle'
-                              fontWeight='bold'
+                        {/* PDF/Document Icon */}
+                        <div className='w-16 h-16 rounded-lg bg-[#F1CB68]/10 border border-[#F1CB68]/30 flex items-center justify-center flex-shrink-0'>
+                          {doc.file.type === 'application/pdf' ? (
+                            <svg
+                              width='32'
+                              height='32'
+                              viewBox='0 0 24 24'
+                              fill='#F1CB68'
                             >
-                              PDF
-                            </text>
-                          </svg>
+                              <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z' />
+                              <path d='M14 2v6h6' stroke='#F1CB68' fill='none' strokeWidth='1.5' />
+                              <text
+                                x='12'
+                                y='17'
+                                fontSize='6'
+                                fill='#0B0D12'
+                                textAnchor='middle'
+                                fontWeight='bold'
+                              >
+                                PDF
+                              </text>
+                            </svg>
+                          ) : (
+                            <svg
+                              width='32'
+                              height='32'
+                              viewBox='0 0 24 24'
+                              fill='none'
+                              stroke='#F1CB68'
+                              strokeWidth='2'
+                            >
+                              <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+                              <polyline points='14 2 14 8 20 8' />
+                            </svg>
+                          )}
                         </div>
 
                         {/* File Info */}
                         <div className='flex-1 min-w-0'>
-                          <p className='text-white font-medium truncate'>
+                          <p className='text-white font-medium truncate text-sm'>
                             {doc.name}
                           </p>
-                          <p className='text-gray-400 text-sm'>{doc.size} Mb</p>
-
-                          {/* Progress Bar or Error */}
-                          {doc.progress < 100 ? (
+                          <p className='text-gray-400 text-xs mt-1'>
+                            {doc.size} MB
+                          </p>
+                          {doc.status === 'uploading' ? (
                             <div className='mt-2'>
                               <div className='flex items-center gap-2 mb-1'>
-                                <span className='text-xs text-gray-400'>
-                                  Uploading... ({doc.progress}%)
+                                <div className='flex-1 h-1.5 bg-[#1a1a1d] rounded-full overflow-hidden'>
+                                  <div
+                                    className='h-full bg-[#F1CB68] transition-all duration-300'
+                                    style={{ width: `${doc.progress}%` }}
+                                  />
+                                </div>
+                                <span className='text-xs text-gray-400 min-w-[3rem] text-right'>
+                                  {doc.progress}%
                                 </span>
                               </div>
-                              <div className='w-full h-1.5 bg-[#1a1a1d] rounded-full overflow-hidden'>
-                                <div
-                                  className='h-full bg-[#F1CB68] transition-all duration-300'
-                                  style={{ width: `${doc.progress}%` }}
-                                />
-                              </div>
+                              <span className='text-xs text-[#F1CB68]'>
+                                Uploading...
+                              </span>
                             </div>
-                          ) : doc.error ? (
-                            <p className='text-xs text-red-500 mt-1'>
-                              Error: File too large
-                            </p>
-                          ) : null}
+                          ) : doc.status === 'completed' ? (
+                            <div className='mt-2 flex items-center gap-2'>
+                              <svg
+                                width='14'
+                                height='14'
+                                viewBox='0 0 24 24'
+                                fill='none'
+                                stroke='#10B981'
+                                strokeWidth='2'
+                              >
+                                <path d='M20 6L9 17l-5-5' />
+                              </svg>
+                              <span className='text-xs text-green-400'>
+                                Uploaded
+                              </span>
+                            </div>
+                          ) : doc.status === 'error' ? (
+                            <div className='mt-2 flex items-center gap-2'>
+                              <svg
+                                width='14'
+                                height='14'
+                                viewBox='0 0 24 24'
+                                fill='none'
+                                stroke='#EF4444'
+                                strokeWidth='2'
+                              >
+                                <circle cx='12' cy='12' r='10' />
+                                <path d='M12 8v4M12 16h.01' />
+                              </svg>
+                              <span className='text-xs text-red-400'>
+                                {doc.error || 'Upload failed'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className='mt-2 flex items-center gap-2'>
+                              <span className='text-xs text-[#F1CB68]'>
+                                Selected
+                              </span>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Delete Button */}
+                        {/* Remove Button - Cross Icon */}
                         <button
                           onClick={() => removeFile(doc.id, 'doc')}
-                          className='text-red-500 hover:text-red-400 transition-colors p-2'
+                          className='text-gray-400 hover:text-red-500 transition-colors p-2 hover:bg-red-500/10 rounded-lg flex-shrink-0'
+                          title='Remove document'
                         >
                           <svg
-                            width='20'
-                            height='20'
+                            width='18'
+                            height='18'
                             viewBox='0 0 24 24'
                             fill='none'
                             stroke='currentColor'
-                            strokeWidth='2'
+                            strokeWidth='2.5'
+                            strokeLinecap='round'
                           >
-                            <path d='M3 6h18M8 6V4h8v2M19 6v14H5V6h14z' />
+                            <path d='M18 6L6 18M6 6l12 12' />
                           </svg>
                         </button>
                       </div>
@@ -1150,9 +1791,14 @@ export default function AddAssetPage() {
                 </button>
                 <button
                   onClick={handleNext}
-                  className='px-6 py-3 rounded-lg bg-[#F1CB68] text-[#0B0D12] font-semibold hover:bg-[#d4b55a] transition-colors'
+                  disabled={isSubmitting}
+                  className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                    isSubmitting
+                      ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                      : 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
+                  }`}
                 >
-                  Next Step
+                  {isSubmitting ? 'Processing...' : 'Next Step'}
                 </button>
               </div>
             </div>
@@ -1257,11 +1903,23 @@ export default function AddAssetPage() {
                 >
                   Back
                 </button>
+                {submitError && (
+                  <div className={`p-4 rounded-lg mb-4 ${
+                    isDarkMode ? 'bg-red-900/20 border border-red-500/50 text-red-400' : 'bg-red-50 border border-red-300 text-red-700'
+                  }`}>
+                    <div className='text-sm whitespace-pre-line'>{submitError}</div>
+                  </div>
+                )}
                 <button
                   onClick={handleNext}
-                  className='px-6 py-3 rounded-lg bg-[#F1CB68] text-[#0B0D12] font-semibold hover:bg-[#d4b55a] transition-colors'
+                  disabled={isSubmitting}
+                  className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                    isSubmitting
+                      ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                      : 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
+                  }`}
                 >
-                  Finish
+                  {isSubmitting ? 'Creating Asset...' : 'Finish'}
                 </button>
               </div>
             </div>

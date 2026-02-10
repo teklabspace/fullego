@@ -1,23 +1,168 @@
 'use client';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
-import React from 'react';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { getAccountStats, getMyAccount } from '@/utils/accountsApi';
+import { getUserProfile } from '@/utils/authApi';
+import { getBankAccounts } from '@/utils/bankingApi';
+import
+  {
+    getPortfolioHistory,
+    getPortfolioPerformance,
+    getPortfolioSummary
+  } from '@/utils/portfolioApi';
+import React, { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
+import
+  {
+    Area,
+    AreaChart,
+    CartesianGrid,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis
+  } from 'recharts';
 
 export default function DashboardPage() {
+  const { isDarkMode } = useTheme();
+  const [userProfile, setUserProfile] = useState(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  
+  // Dashboard data states
+  const [portfolioSummary, setPortfolioSummary] = useState(null);
+  const [portfolioPerformance, setPortfolioPerformance] = useState(null);
+  const [portfolioHistory, setPortfolioHistory] = useState([]);
+  const [accountData, setAccountData] = useState(null);
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        setLoading(true);
+        setIsLoadingProfile(true);
+        
+        // Fetch all data in parallel using Promise.allSettled
+        const results = await Promise.allSettled([
+          getUserProfile().catch(err => ({ error: err })),
+          getPortfolioSummary('ALL').catch(err => ({ error: err })),
+          getPortfolioPerformance(365).catch(err => ({ error: err })),
+          getPortfolioHistory(365).catch(err => ({ error: err })),
+          getMyAccount().catch(err => ({ error: err })),
+          getAccountStats().catch(err => ({ error: err })),
+          getBankAccounts().catch(err => ({ error: err })),
+        ]);
+
+        // Process results
+        const [
+          profileResult,
+          portfolioSummaryResult,
+          portfolioPerformanceResult,
+          portfolioHistoryResult,
+          accountResult,
+          accountStatsResult,
+          bankAccountsResult,
+        ] = results;
+
+        // User Profile
+        if (profileResult.status === 'fulfilled' && !profileResult.value.error) {
+          setUserProfile(profileResult.value);
+        } else {
+          const error = profileResult.value?.error || profileResult.reason;
+          console.error('Failed to fetch user profile:', error);
+          setErrors(prev => ({ ...prev, profile: error }));
+        }
+        setIsLoadingProfile(false);
+
+        // Portfolio Summary
+        if (portfolioSummaryResult.status === 'fulfilled' && !portfolioSummaryResult.value.error) {
+          setPortfolioSummary(portfolioSummaryResult.value.data || portfolioSummaryResult.value);
+        } else {
+          const error = portfolioSummaryResult.value?.error || portfolioSummaryResult.reason;
+          console.error('Failed to fetch portfolio summary:', error);
+          setErrors(prev => ({ ...prev, portfolioSummary: error }));
+        }
+
+        // Portfolio Performance
+        if (portfolioPerformanceResult.status === 'fulfilled' && !portfolioPerformanceResult.value.error) {
+          setPortfolioPerformance(portfolioPerformanceResult.value);
+        } else {
+          const error = portfolioPerformanceResult.value?.error || portfolioPerformanceResult.reason;
+          console.error('Failed to fetch portfolio performance:', error);
+          setErrors(prev => ({ ...prev, portfolioPerformance: error }));
+        }
+
+        // Portfolio History
+        if (portfolioHistoryResult.status === 'fulfilled' && !portfolioHistoryResult.value.error) {
+          const historyData = portfolioHistoryResult.value.data || portfolioHistoryResult.value;
+          setPortfolioHistory(Array.isArray(historyData) ? historyData : []);
+        } else {
+          const error = portfolioHistoryResult.value?.error || portfolioHistoryResult.reason;
+          console.error('Failed to fetch portfolio history:', error);
+          setErrors(prev => ({ ...prev, portfolioHistory: error }));
+        }
+
+        // Account Data
+        if (accountResult.status === 'fulfilled' && !accountResult.value.error) {
+          const account = accountResult.value.data || accountResult.value;
+          if (accountStatsResult.status === 'fulfilled' && !accountStatsResult.value.error) {
+            const stats = accountStatsResult.value;
+            setAccountData({ ...account, stats });
+          } else {
+            setAccountData(account);
+          }
+        } else {
+          const error = accountResult.value?.error || accountResult.reason;
+          console.error('Failed to fetch account data:', error);
+          setErrors(prev => ({ ...prev, account: error }));
+        }
+
+        // Bank Accounts
+        if (bankAccountsResult.status === 'fulfilled' && !bankAccountsResult.value.error) {
+          const accounts = bankAccountsResult.value.data || bankAccountsResult.value;
+          setBankAccounts(Array.isArray(accounts) ? accounts : []);
+        } else {
+          const error = bankAccountsResult.value?.error || bankAccountsResult.reason;
+          console.error('Failed to fetch bank accounts:', error);
+          setErrors(prev => ({ ...prev, bankAccounts: error }));
+        }
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        toast.error('Failed to load some dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAllData();
+  }, []);
+
+  return (
+    <DashboardContent 
+      userProfile={userProfile} 
+      isLoadingProfile={isLoadingProfile}
+      portfolioSummary={portfolioSummary}
+      portfolioPerformance={portfolioPerformance}
+      portfolioHistory={portfolioHistory}
+      accountData={accountData}
+      bankAccounts={bankAccounts}
+      loading={loading}
+    />
+  );
+}
+
+function DashboardContent({ 
+  userProfile, 
+  isLoadingProfile,
+  portfolioSummary,
+  portfolioPerformance,
+  portfolioHistory,
+  accountData,
+  bankAccounts,
+  loading,
+}) {
   const { isDarkMode } = useTheme();
 
   return (
@@ -31,7 +176,13 @@ export default function DashboardPage() {
             isDarkMode ? 'text-white' : 'text-black'
           }`}
         >
-          Olá, Clark
+          {isLoadingProfile ? (
+            'Loading...'
+          ) : userProfile ? (
+            `Olá, ${userProfile.first_name || userProfile.email?.split('@')[0] || 'User'}`
+          ) : (
+            'Olá, User'
+          )}
         </h1>
         
         {/* Navigation Icons */}
@@ -83,33 +234,141 @@ export default function DashboardPage() {
       {/* Top Row Cards */}
       <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-6'>
         {/* Net Worth & Investable Card */}
-        <NetWorthInvestableCard />
+        <NetWorthInvestableCard 
+          portfolioSummary={portfolioSummary}
+          portfolioPerformance={portfolioPerformance}
+          loading={loading}
+        />
 
         {/* Assets Card */}
-        <AssetsCard />
+        <AssetsCard 
+          portfolioSummary={portfolioSummary}
+          portfolioPerformance={portfolioPerformance}
+          loading={loading}
+        />
 
         {/* Debts Card */}
-        <DebtsCard />
+        <DebtsCard 
+          portfolioSummary={portfolioSummary}
+          portfolioPerformance={portfolioPerformance}
+          loading={loading}
+        />
       </div>
 
       {/* Middle Row Cards */}
       <div className='grid grid-cols-1 md:grid-cols-2 gap-6 mb-6'>
         {/* Cash on hand Card */}
-        <CashOnHandCard />
+        <CashOnHandCard 
+          accountData={accountData}
+          bankAccounts={bankAccounts}
+          loading={loading}
+        />
 
         {/* Tax Estimate Card */}
-        <TaxEstimateCard />
+        <TaxEstimateCard 
+          portfolioSummary={portfolioSummary}
+          portfolioPerformance={portfolioPerformance}
+          loading={loading}
+        />
       </div>
 
       {/* Historical Performance Graph */}
-      <HistoricalPerformanceGraph />
+      <HistoricalPerformanceGraph 
+        portfolioHistory={portfolioHistory}
+        portfolioSummary={portfolioSummary}
+        loading={loading}
+      />
     </DashboardLayout>
   );
 }
 
+// Helper function to format currency
+const formatCurrency = (value, showMillion = false) => {
+  if (value === null || value === undefined) return '$0';
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(numValue)) return '$0';
+  
+  if (showMillion && numValue >= 1000000) {
+    return `$${(numValue / 1000000).toFixed(3)} Million`;
+  }
+  
+  if (numValue >= 1000) {
+    return `$${(numValue / 1000).toFixed(1)}K`;
+  }
+  
+  return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+// Helper function to format percentage
+const formatPercentage = (value) => {
+  if (value === null || value === undefined) return '0%';
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(numValue)) return '0%';
+  const sign = numValue >= 0 ? '+' : '';
+  return `${sign}${numValue.toFixed(2)}%`;
+};
+
 // Net Worth & Investable Card Component
-function NetWorthInvestableCard() {
+function NetWorthInvestableCard({ portfolioSummary, portfolioPerformance, loading }) {
   const { isDarkMode } = useTheme();
+
+  // Calculate net worth from portfolio summary
+  const hasPortfolioSummary = !!portfolioSummary;
+  const netWorth = hasPortfolioSummary
+    ? portfolioSummary.totalPortfolioValue ||
+      (portfolioSummary.totalAssets && portfolioSummary.totalDebts
+        ? portfolioSummary.totalAssets - portfolioSummary.totalDebts
+        : 0)
+    : 0;
+  
+  // Calculate investable (cash available + portfolio value)
+  const investable = hasPortfolioSummary
+    ? portfolioSummary.cashAvailable || portfolioSummary.totalPortfolioValue || 0
+    : 0;
+
+  // Get return percentages
+  const netWorthReturn = portfolioPerformance?.totalReturnPercentage ??
+    portfolioSummary?.returnPercentage;
+  const investableReturn = portfolioPerformance?.totalReturnPercentage ??
+    portfolioSummary?.returnPercentage;
+
+  // Market benchmarks (mock data - can be replaced with actual market data API)
+  const benchmarks = [
+    { name: 'S&P 500', value: 14 },
+    { name: 'DOW JONES', value: 9 },
+    { name: 'TSLA', value: 9 },
+  ];
+
+  if (loading && !portfolioSummary) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+          <div className="h-8 bg-gray-300 rounded w-1/2"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // If not loading and still no data, don't show dummy values
+  if (!loading && !portfolioSummary) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <h3 className={`text-sm font-medium mb-2 ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Net Worth & Investable
+        </h3>
+        <p className={isDarkMode ? 'text-gray-500 text-sm' : 'text-gray-500 text-sm'}>
+          No data available.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-transparent border rounded-2xl p-6 ${
@@ -128,7 +387,7 @@ function NetWorthInvestableCard() {
         <h2 className={`text-3xl font-bold ${
           isDarkMode ? 'text-white' : 'text-black'
         }`}>
-          $16.995 Million
+          {formatCurrency(netWorth, true)}
         </h2>
       </div>
 
@@ -145,7 +404,7 @@ function NetWorthInvestableCard() {
         <h2 className={`text-3xl font-bold ${
             isDarkMode ? 'text-white' : 'text-black'
         }`}>
-          $12.228 Million
+          {formatCurrency(investable, true)}
         </h2>
       </div>
 
@@ -161,32 +420,32 @@ function NetWorthInvestableCard() {
             <span className={`text-xs ${
               isDarkMode ? 'text-gray-400' : 'text-gray-600'
             }`}>NET WORTH</span>
-            <span className='text-[#10B981] text-xs font-medium'>+35%</span>
+            <span className={`text-xs font-medium ${
+              netWorthReturn >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
+            }`}>
+              {formatPercentage(netWorthReturn)}
+            </span>
           </div>
           <div className='flex items-center justify-between'>
             <span className={`text-xs ${
               isDarkMode ? 'text-gray-400' : 'text-gray-600'
             }`}>INVESTABLE</span>
-            <span className='text-[#10B981] text-xs font-medium'>+30%</span>
+            <span className={`text-xs font-medium ${
+              investableReturn >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
+            }`}>
+              {formatPercentage(investableReturn)}
+            </span>
           </div>
-          <div className='flex items-center justify-between'>
-            <span className={`text-xs ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>S&P 500</span>
-            <span className='text-[#10B981] text-xs font-medium'>+14%</span>
-          </div>
-          <div className='flex items-center justify-between'>
-            <span className={`text-xs ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>DOW JONES</span>
-            <span className='text-[#10B981] text-xs font-medium'>+9%</span>
-          </div>
-          <div className='flex items-center justify-between'>
-            <span className={`text-xs ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>TSLA</span>
-            <span className='text-[#10B981] text-xs font-medium'>+9%</span>
-          </div>
+          {benchmarks.map((benchmark, index) => (
+            <div key={index} className='flex items-center justify-between'>
+              <span className={`text-xs ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>{benchmark.name}</span>
+              <span className='text-[#10B981] text-xs font-medium'>
+                {formatPercentage(benchmark.value)}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -194,8 +453,57 @@ function NetWorthInvestableCard() {
 }
 
 // Assets Card Component
-function AssetsCard() {
+function AssetsCard({ portfolioSummary, portfolioPerformance, loading }) {
   const { isDarkMode } = useTheme();
+
+  // Get total assets value
+  const hasAssetsData = !!portfolioSummary;
+  const totalAssets = hasAssetsData
+    ? (portfolioSummary?.totalAssets ||
+       portfolioSummary?.totalPortfolioValue ||
+       0)
+    : 0;
+
+  // Get today's change
+  const todayChange = portfolioSummary?.todayChange ??
+    portfolioPerformance?.totalReturn;
+  const todayChangePercent = portfolioSummary?.todayChangePercentage ??
+    portfolioPerformance?.totalReturnPercentage;
+
+  // Get 1 year change (from performance data)
+  const oneYearChange = portfolioPerformance?.totalReturn;
+  const oneYearChangePercent = portfolioPerformance?.totalReturnPercentage;
+
+  if (loading && !portfolioSummary) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+          <div className="h-8 bg-gray-300 rounded w-1/2"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // If not loading and still no data, don't show dummy values
+  if (!loading && !hasAssetsData) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <h3 className={`text-sm font-medium mb-2 ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Assets
+        </h3>
+        <p className={isDarkMode ? 'text-gray-500 text-sm' : 'text-gray-500 text-sm'}>
+          No data available.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-transparent border rounded-2xl p-6 ${
@@ -209,7 +517,7 @@ function AssetsCard() {
       <h2 className={`text-3xl font-bold mb-6 ${
               isDarkMode ? 'text-white' : 'text-black'
       }`}>
-        $18.226 Million
+        {formatCurrency(totalAssets, true)}
       </h2>
       
       <div className='space-y-3'>
@@ -219,9 +527,13 @@ function AssetsCard() {
           }`}>
             1 DAY
           </p>
-          <p className='text-[#10B981] text-sm font-medium'>
-            +$32,682 (0.18%)
-          </p>
+          {todayChange != null && todayChangePercent != null && (
+            <p className={`text-sm font-medium ${
+              todayChange >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
+            }`}>
+              {todayChange >= 0 ? '+' : ''}{formatCurrency(todayChange)} ({formatPercentage(todayChangePercent)})
+            </p>
+          )}
         </div>
         <div>
           <p className={`text-xs mb-1 ${
@@ -229,9 +541,13 @@ function AssetsCard() {
           }`}>
             1 YEAR
           </p>
-          <p className='text-[#EF4444] text-sm font-medium'>
-            -$62,249 (0.34%)
-          </p>
+          {oneYearChange != null && oneYearChangePercent != null && (
+            <p className={`text-sm font-medium ${
+              oneYearChange >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
+            }`}>
+              {oneYearChange >= 0 ? '+' : ''}{formatCurrency(oneYearChange)} ({formatPercentage(oneYearChangePercent)})
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -239,8 +555,47 @@ function AssetsCard() {
 }
 
 // Debts Card Component
-function DebtsCard() {
+function DebtsCard({ portfolioSummary, portfolioPerformance, loading }) {
   const { isDarkMode } = useTheme();
+
+  // Get total debts
+  const hasPortfolioSummary = !!portfolioSummary;
+  const totalDebts = hasPortfolioSummary ? (portfolioSummary.totalDebts || 0) : 0;
+
+  // Debt changes (typically debts don't change daily, but can change over time)
+  const oneDayChange = 0; // Debts typically don't change daily
+  const oneYearChange = portfolioPerformance?.totalReturn ?? null; // Use as placeholder
+
+  if (loading && !portfolioSummary) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+          <div className="h-8 bg-gray-300 rounded w-1/2"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // If not loading and still no data, don't show dummy values
+  if (!loading && !portfolioSummary) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <h3 className={`text-sm font-medium mb-2 ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Debts
+        </h3>
+        <p className={isDarkMode ? 'text-gray-500 text-sm' : 'text-gray-500 text-sm'}>
+          No data available.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-transparent border rounded-2xl p-6 ${
@@ -250,11 +605,11 @@ function DebtsCard() {
         isDarkMode ? 'text-gray-400' : 'text-gray-600'
       }`}>
         Debts
-          </h3>
+      </h3>
       <h2 className={`text-3xl font-bold mb-6 ${
           isDarkMode ? 'text-white' : 'text-black'
       }`}>
-        $1.232 Million
+        {formatCurrency(totalDebts, true)}
       </h2>
 
       <div className='space-y-3'>
@@ -267,27 +622,76 @@ function DebtsCard() {
           <p className={`text-sm font-medium ${
             isDarkMode ? 'text-gray-300' : 'text-gray-700'
           }`}>
-            $0
+            {formatCurrency(oneDayChange)}
           </p>
-            </div>
+        </div>
         <div>
           <p className={`text-xs mb-1 ${
             isDarkMode ? 'text-gray-400' : 'text-gray-600'
           }`}>
             1 YEAR
           </p>
-          <p className='text-[#EF4444] text-sm font-medium'>
-            -$83,791 (6%)
-          </p>
-          </div>
+          {oneYearChange != null && (
+            <p className={`text-sm font-medium ${
+              oneYearChange >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
+            }`}>
+              {oneYearChange >= 0 ? '+' : ''}{formatCurrency(oneYearChange)}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 // Cash on hand Card Component
-function CashOnHandCard() {
+function CashOnHandCard({ accountData, bankAccounts, loading }) {
   const { isDarkMode } = useTheme();
+
+  // Calculate total cash from bank accounts
+  const hasCashData = !!accountData || (bankAccounts && bankAccounts.length > 0);
+  const totalCash = hasCashData
+    ? (bankAccounts?.reduce((sum, account) => {
+        return sum + (parseFloat(account.balance) || 0);
+      }, 0) || accountData?.stats?.portfolioValue || 0)
+    : 0;
+
+  // Calculate overdue payments (negative balance or pending payments)
+  const overdue = null; // Not used when payment stats are unavailable
+
+  if (loading && !accountData && !bankAccounts.length) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+          <div className="h-8 bg-gray-300 rounded w-1/2"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // If not loading and still no data, don't show dummy values
+  if (!loading && !hasCashData) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <div className='flex items-center gap-2 mb-4'>
+          <h3 className={`text-sm font-medium ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            Cash on hand
+          </h3>
+          <InfoIcon />
+        </div>
+        <p className={isDarkMode ? 'text-gray-500 text-sm' : 'text-gray-500 text-sm'}>
+          No data available.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-transparent border rounded-2xl p-6 ${
@@ -304,25 +708,77 @@ function CashOnHandCard() {
       <h2 className={`text-3xl font-bold mb-4 ${
         isDarkMode ? 'text-white' : 'text-black'
       }`}>
-        $430,778
+        {formatCurrency(totalCash)}
       </h2>
-      <div>
-        <p className={`text-xs mb-1 ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-        }`}>
-          Overdue
-        </p>
-        <p className='text-[#EF4444] text-sm font-medium'>
-          -$15,000
-        </p>
-      </div>
+      {overdue != null && overdue < 0 && (
+        <div>
+          <p className={`text-xs mb-1 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            Overdue
+          </p>
+          <p className='text-[#EF4444] text-sm font-medium'>
+            {formatCurrency(overdue)}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
 // Tax Estimate Card Component
-function TaxEstimateCard() {
+function TaxEstimateCard({ portfolioSummary, portfolioPerformance, loading }) {
   const { isDarkMode } = useTheme();
+
+  // Calculate tax estimate (typically 15-20% of gains)
+  const totalGains = portfolioPerformance?.totalReturn ??
+                     portfolioSummary?.totalReturns ??
+                     null;
+  const taxEstimate = totalGains != null ? totalGains * 0.20 : null; // 20% tax estimate
+
+  // Adjusted net worth (net worth minus tax estimate)
+  const hasPortfolioSummary = !!portfolioSummary;
+  const netWorth = hasPortfolioSummary
+    ? (portfolioSummary.totalPortfolioValue ||
+       (portfolioSummary.totalAssets && portfolioSummary.totalDebts
+         ? portfolioSummary.totalAssets - portfolioSummary.totalDebts
+         : 0))
+    : 0;
+  const adjustedNetWorth = taxEstimate != null ? (netWorth - taxEstimate) : null;
+
+  if (loading && !portfolioSummary) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+          <div className="h-8 bg-gray-300 rounded w-1/2"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // If not loading and still no data, don't show dummy values
+  if (!loading && !portfolioSummary && totalGains == null) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <div className='flex items-center gap-2 mb-4'>
+          <h3 className={`text-sm font-medium ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            Tax Estimate
+          </h3>
+          <InfoIcon />
+        </div>
+        <p className={isDarkMode ? 'text-gray-500 text-sm' : 'text-gray-500 text-sm'}>
+          No data available.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-transparent border rounded-2xl p-6 ${
@@ -336,22 +792,26 @@ function TaxEstimateCard() {
         </h3>
         <InfoIcon />
       </div>
-      <h2 className={`text-3xl font-bold mb-4 ${
-        isDarkMode ? 'text-white' : 'text-black'
-      }`}>
-        $227,056
-      </h2>
+      {taxEstimate != null && (
+        <h2 className={`text-3xl font-bold mb-4 ${
+          isDarkMode ? 'text-white' : 'text-black'
+        }`}>
+          {formatCurrency(taxEstimate)}
+        </h2>
+      )}
       <div>
         <p className={`text-xs mb-1 ${
           isDarkMode ? 'text-gray-400' : 'text-gray-600'
         }`}>
           Adjusted Net Worth
         </p>
-        <p className={`text-sm font-medium ${
-          isDarkMode ? 'text-white' : 'text-black'
-        }`}>
-          $16.759 Million
-        </p>
+        {adjustedNetWorth != null && (
+          <p className={`text-sm font-medium ${
+            isDarkMode ? 'text-white' : 'text-black'
+          }`}>
+            {formatCurrency(adjustedNetWorth, true)}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -359,29 +819,102 @@ function TaxEstimateCard() {
 
 
 // Historical Performance Graph Component
-function HistoricalPerformanceGraph() {
+function HistoricalPerformanceGraph({ portfolioHistory, portfolioSummary, loading }) {
   const { isDarkMode } = useTheme();
   const [timeRange, setTimeRange] = React.useState('ALL-TIME');
 
-  // Historical data for Net Worth and Investable - matching the image with more data points
-  const historicalData = [
-    { date: '2020', netWorth: 6.5, investable: 4.2 },
-    { date: '2021', netWorth: 7.8, investable: 5.5 },
-    { date: '2022', netWorth: 9.2, investable: 6.8 },
-    { date: '2023', netWorth: 11.5, investable: 8.9 },
-    { date: '2024 Q1', netWorth: 13.2, investable: 10.1 },
-    { date: '2024 Q2', netWorth: 14.8, investable: 11.2 },
-    { date: '2024 Q3', netWorth: 16.995, investable: 12.228 },
-  ];
+  // Transform portfolio history data for chart
+  const transformHistoryData = (history) => {
+    if (!history || !Array.isArray(history) || history.length === 0) {
+      return [];
+    }
 
-  const currentNetWorth = 16.995;
-  const currentInvestable = 12.228;
-  const initialNetWorth = 6.5;
-  const initialInvestable = 4.2;
-  const netWorthGrowth = currentNetWorth - initialNetWorth;
-  const investableGrowth = currentInvestable - initialInvestable;
-  const netWorthGrowthPercent = ((netWorthGrowth / initialNetWorth) * 100).toFixed(0);
-  const investableGrowthPercent = ((investableGrowth / initialInvestable) * 100).toFixed(0);
+    return history.map((item, index) => {
+      const date = item.date ? new Date(item.date) : new Date();
+      const value = parseFloat(item.value) || 0;
+      
+      // Format date based on time range
+      let dateLabel = '';
+      if (timeRange === 'ALL-TIME') {
+        dateLabel = date.getFullYear().toString();
+      } else if (timeRange === '1Y') {
+        const month = date.toLocaleString('default', { month: 'short' });
+        dateLabel = `${month} ${date.getDate()}`;
+      } else {
+        dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+
+      // Calculate net worth and investable from portfolio value
+      // For now, we'll use the same value for both (can be adjusted based on actual data structure)
+      return {
+        date: dateLabel,
+        netWorth: value / 1000000, // Convert to millions
+        investable: value / 1000000 * 0.72, // Assume investable is 72% of net worth
+      };
+    });
+  };
+
+  // Get historical data from API (no static fallback)
+  const hasHistory = portfolioHistory && portfolioHistory.length > 0;
+  const historicalData = hasHistory ? transformHistoryData(portfolioHistory) : [];
+
+  // Calculate current values
+  const currentNetWorth = portfolioSummary?.totalPortfolioValue
+    ? portfolioSummary.totalPortfolioValue / 1000000
+    : (historicalData[historicalData.length - 1]?.netWorth ?? null);
+  
+  const currentInvestable = portfolioSummary?.cashAvailable
+    ? portfolioSummary.cashAvailable / 1000000
+    : (historicalData[historicalData.length - 1]?.investable ?? null);
+
+  const initialNetWorth = historicalData[0]?.netWorth ?? null;
+  const initialInvestable = historicalData[0]?.investable ?? null;
+  const netWorthGrowth =
+    currentNetWorth != null && initialNetWorth != null
+      ? currentNetWorth - initialNetWorth
+      : null;
+  const investableGrowth =
+    currentInvestable != null && initialInvestable != null
+      ? currentInvestable - initialInvestable
+      : null;
+  const netWorthGrowthPercent =
+    netWorthGrowth != null && initialNetWorth
+      ? ((netWorthGrowth / initialNetWorth) * 100).toFixed(0)
+      : null;
+  const investableGrowthPercent =
+    investableGrowth != null && initialInvestable
+      ? ((investableGrowth / initialInvestable) * 100).toFixed(0)
+      : null;
+
+  if (loading && !hasHistory && !portfolioSummary) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <div className="animate-pulse space-y-4">
+          <div className="h-64 bg-gray-300 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // If not loading and still no data, don't show dummy values
+  if (!loading && !hasHistory && !portfolioSummary) {
+    return (
+      <div className={`bg-transparent border rounded-2xl p-6 ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}>
+        <h3 className={`text-sm font-medium mb-2 ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Historical Performance
+        </h3>
+        <p className={isDarkMode ? 'text-gray-500 text-sm' : 'text-gray-500 text-sm'}>
+          No historical data available.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-transparent border rounded-2xl p-6 ${
@@ -397,14 +930,22 @@ function HistoricalPerformanceGraph() {
             }`}>
               Net Worth
             </h3>
-            <h2 className={`text-3xl font-bold mb-2 ${
-              isDarkMode ? 'text-white' : 'text-black'
-            }`}>
-              $16.995 Million
-            </h2>
-            <p className='text-[#10B981] text-sm font-medium'>
-              +${netWorthGrowth.toFixed(2)}M ({netWorthGrowthPercent}%)
-            </p>
+            {currentNetWorth != null && (
+              <>
+                <h2 className={`text-3xl font-bold mb-2 ${
+                  isDarkMode ? 'text-white' : 'text-black'
+                }`}>
+                  ${currentNetWorth.toFixed(3)} Million
+                </h2>
+                {netWorthGrowth != null && netWorthGrowthPercent != null && (
+                  <p className={`text-sm font-medium ${
+                    netWorthGrowth >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
+                  }`}>
+                    {netWorthGrowth >= 0 ? '+' : ''}${netWorthGrowth.toFixed(2)}M ({netWorthGrowthPercent}%)
+                  </p>
+                )}
+              </>
+            )}
           </div>
 
           {/* Investable Summary */}
@@ -414,14 +955,22 @@ function HistoricalPerformanceGraph() {
             }`}>
               Investable
             </h3>
-            <h2 className={`text-3xl font-bold mb-2 ${
-              isDarkMode ? 'text-white' : 'text-black'
-            }`}>
-              $12.228 Million
-            </h2>
-            <p className='text-[#10B981] text-sm font-medium'>
-              +${investableGrowth.toFixed(2)}M ({investableGrowthPercent}%)
-            </p>
+            {currentInvestable != null && (
+              <>
+                <h2 className={`text-3xl font-bold mb-2 ${
+                  isDarkMode ? 'text-white' : 'text-black'
+                }`}>
+                  ${currentInvestable.toFixed(3)} Million
+                </h2>
+                {investableGrowth != null && investableGrowthPercent != null && (
+                  <p className={`text-sm font-medium ${
+                    investableGrowth >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
+                  }`}>
+                    {investableGrowth >= 0 ? '+' : ''}${investableGrowth.toFixed(2)}M ({investableGrowthPercent}%)
+                  </p>
+                )}
+              </>
+            )}
           </div>
         </div>
 

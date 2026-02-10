@@ -1,6 +1,7 @@
 'use client';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
+import { register } from '@/utils/authApi';
 
 const carouselSlides = [
   {
@@ -28,7 +29,12 @@ export default function SignupPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   // Auto-rotate carousel
   useEffect(() => {
@@ -39,12 +45,71 @@ export default function SignupPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    // Log signup data
-    console.log('Signup Data:', { email, password, rememberMe });
-    // Redirect to login page
-    window.location.href = '/login';
+    setError('');
+    setIsLoading(true);
+
+    // Client-side validation
+    if (!email || !password) {
+      setError('Email and password are required');
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!email.includes('@')) {
+      setError('Please enter a valid email address');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await register({
+        email,
+        password,
+        firstName,
+        lastName,
+        phone,
+      });
+
+      // Store email for OTP verification
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('pending_verification_email', email);
+      }
+
+      // Redirect to OTP verification page (via forgot-password flow which has OTP)
+      // Or we can redirect to verify-email, but OTP is more immediate
+      window.location.href = '/forgot-password?verify=true';
+    } catch (err) {
+      // Handle all possible errors - DO NOT redirect
+      let errorMessage = 'Registration failed. Please try again.';
+      
+      if (err.status === 409) {
+        errorMessage = 'An account with this email already exists. Please login instead.';
+      } else if (err.status === 400) {
+        errorMessage = err.data?.detail || 'Invalid information provided. Please check your details.';
+      } else if (err.status === 422) {
+        errorMessage = err.data?.detail || 'Please provide valid information.';
+      } else if (err.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (err.status === 0 || err.message === 'Failed to fetch') {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (err.data?.detail) {
+        errorMessage = err.data.detail;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSignIn = () => {
@@ -88,6 +153,43 @@ export default function SignupPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className='space-y-6'>
+            {/* Error Message */}
+            {error && (
+              <div className='bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm'>
+                {error}
+              </div>
+            )}
+
+            {/* First Name Field */}
+            <div>
+              <label htmlFor='firstName' className='block text-white text-sm mb-2'>
+                First Name
+              </label>
+              <input
+                type='text'
+                id='firstName'
+                value={firstName}
+                onChange={e => setFirstName(e.target.value)}
+                placeholder='John'
+                className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+              />
+            </div>
+
+            {/* Last Name Field */}
+            <div>
+              <label htmlFor='lastName' className='block text-white text-sm mb-2'>
+                Last Name
+              </label>
+              <input
+                type='text'
+                id='lastName'
+                value={lastName}
+                onChange={e => setLastName(e.target.value)}
+                placeholder='Doe'
+                className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+              />
+            </div>
+
             {/* Email Field */}
             <div>
               <label htmlFor='email' className='block text-white text-sm mb-2'>
@@ -101,6 +203,21 @@ export default function SignupPage() {
                 placeholder='johnadams@gmail.com'
                 className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
                 required
+              />
+            </div>
+
+            {/* Phone Field */}
+            <div>
+              <label htmlFor='phone' className='block text-white text-sm mb-2'>
+                Phone (Optional)
+              </label>
+              <input
+                type='tel'
+                id='phone'
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder='+1234567890'
+                className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
               />
             </div>
 
@@ -168,9 +285,10 @@ export default function SignupPage() {
             {/* Create Account Button */}
             <button
               type='submit'
-              className='w-full bg-[#F1CB68] hover:bg-[#D6A738] text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
+              disabled={isLoading}
+              className='w-full bg-[#F1CB68] hover:bg-[#D6A738] disabled:opacity-50 disabled:cursor-not-allowed text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
             >
-              Create Account
+              {isLoading ? 'Creating Account...' : 'Create Account'}
             </button>
 
             {/* Sign In Button */}

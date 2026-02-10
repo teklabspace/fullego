@@ -1,6 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { startKYC, uploadKYCDocument, getKYCStatus } from '@/utils/kycApi';
 
 const steps = [
   { id: 1, title: 'Account Setup', status: 'completed' },
@@ -12,23 +13,78 @@ const steps = [
 export default function DocumentVerificationPage() {
   const router = useRouter();
   const [documents, setDocuments] = useState({
-    governmentId1: { file: null, status: 'pending' },
-    governmentId2: { file: null, status: 'pending' },
-    selfie: { file: null, status: 'pending' },
+    governmentId1: { file: null, status: 'pending', uploading: false },
+    governmentId2: { file: null, status: 'pending', uploading: false },
+    selfie: { file: null, status: 'pending', uploading: false },
   });
+  const [kycStarted, setKycStarted] = useState(false);
+  const [kycStatus, setKycStatus] = useState(null);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleFileUpload = (documentType, event) => {
+  // Start KYC verification on page load
+  useEffect(() => {
+    const initKYC = async () => {
+      try {
+        // First check if KYC is already started
+        const status = await getKYCStatus();
+        setKycStatus(status);
+        console.log('KYC Status:', status);
+        
+        if (status.status === 'NOT_STARTED') {
+          // Start KYC if not already started
+          const startResponse = await startKYC();
+          console.log('KYC Started:', startResponse);
+          setKycStarted(true);
+        } else {
+          setKycStarted(true);
+        }
+      } catch (err) {
+        // If 404, KYC hasn't been started yet
+        if (err.status === 404) {
+          try {
+            const startResponse = await startKYC();
+            console.log('KYC Started:', startResponse);
+            setKycStarted(true);
+          } catch (startErr) {
+            console.error('Failed to start KYC:', startErr);
+            setError(startErr.data?.detail || 'Failed to start KYC verification');
+          }
+        } else {
+          console.error('Failed to get KYC status:', err);
+        }
+      }
+    };
+
+    initKYC();
+  }, []);
+
+  const handleFileUpload = async (documentType, event) => {
     const file = event.target.files[0];
     if (file) {
+      // Update local state to show uploading
       setDocuments(prev => ({
         ...prev,
-        [documentType]: { file, status: 'added' },
+        [documentType]: { file, status: 'uploading', uploading: true },
       }));
-      console.log(`${documentType} uploaded:`, {
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
-      });
+
+      try {
+        // Upload document to API
+        const response = await uploadKYCDocument(file);
+        console.log(`${documentType} uploaded successfully:`, response);
+
+        setDocuments(prev => ({
+          ...prev,
+          [documentType]: { file, status: 'added', uploading: false },
+        }));
+      } catch (err) {
+        console.error(`Failed to upload ${documentType}:`, err);
+        setDocuments(prev => ({
+          ...prev,
+          [documentType]: { file: null, status: 'failed', uploading: false },
+        }));
+        setError(err.data?.detail || `Failed to upload ${documentType}`);
+      }
     }
   };
 
@@ -142,6 +198,18 @@ export default function DocumentVerificationPage() {
 
       {/* Main Content */}
       <div className='max-w-7xl mx-auto px-4 md:px-8 py-8 md:py-12'>
+        {/* Error Message */}
+        {error && (
+          <div className='mb-6 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm'>
+            {error}
+            <button 
+              onClick={() => setError('')}
+              className='ml-4 text-red-300 hover:text-red-200'
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <div className='flex flex-col lg:flex-row gap-8'>
           {/* Left Side - Upload Forms */}
           <div className='w-full lg:w-3/5'>

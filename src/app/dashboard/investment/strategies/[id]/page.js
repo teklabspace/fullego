@@ -1,9 +1,11 @@
 'use client';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
+import { getStrategyDetails, saveStrategy } from '@/utils/investmentApi';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
 
 export default function StrategyDetailsPage() {
   const { isDarkMode } = useTheme();
@@ -11,128 +13,135 @@ export default function StrategyDetailsPage() {
   const router = useRouter();
   const [isSaved, setIsSaved] = useState(false);
 
-  // Strategy data - In a real app, this would come from an API
-  const strategies = {
-    'lanz-strategy-6': {
-      id: 'lanz-strategy-6',
-      title: 'LANZ Strategy 6.0',
-      description:
-        'LANZ Strategy 6.0 — Precision Backtesting Based on 09:00 NY Candle, Dynamic SL/TP, and Lot Size per Trade. LANZ Strategy 6.0 is the simulation version of the original LANZ strategy, designed for high-precision trading with advanced risk management.',
-      fullDescription: `LANZ Strategy 6.0 is an advanced trading strategy that focuses on precision backtesting based on the 09:00 NY (New York) candle. This strategy incorporates dynamic stop-loss (SL) and take-profit (TP) mechanisms, along with intelligent lot size management per trade.
+  // Loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [strategy, setStrategy] = useState(null);
 
-Key Features:
-- Precision backtesting using 09:00 NY candle as the primary reference point
-- Dynamic SL/TP adjustment based on market conditions
-- Intelligent lot size calculation per trade
-- Risk management optimization
-- Simulation-based approach for strategy validation
+  // Fetch strategy details
+  useEffect(() => {
+    const fetchStrategy = async () => {
+      if (!params.id) return;
 
-The strategy is designed to minimize risk while maximizing potential returns through careful analysis of market patterns and trends.`,
-      author: 'rau_u_lanz',
-      date: 'Jul 21',
-      comments: 53,
-      boosts: 53,
-      chartType: 'candlestick',
-      parameters: {
-        entryTime: '09:00 NY',
-        stopLoss: 'Dynamic',
-        takeProfit: 'Dynamic',
-        lotSize: 'Per Trade Calculation',
-        riskLevel: 'Medium',
-      },
-    },
-    'ny-liquidity-reversal': {
-      id: 'ny-liquidity-reversal',
-      title: 'NY Liquidity Reversal - Debug',
-      description:
-        '70 percent 1 rate strategy, no red folder news, trades from only 730 to noon, 20 EMA plus voluntarily breakout, 1 and one entry per direction per session per asset',
-      fullDescription: `The NY Liquidity Reversal strategy is designed to capitalize on liquidity reversals during the New York trading session. This strategy operates with a 70% win rate and focuses on high-probability setups.
+      try {
+        setLoading(true);
+        setError(null);
 
-Key Features:
-- 70% win rate optimization
-- No trading during red folder news events
-- Trading window: 7:30 AM to 12:00 PM NY time
-- Uses 20 EMA (Exponential Moving Average) for trend identification
-- Voluntary breakout confirmation required
-- Maximum one entry per direction per session per asset
+        const strategyRes = await getStrategyDetails(params.id);
 
-This strategy is ideal for traders looking for consistent, low-risk opportunities during the most liquid trading hours.`,
-      author: 'Shervoo',
-      date: '21 hours ago',
-      comments: 53,
-      boosts: 53,
-      chartType: 'line',
-      parameters: {
-        entryTime: '7:30 AM - 12:00 PM NY',
-        winRate: '70%',
-        indicator: '20 EMA',
-        newsFilter: 'No Red Folder News',
-        maxEntries: '1 per direction per session',
-      },
-    },
-    'sweep-liquidity': {
-      id: 'sweep-liquidity',
-      title: 'Sweep &',
-      description:
-        'liquidity and boom, easy 2rr babyyy price always always reverse after LQ.sweep',
-      fullDescription: `The Sweep & Liquidity strategy is based on the principle that price tends to reverse after liquidity sweeps. This strategy targets easy 2:1 risk-reward ratios by identifying key liquidity zones.
+        if (strategyRes.data) {
+          const formattedStrategy = {
+            id: strategyRes.data.id,
+            title: strategyRes.data.title || strategyRes.data.name,
+            description: strategyRes.data.description,
+            fullDescription: strategyRes.data.fullDescription || strategyRes.data.description,
+            author: strategyRes.data.author || strategyRes.data.authorName || 'Unknown',
+            date: formatDate(strategyRes.data.date || strategyRes.data.createdAt),
+            comments: strategyRes.data.comments || strategyRes.data.commentCount || 0,
+            boosts: strategyRes.data.boosts || strategyRes.data.boostCount || 0,
+            chartType: strategyRes.data.chartType || 'candlestick',
+            parameters: strategyRes.data.parameters || {},
+            isSaved: strategyRes.data.isSaved || false,
+          };
+          setStrategy(formattedStrategy);
+          setIsSaved(formattedStrategy.isSaved);
+        }
+      } catch (err) {
+        console.error('Error fetching strategy details:', err);
+        // Handle 405 (Method Not Allowed) or 400 (Bad Request) - backend issues, handle gracefully
+        if (err.status === 405 || err.status === 400 || 
+            err.message?.includes('Method Not Allowed') || 
+            err.data?.detail?.includes('Method Not Allowed') ||
+            err.data?.detail?.includes('unsupported operand')) {
+          // Silently handle - endpoint has issues or not implemented yet
+          setStrategy(null);
+        } else {
+          const errorMessage = err.data?.detail || err.message || 'Failed to load strategy';
+          setError(errorMessage);
+          toast.error(errorMessage);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
 
-Key Features:
-- Focus on liquidity sweep patterns
-- Target 2:1 risk-reward ratio
-- Price reversal confirmation after LQ.sweep
-- High-probability entry signals
-- Simple and effective approach
+    fetchStrategy();
+  }, [params.id]);
 
-This strategy is perfect for traders who understand market microstructure and liquidity dynamics.`,
-      author: 'anuragfx1',
-      date: '20 hours ago',
-      comments: 53,
-      boosts: 53,
-      chartType: 'candlestick',
-      parameters: {
-        riskReward: '2:1',
-        pattern: 'Liquidity Sweep',
-        confirmation: 'Price Reversal',
-        difficulty: 'Easy',
-      },
-    },
-    'adx-supertrend': {
-      id: 'adx-supertrend',
-      title: 'ADX + Supertrend Persistent Entry',
-      description:
-        'buy condition should match below condition below. ADX DI plus should above of DI minuse. Supertrend should be bullish',
-      fullDescription: `The ADX + Supertrend Persistent Entry strategy combines two powerful technical indicators to identify strong trending markets with persistent entry signals.
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Recently';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
-Key Features:
-- ADX (Average Directional Index) for trend strength confirmation
-- DI+ must be above DI- for bullish signals
-- Supertrend indicator for trend direction
-- Persistent entry signals for strong trends
-- High-probability setups in trending markets
-
-Entry Conditions:
-- ADX DI+ must be above DI-
-- Supertrend must be bullish (green)
-- Both conditions must align for entry
-
-This strategy is ideal for traders who prefer trend-following approaches with clear entry and exit signals.`,
-      author: 'rkthakur2610',
-      date: 'Jul 21',
-      comments: 53,
-      boosts: 53,
-      chartType: 'candlestick',
-      parameters: {
-        indicators: 'ADX + Supertrend',
-        condition1: 'ADX DI+ > DI-',
-        condition2: 'Supertrend Bullish',
-        entryType: 'Persistent',
-      },
-    },
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+    if (diffDays < 7) return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const strategy = strategies[params.id];
+  // Handle save strategy
+  const handleSaveStrategy = async () => {
+    if (!params.id) return;
 
+    try {
+      await saveStrategy(params.id, !isSaved);
+      setIsSaved(!isSaved);
+      toast.success(isSaved ? 'Strategy removed from saved' : 'Strategy saved');
+    } catch (err) {
+      console.error('Error saving strategy:', err);
+      toast.error('Failed to save strategy');
+    }
+  };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className='flex items-center justify-center min-h-[400px]'>
+          <div className='text-center'>
+            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
+            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+              Loading strategy details...
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show error state only for critical errors (not 405 or 400 - endpoint issues)
+  if (error && !error.includes('Method Not Allowed') && !error.includes('unsupported operand') && !strategy) {
+    return (
+      <DashboardLayout>
+        <div className={`p-6 rounded-lg border text-center ${
+          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+        }`}>
+          <p className={`font-semibold mb-2 text-lg ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            Error loading strategy
+          </p>
+          <p className={`text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            {error}
+          </p>
+          <button
+            onClick={() => router.back()}
+            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+          >
+            Go Back
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show not found state
   if (!strategy) {
     return (
       <DashboardLayout>
@@ -154,6 +163,8 @@ This strategy is ideal for traders who prefer trend-following approaches with cl
       </DashboardLayout>
     );
   }
+
+
 
   return (
     <DashboardLayout>
@@ -226,7 +237,7 @@ This strategy is ideal for traders who prefer trend-following approaches with cl
             {/* Action Buttons */}
             <div className='flex items-center gap-3'>
               <button
-                onClick={() => setIsSaved(!isSaved)}
+                onClick={handleSaveStrategy}
                 className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all flex items-center gap-2 ${
                   isSaved
                     ? isDarkMode

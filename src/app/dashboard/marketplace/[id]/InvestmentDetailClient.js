@@ -4,7 +4,9 @@ import Navbar from '@/components/dashboard/Navbar';
 import Sidebar from '@/components/dashboard/Sidebar';
 import { useTheme } from '@/context/ThemeContext';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getListing, getListingOffers, createOffer } from '@/utils/marketplaceApi';
+import { toast } from 'react-toastify';
 
 export default function InvestmentDetailClient() {
   const { isDarkMode } = useTheme();
@@ -19,8 +21,97 @@ export default function InvestmentDetailClient() {
   // Get ID from params
   const investmentId = params?.id;
 
-  // Mock data - in real app, fetch based on investmentId
-  const investment = {
+  // API data states
+  const [listing, setListing] = useState(null);
+  const [listingOffers, setListingOffers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch listing details
+  useEffect(() => {
+    const fetchListingDetails = async () => {
+      if (!investmentId) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const listingRes = await getListing(investmentId);
+        
+        if (listingRes.data) {
+          setListing(listingRes.data);
+        } else {
+          setListing(null);
+        }
+      } catch (err) {
+        console.error('Error fetching listing details:', err);
+        // Handle 405 or 400 errors gracefully
+        if (err.status === 405 || err.status === 400 || 
+            err.message?.includes('Method Not Allowed') || 
+            err.data?.detail?.includes('Method Not Allowed') ||
+            err.data?.detail?.includes('unsupported operand')) {
+          // Silently handle - endpoint has issues or not implemented yet
+          setListing(null);
+        } else {
+          setError(err.data?.detail || err.message || 'Failed to load listing');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchListingDetails();
+  }, [investmentId]);
+
+  // Fetch listing offers
+  useEffect(() => {
+    const fetchOffers = async () => {
+      if (!investmentId) return;
+
+      try {
+        const offersRes = await getListingOffers(investmentId);
+        
+        if (offersRes.data && Array.isArray(offersRes.data)) {
+          setListingOffers(offersRes.data);
+        } else {
+          setListingOffers([]);
+        }
+      } catch (err) {
+        console.error('Error fetching listing offers:', err);
+        // Handle 405 or 400 errors gracefully
+        if (err.status === 405 || err.status === 400 || 
+            err.message?.includes('Method Not Allowed') || 
+            err.data?.detail?.includes('Method Not Allowed') ||
+            err.data?.detail?.includes('unsupported operand')) {
+          // Silently handle - endpoint has issues or not implemented yet
+          setListingOffers([]);
+        }
+      }
+    };
+
+    if (investmentId) {
+      fetchOffers();
+    }
+  }, [investmentId]);
+
+  // Transform API data to match UI structure (fallback to mock if API fails)
+  const investment = listing ? {
+    name: listing.title || listing.assetName || 'Untitled Listing',
+    category: listing.assetType || listing.category || 'Other',
+    issuer: listing.issuer || listing.sellerName || 'Unknown',
+    status: listing.status === 'active' ? 'Open for Investment' : 
+            listing.status === 'pending_approval' ? 'Pending Approval' :
+            listing.status === 'approved' ? 'Approved' : 'Closed',
+    minimum: listing.askingPrice ? `$${listing.askingPrice.toLocaleString()}` : '$0',
+    expectedReturns: listing.expectedReturn || '0%',
+    duration: listing.duration || 'N/A',
+    riskLevel: listing.riskLevel || 'Medium',
+    slotsAvailable: listing.slotsAvailable || 'N/A',
+    description: listing.description || '',
+    currency: listing.currency || 'USD',
+    listingFee: listing.listingFee || 0,
+    createdAt: listing.createdAt || new Date().toISOString(),
+  } : {
     name: 'Silver Heights Bond Fund',
     category: 'Bonds',
     issuer: 'Highrise Capital',
@@ -476,6 +567,19 @@ export default function InvestmentDetailClient() {
         setOfferAmount={setOfferAmount}
         offerMessage={offerMessage}
         setOfferMessage={setOfferMessage}
+        listingId={investmentId}
+        onOfferCreated={() => {
+          // Refresh offers after creating
+          if (investmentId) {
+            getListingOffers(investmentId).then(res => {
+              if (res.data && Array.isArray(res.data)) {
+                setListingOffers(res.data);
+              }
+            }).catch(err => {
+              console.error('Error refreshing offers:', err);
+            });
+          }
+        }}
       />
     </div>
   );
@@ -560,11 +664,17 @@ function MakeOfferModal({
   setOfferAmount,
   offerMessage,
   setOfferMessage,
+  listingId,
+  onOfferCreated,
 }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   if (!isOpen) return null;
 
-  const listedPrice = 1250.0;
-  const returnRate = 12.5;
+  // Get listed price from investment data
+  const listedPrice = investment?.minimumValue || 
+    parseFloat(investment?.minimum?.replace(/[^0-9.]/g, '')) || 1250.0;
+  const returnRate = parseFloat(investment?.expectedReturns?.replace('%', '')) || 12.5;
   const transactionFee = (
     parseFloat(offerAmount.replace(/,/g, '')) * 0.025
   ).toFixed(2);
@@ -576,13 +686,49 @@ function MakeOfferModal({
     100
   ).toFixed(0);
 
-  const handleSendOffer = () => {
-    // Handle send offer logic
-    console.log('Offer sent:', {
-      amount: offerAmount,
-      message: offerMessage,
-    });
-    onClose();
+  const handleSendOffer = async () => {
+    if (!listingId) {
+      toast.error('Listing ID is required');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      const offerAmountValue = parseFloat(offerAmount.replace(/,/g, ''));
+      if (isNaN(offerAmountValue) || offerAmountValue <= 0) {
+        toast.error('Please enter a valid offer amount');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const offerData = {
+        offerAmount: offerAmountValue,
+        currency: investment?.currency || 'USD',
+        message: offerMessage || undefined,
+      };
+
+      const response = await createOffer(listingId, offerData);
+
+      if (response.data) {
+        toast.success('Offer submitted successfully!');
+        if (onOfferCreated) {
+          onOfferCreated();
+        }
+        onClose();
+        // Reset form
+        setOfferAmount('1,100.00');
+        setOfferMessage('');
+      } else {
+        toast.error('Failed to submit offer');
+      }
+    } catch (err) {
+      console.error('Error creating offer:', err);
+      const errorMessage = err.data?.detail || err.message || 'Failed to submit offer';
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -840,9 +986,12 @@ function MakeOfferModal({
             <div className='space-y-3'>
               <button
                 onClick={handleSendOffer}
-                className='w-full py-3 bg-[#F1CB68] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all'
+                disabled={isSubmitting}
+                className={`w-full py-3 bg-[#F1CB68] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all ${
+                  isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
-                Send Offer
+                {isSubmitting ? 'Submitting...' : 'Send Offer'}
               </button>
               <button
                 onClick={onClose}

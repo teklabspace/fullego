@@ -2,7 +2,8 @@
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import {
   Area,
   AreaChart,
@@ -15,121 +16,234 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import {
+  getPortfolioSummary,
+  getPortfolioPerformance,
+  getAssetAllocation,
+  getTopHoldings,
+  getRecentActivity,
+  getMarketSummary,
+  getPortfolioAlerts,
+} from '@/utils/portfolioApi';
+import PortfolioOverviewSkeleton from '@/components/skeletons/PortfolioOverviewSkeleton';
 
 export default function PortfolioOverviewPage() {
   const { isDarkMode } = useTheme();
   const [timeRange, setTimeRange] = useState('1M');
+  
+  // Loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Data states
+  const [portfolioSummary, setPortfolioSummary] = useState(null);
+  const [performanceData, setPerformanceData] = useState([]);
+  const [allocationData, setAllocationData] = useState([]);
+  const [topHoldings, setTopHoldings] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [marketSummary, setMarketSummary] = useState(null);
+  const [portfolioAlerts, setPortfolioAlerts] = useState([]);
 
-  // Portfolio Performance Data
-  const performanceData = [
-    { date: 'Jan', value: 245000 },
-    { date: 'Feb', value: 258000 },
-    { date: 'Mar', value: 252000 },
-    { date: 'Apr', value: 268000 },
-    { date: 'May', value: 275000 },
-    { date: 'Jun', value: 285000 },
-    { date: 'Jul', value: 295420 },
-  ];
+  // Fetch all portfolio data
+  useEffect(() => {
+    const fetchPortfolioData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  // Asset Allocation Data
-  const allocationData = [
-    { name: 'Stocks', value: 125000, percentage: 42.3, color: '#F1CB68' },
-    { name: 'Crypto', value: 85000, percentage: 28.8, color: '#36D399' },
-    { name: 'Real Estate', value: 45000, percentage: 15.2, color: '#60A5FA' },
-    { name: 'Cash', value: 40420, percentage: 13.7, color: '#F1CB68' },
-  ];
+        // Map time range to days for performance API
+        const timeRangeToDays = {
+          '1D': 1,
+          '1W': 7,
+          '1M': 30,
+          '3M': 90,
+          '1Y': 365,
+          'ALL': 365,
+        };
 
-  // Top Holdings
-  const topHoldings = [
-    {
-      symbol: 'AAPL',
-      name: 'Apple Inc.',
-      type: 'Stock',
-      shares: 250,
-      avgPrice: 145.2,
-      currentPrice: 185.92,
-      value: 46480,
-      change: 28.04,
-      changePercent: 28.04,
-    },
-    {
-      symbol: 'BTC',
-      name: 'Bitcoin',
-      type: 'Crypto',
-      shares: 1.5,
-      avgPrice: 28500,
-      currentPrice: 35200,
-      value: 52800,
-      change: 10050,
-      changePercent: 23.51,
-    },
-    {
-      symbol: 'MSFT',
-      name: 'Microsoft Corporation',
-      type: 'Stock',
-      shares: 150,
-      avgPrice: 320.5,
-      currentPrice: 354.58,
-      value: 53187,
-      change: 5112,
-      changePercent: 10.63,
-    },
-    {
-      symbol: 'ETH',
-      name: 'Ethereum',
-      type: 'Crypto',
-      shares: 15,
-      avgPrice: 1850,
-      currentPrice: 2145,
-      value: 32175,
-      change: 4425,
-      changePercent: 15.94,
-    },
-  ];
+        // Fetch all data in parallel
+        const [
+          summaryRes,
+          performanceRes,
+          allocationRes,
+          holdingsRes,
+          activityRes,
+          marketRes,
+          alertsRes,
+        ] = await Promise.all([
+          getPortfolioSummary(timeRange),
+          getPortfolioPerformance(timeRangeToDays[timeRange] || 30),
+          getAssetAllocation(),
+          getTopHoldings({ limit: 10 }),
+          getRecentActivity({ limit: 10 }),
+          getMarketSummary(),
+          getPortfolioAlerts({ status: 'active', limit: 10 }),
+        ]);
 
-  // Recent Activity
-  const recentActivity = [
-    {
-      type: 'buy',
-      asset: 'AAPL',
-      name: 'Apple Inc.',
-      amount: 25,
-      price: 185.92,
-      total: 4648,
-      date: '2023-07-28',
-      time: '10:45 AM',
-    },
-    {
-      type: 'sell',
-      asset: 'BTC',
-      name: 'Bitcoin',
-      amount: 0.5,
-      price: 35200,
-      total: 17600,
-      date: '2023-07-27',
-      time: '02:30 PM',
-    },
-    {
-      type: 'dividend',
-      asset: 'MSFT',
-      name: 'Microsoft Corporation',
-      amount: 150,
-      price: 2.5,
-      total: 375,
-      date: '2023-07-25',
-      time: '09:00 AM',
-    },
-    {
-      type: 'buy',
-      asset: 'ETH',
-      name: 'Ethereum',
-      amount: 2,
-      price: 2145,
-      total: 4290,
-      date: '2023-07-24',
-      time: '03:15 PM',
-    },
-  ];
+        // Set summary data
+        if (summaryRes.data) {
+          setPortfolioSummary(summaryRes.data);
+        }
+
+        // Format performance data for chart
+        if (performanceRes.daily_returns) {
+          const formatted = performanceRes.daily_returns.map(item => ({
+            date: new Date(item.date).toLocaleDateString('en-US', { month: 'short' }),
+            value: item.value,
+          }));
+          setPerformanceData(formatted);
+        }
+
+        // Format allocation data
+        if (allocationRes.data && Array.isArray(allocationRes.data)) {
+          const colors = ['#F1CB68', '#36D399', '#60A5FA', '#F1CB68', '#FF6B6B', '#A78BFA'];
+          const formatted = allocationRes.data.map((item, index) => ({
+            name: item.assetType || item.name,
+            value: item.value,
+            percentage: item.percentage,
+            color: colors[index % colors.length],
+          }));
+          setAllocationData(formatted);
+        }
+
+        // Set top holdings
+        if (holdingsRes.data) {
+          setTopHoldings(holdingsRes.data);
+        }
+
+        // Format recent activity
+        if (activityRes.data) {
+          const formatted = activityRes.data.map(item => ({
+            ...item,
+            time: item.time ? item.time.split(':').slice(0, 2).join(':') + ' ' + (parseInt(item.time.split(':')[0]) >= 12 ? 'PM' : 'AM') : '',
+          }));
+          setRecentActivity(formatted);
+        }
+
+        // Set market summary
+        if (marketRes.data) {
+          setMarketSummary(marketRes.data);
+        }
+
+        // Set alerts
+        if (alertsRes.data) {
+          setPortfolioAlerts(alertsRes.data);
+        }
+      } catch (err) {
+        console.error('Error fetching portfolio data:', err);
+        
+        // Extract more helpful error message
+        let errorMessage = 'Failed to load portfolio data';
+        
+        if (err.data) {
+          // Check for backend connectivity issues
+          if (err.data.message && err.data.message.includes('Backend server is not reachable')) {
+            errorMessage = 'Backend server is not running. Please start the backend server.';
+          } else if (err.data.message && err.data.message.includes('Cannot connect to backend')) {
+            errorMessage = err.data.message;
+          } else if (err.data.detail) {
+            errorMessage = Array.isArray(err.data.detail) 
+              ? err.data.detail.map(d => typeof d === 'string' ? d : d.msg || JSON.stringify(d)).join('; ')
+              : err.data.detail;
+          } else if (err.data.message) {
+            errorMessage = err.data.message;
+          } else if (err.data.error) {
+            errorMessage = err.data.error;
+          }
+        } else if (err.message) {
+          if (err.message.includes('fetch failed') || err.message.includes('Failed to fetch')) {
+            errorMessage = 'Cannot connect to backend server. Please ensure the backend is running.';
+          } else {
+            errorMessage = err.message;
+          }
+        }
+        
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPortfolioData();
+  }, [timeRange]);
+
+  // Format currency
+  const formatCurrency = (value) => {
+    if (!value && value !== 0) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  // Format currency compactly for large numbers
+  const formatCurrencyCompact = (value) => {
+    if (!value && value !== 0) return '$0.00';
+    const absValue = Math.abs(value);
+    if (absValue >= 1000000) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        notation: 'compact',
+        maximumFractionDigits: 2,
+      }).format(value);
+    }
+    return formatCurrency(value);
+  };
+
+  // Show skeleton while loading
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <PortfolioOverviewSkeleton isDarkMode={isDarkMode} />
+      </DashboardLayout>
+    );
+  }
+
+  // Show error state
+  if (error && !portfolioSummary) {
+    return (
+      <DashboardLayout>
+        <div className={`p-6 rounded-lg border text-center ${
+          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+        }`}>
+          <div className='mb-4 flex justify-center'>
+            <svg
+              width='48'
+              height='48'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke={isDarkMode ? '#EF4444' : '#DC2626'}
+              strokeWidth='2'
+            >
+              <circle cx='12' cy='12' r='10' />
+              <line x1='12' y1='8' x2='12' y2='12' />
+              <line x1='12' y1='16' x2='12.01' y2='16' />
+            </svg>
+          </div>
+          <p className={`font-semibold mb-2 text-lg ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            Error loading portfolio
+          </p>
+          <p className={`text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            {error}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+          >
+            Retry
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -214,7 +328,9 @@ export default function PortfolioOverviewPage() {
                     isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}
                 >
-                  $295,420.00
+                  {portfolioSummary?.totalPortfolioValue
+                    ? formatCurrency(portfolioSummary.totalPortfolioValue)
+                    : '$0.00'}
                 </h2>
                 <div className='flex items-center gap-4 mt-3'>
                   <div className='flex items-center gap-2'>
@@ -223,13 +339,21 @@ export default function PortfolioOverviewPage() {
                       height='20'
                       viewBox='0 0 24 24'
                       fill='none'
-                      stroke='#36D399'
+                      stroke={portfolioSummary?.totalReturns >= 0 ? '#36D399' : '#FF6B6B'}
                       strokeWidth='2'
                     >
-                      <path d='M12 19V5M5 12l7-7 7 7' />
+                      <path d={portfolioSummary?.totalReturns >= 0 ? 'M12 19V5M5 12l7-7 7 7' : 'M12 5v14M19 12l-7 7-7-7'} />
                     </svg>
-                    <span className='text-lg font-semibold text-[#36D399]'>
-                      +$15,420.00 (5.51%)
+                    <span className={`text-lg font-semibold ${
+                      portfolioSummary?.totalReturns >= 0 ? 'text-[#36D399]' : 'text-[#FF6B6B]'
+                    }`}>
+                      {portfolioSummary?.totalReturns >= 0 ? '+' : ''}
+                      {portfolioSummary?.totalReturns
+                        ? formatCurrency(portfolioSummary.totalReturns)
+                        : '$0.00'}{' '}
+                      ({portfolioSummary?.returnPercentage != null
+                        ? (parseFloat(portfolioSummary.returnPercentage) >= 0 ? '+' : '') + parseFloat(portfolioSummary.returnPercentage).toFixed(2)
+                        : '0.00'}%)
                     </span>
                   </div>
                   <span
@@ -237,7 +361,7 @@ export default function PortfolioOverviewPage() {
                       isDarkMode ? 'text-gray-400' : 'text-gray-600'
                     }`}
                   >
-                    All Time
+                    {timeRange === 'ALL' ? 'All Time' : timeRange}
                   </span>
                 </div>
               </div>
@@ -252,8 +376,20 @@ export default function PortfolioOverviewPage() {
                   <p className='text-xs text-gray-400 mb-1'>
                     Today&apos;s Change
                   </p>
-                  <p className='text-xl font-bold text-[#36D399]'>+$2,340</p>
-                  <p className='text-xs text-[#36D399]'>+0.79%</p>
+                  <p className={`text-xl font-bold ${
+                    portfolioSummary?.todayChange >= 0 ? 'text-[#36D399]' : 'text-[#FF6B6B]'
+                  }`}>
+                    {portfolioSummary?.todayChange >= 0 ? '+' : ''}
+                    {portfolioSummary?.todayChange
+                      ? formatCurrency(portfolioSummary.todayChange)
+                      : '$0.00'}
+                  </p>
+                  <p className={`text-xs ${
+                    portfolioSummary?.todayChangePercentage >= 0 ? 'text-[#36D399]' : 'text-[#FF6B6B]'
+                  }`}>
+                    {portfolioSummary?.todayChangePercentage >= 0 ? '+' : ''}
+                    {portfolioSummary?.todayChangePercentage != null ? parseFloat(portfolioSummary.todayChangePercentage).toFixed(2) : '0.00'}%
+                  </p>
                 </div>
                 <div
                   className={`p-4 rounded-xl ${
@@ -266,9 +402,13 @@ export default function PortfolioOverviewPage() {
                       isDarkMode ? 'text-white' : 'text-gray-900'
                     }`}
                   >
-                    $40,420
+                    {portfolioSummary?.cashAvailable
+                      ? formatCurrency(portfolioSummary.cashAvailable)
+                      : '$0.00'}
                   </p>
-                  <p className='text-xs text-gray-400'>13.7% of portfolio</p>
+                  <p className='text-xs text-gray-400'>
+                    {portfolioSummary?.cashPercentage != null ? parseFloat(portfolioSummary.cashPercentage).toFixed(1) : '0.0'}% of portfolio
+                  </p>
                 </div>
               </div>
             </div>
@@ -280,29 +420,29 @@ export default function PortfolioOverviewPage() {
           <MetricCard
             icon='/icons/up-side-yellow-arrow.svg'
             title='Total Invested'
-            value='$280,000'
-            change='+$15,420'
-            positive={true}
+            value={portfolioSummary?.totalInvested ? formatCurrencyCompact(portfolioSummary.totalInvested) : '$0.00'}
+            change={portfolioSummary?.totalReturns ? `+${formatCurrencyCompact(portfolioSummary.totalReturns)}` : undefined}
+            positive={portfolioSummary?.totalReturns >= 0}
             isDarkMode={isDarkMode}
           />
           <MetricCard
             icon='/icons/net-cash-flow-icon.svg'
             title='Total Returns'
-            value='$15,420'
-            subtitle='5.51% return'
+            value={portfolioSummary?.totalReturns ? formatCurrency(portfolioSummary.totalReturns) : '$0.00'}
+            subtitle={portfolioSummary?.returnPercentage != null ? `${parseFloat(portfolioSummary.returnPercentage).toFixed(2)}% return` : '0.00% return'}
             isDarkMode={isDarkMode}
           />
           <MetricCard
             icon='/icons/cash-flow-forecast.svg'
             title='Asset Types'
-            value='4'
-            subtitle='Stocks, Crypto, Real Estate, Cash'
+            value={portfolioSummary?.assetTypesCount?.toString() || '0'}
+            subtitle={allocationData.length > 0 ? allocationData.map(a => a.name).join(', ') : 'No assets'}
             isDarkMode={isDarkMode}
           />
           <MetricCard
             icon='/assets.svg'
             title='Total Holdings'
-            value='47'
+            value={portfolioSummary?.totalHoldings?.toString() || '0'}
             subtitle='Active positions'
             isDarkMode={isDarkMode}
           />
@@ -326,8 +466,9 @@ export default function PortfolioOverviewPage() {
             </h3>
 
             <div className='h-80'>
-              <ResponsiveContainer width='100%' height='100%'>
-                <AreaChart data={performanceData}>
+              {performanceData.length > 0 ? (
+                <ResponsiveContainer width='100%' height='100%'>
+                  <AreaChart data={performanceData}>
                   <defs>
                     <linearGradient
                       id='portfolioGradient'
@@ -379,6 +520,11 @@ export default function PortfolioOverviewPage() {
                   />
                 </AreaChart>
               </ResponsiveContainer>
+              ) : (
+                <div className='h-full flex items-center justify-center text-gray-400'>
+                  No performance data available
+                </div>
+              )}
             </div>
           </div>
 
@@ -399,35 +545,42 @@ export default function PortfolioOverviewPage() {
             </h3>
 
             <div className='h-48 mb-6'>
-              <ResponsiveContainer width='100%' height='100%'>
-                <PieChart>
-                  <Pie
-                    data={allocationData}
-                    cx='50%'
-                    cy='50%'
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey='value'
-                  >
-                    {allocationData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: isDarkMode ? '#1A1A1D' : '#fff',
-                      border: `1px solid ${isDarkMode ? '#333' : '#e5e7eb'}`,
-                      borderRadius: '8px',
-                    }}
-                    formatter={value => `$${value.toLocaleString()}`}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              {allocationData.length > 0 ? (
+                <ResponsiveContainer width='100%' height='100%'>
+                  <PieChart>
+                    <Pie
+                      data={allocationData}
+                      cx='50%'
+                      cy='50%'
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={2}
+                      dataKey='value'
+                    >
+                      {allocationData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: isDarkMode ? '#1A1A1D' : '#fff',
+                        border: `1px solid ${isDarkMode ? '#333' : '#e5e7eb'}`,
+                        borderRadius: '8px',
+                      }}
+                      formatter={value => `$${value.toLocaleString()}`}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className='h-full flex items-center justify-center text-gray-400'>
+                  No allocation data
+                </div>
+              )}
             </div>
 
             <div className='space-y-3'>
-              {allocationData.map((item, index) => (
+              {allocationData.length > 0 ? (
+                allocationData.map((item, index) => (
                 <div key={index} className='flex items-center justify-between'>
                   <div className='flex items-center gap-2'>
                     <div
@@ -450,10 +603,15 @@ export default function PortfolioOverviewPage() {
                     >
                       ${item.value.toLocaleString()}
                     </p>
-                    <p className='text-xs text-gray-400'>{item.percentage}%</p>
+                    <p className='text-xs text-gray-400'>{item.percentage != null ? parseFloat(item.percentage).toFixed(1) : '0.0'}%</p>
                   </div>
                 </div>
-              ))}
+                ))
+              ) : (
+                <div className='text-center py-4 text-gray-400 text-sm'>
+                  No allocation data available
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -544,87 +702,109 @@ export default function PortfolioOverviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {topHoldings.map((holding, index) => (
-                  <tr
-                    key={index}
-                    className={`border-b ${
-                      isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
-                    } hover:bg-white/5 transition-colors`}
-                  >
-                    <td className='px-6 py-4'>
-                      <div className='flex items-center gap-3'>
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                            isDarkMode ? 'bg-[#2C2C2E]' : 'bg-gray-100'
-                          }`}
-                        >
-                          {holding.symbol.charAt(0)}
-                        </div>
-                        <div>
-                          <p
-                            className={`text-sm font-semibold ${
-                              isDarkMode ? 'text-white' : 'text-gray-900'
+                {topHoldings.length > 0 ? (
+                  topHoldings.map((holding, index) => (
+                    <tr
+                      key={`${holding.symbol || 'holding'}-${index}-${holding.id || index}`}
+                      className={`border-b ${
+                        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                      } hover:bg-white/5 transition-colors`}
+                    >
+                      <td className='px-6 py-4'>
+                        <div className='flex items-center gap-3'>
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                              isDarkMode ? 'bg-[#2C2C2E]' : 'bg-gray-100'
                             }`}
                           >
-                            {holding.symbol}
-                          </p>
-                          <p className='text-xs text-gray-400'>
-                            {holding.name}
-                          </p>
+                            {holding.symbol?.charAt(0) || '?'}
+                          </div>
+                          <div>
+                            <p
+                              className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}
+                            >
+                              {holding.symbol || 'N/A'}
+                            </p>
+                            <p className='text-xs text-gray-400'>
+                              {holding.name || 'Unknown'}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className='px-6 py-4'>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          holding.type === 'Stock'
-                            ? 'bg-[#F1CB68]/10 text-[#F1CB68]'
-                            : 'bg-[#36D399]/10 text-[#36D399]'
+                      </td>
+                      <td className='px-6 py-4'>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            holding.type === 'Stock'
+                              ? 'bg-[#F1CB68]/10 text-[#F1CB68]'
+                              : holding.type === 'Crypto'
+                              ? 'bg-[#36D399]/10 text-[#36D399]'
+                              : 'bg-[#60A5FA]/10 text-[#60A5FA]'
+                          }`}
+                        >
+                          {holding.type || 'Unknown'}
+                        </span>
+                      </td>
+                      <td
+                        className={`px-6 py-4 text-right text-sm ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
                         }`}
                       >
-                        {holding.type}
-                      </span>
-                    </td>
-                    <td
-                      className={`px-6 py-4 text-right text-sm ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      {holding.shares}
-                    </td>
-                    <td
-                      className={`px-6 py-4 text-right text-sm ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}
-                    >
-                      ${holding.avgPrice.toLocaleString()}
-                    </td>
-                    <td
-                      className={`px-6 py-4 text-right text-sm font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      ${holding.currentPrice.toLocaleString()}
-                    </td>
-                    <td
-                      className={`px-6 py-4 text-right text-sm font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      ${holding.value.toLocaleString()}
-                    </td>
-                    <td className='px-6 py-4 text-right'>
+                        {holding.shares?.toLocaleString() || '0'}
+                      </td>
+                      <td
+                        className={`px-6 py-4 text-right text-sm ${
+                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                        }`}
+                      >
+                        {holding.avgPrice ? formatCurrency(holding.avgPrice) : '$0.00'}
+                      </td>
+                      <td
+                        className={`px-6 py-4 text-right text-sm font-semibold ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        {holding.currentPrice ? formatCurrency(holding.currentPrice) : '$0.00'}
+                      </td>
+                      <td
+                        className={`px-6 py-4 text-right text-sm font-semibold ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        {holding.value ? formatCurrency(holding.value) : '$0.00'}
+                      </td>
+                      <td className='px-6 py-4 text-right'>
                       <div className='flex flex-col items-end'>
-                        <span className='text-sm font-semibold text-[#36D399]'>
-                          +${holding.change.toLocaleString()}
+                        <span className={`text-sm font-semibold ${
+                          (holding.change || 0) >= 0 ? 'text-[#36D399]' : 'text-[#FF6B6B]'
+                        }`}>
+                          {(holding.change || 0) >= 0 ? '+' : ''}
+                          {holding.change ? formatCurrency(holding.change) : '$0.00'}
                         </span>
-                        <span className='text-xs text-[#36D399]'>
-                          +{holding.changePercent.toFixed(2)}%
+                        <span className={`text-xs ${
+                          (() => {
+                            const change = parseFloat(holding.changePercentage || holding.changePercent || 0);
+                            return isNaN(change) ? 0 : change;
+                          })() >= 0 ? 'text-[#36D399]' : 'text-[#FF6B6B]'
+                        }`}>
+                          {(() => {
+                            const change = parseFloat(holding.changePercentage || holding.changePercent || 0);
+                            if (isNaN(change)) return '0.00%';
+                            return `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+                          })()}
                         </span>
                       </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className='px-6 py-8 text-center text-gray-400'>
+                      No holdings found
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -659,7 +839,8 @@ export default function PortfolioOverviewPage() {
 
             <div className='p-6'>
               <div className='space-y-4'>
-                {recentActivity.map((activity, index) => (
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((activity, index) => (
                   <div
                     key={index}
                     className={`p-4 rounded-xl ${
@@ -766,7 +947,12 @@ export default function PortfolioOverviewPage() {
                       </span>
                     </div>
                   </div>
-                ))}
+                  ))
+                ) : (
+                  <div className='text-center py-8 text-gray-400'>
+                    No recent activity
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -927,58 +1113,62 @@ export default function PortfolioOverviewPage() {
                 Market Summary
               </h3>
               <div className='space-y-3'>
-                <div className='flex items-center justify-between'>
-                  <span className='text-sm text-gray-400'>S&P 500</span>
-                  <div className='text-right'>
-                    <p
-                      className={`text-sm font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      4,515.77
-                    </p>
-                    <p className='text-xs text-[#36D399]'>+0.85%</p>
+                {marketSummary?.indices && marketSummary.indices.length > 0 ? (
+                  marketSummary.indices.map((index, idx) => (
+                    <div key={idx} className='flex items-center justify-between'>
+                      <span className='text-sm text-gray-400'>{index.name}</span>
+                      <div className='text-right'>
+                        <p
+                          className={`text-sm font-semibold ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}
+                        >
+                          {index.value?.toLocaleString() || '0.00'}
+                        </p>
+                        <p className={`text-xs ${
+                          (index.changePercentage || 0) >= 0 ? 'text-[#36D399]' : 'text-[#FF6B6B]'
+                        }`}>
+                          {(() => {
+                            const change = parseFloat(index.changePercentage || 0);
+                            if (isNaN(change)) return '0.00%';
+                            return `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : null}
+                {marketSummary?.crypto && marketSummary.crypto.length > 0 ? (
+                  marketSummary.crypto.map((crypto, idx) => (
+                    <div key={idx} className='flex items-center justify-between'>
+                      <span className='text-sm text-gray-400'>{crypto.name || crypto.symbol}</span>
+                      <div className='text-right'>
+                        <p
+                          className={`text-sm font-semibold ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}
+                        >
+                          {crypto.price ? formatCurrency(crypto.price) : '$0.00'}
+                        </p>
+                        <p className={`text-xs ${
+                          (crypto.changePercentage || 0) >= 0 ? 'text-[#36D399]' : 'text-[#FF6B6B]'
+                        }`}>
+                          {(() => {
+                            const change = parseFloat(crypto.changePercentage || 0);
+                            if (isNaN(change)) return '0.00%';
+                            return `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : null}
+                {(!marketSummary?.indices || marketSummary.indices.length === 0) &&
+                 (!marketSummary?.crypto || marketSummary.crypto.length === 0) && (
+                  <div className='text-center py-4 text-gray-400 text-sm'>
+                    No market data available
                   </div>
-                </div>
-                <div className='flex items-center justify-between'>
-                  <span className='text-sm text-gray-400'>NASDAQ</span>
-                  <div className='text-right'>
-                    <p
-                      className={`text-sm font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      14,035.39
-                    </p>
-                    <p className='text-xs text-[#36D399]'>+1.12%</p>
-                  </div>
-                </div>
-                <div className='flex items-center justify-between'>
-                  <span className='text-sm text-gray-400'>Bitcoin</span>
-                  <div className='text-right'>
-                    <p
-                      className={`text-sm font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      $35,200
-                    </p>
-                    <p className='text-xs text-[#FF6B6B]'>-2.34%</p>
-                  </div>
-                </div>
-                <div className='flex items-center justify-between'>
-                  <span className='text-sm text-gray-400'>Ethereum</span>
-                  <div className='text-right'>
-                    <p
-                      className={`text-sm font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      $2,145
-                    </p>
-                    <p className='text-xs text-[#36D399]'>+1.56%</p>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -998,52 +1188,46 @@ export default function PortfolioOverviewPage() {
                 Portfolio Alerts
               </h3>
               <div className='space-y-3'>
-                <div className='p-3 rounded-lg bg-[#36D399]/10 border border-[#36D399]/30'>
-                  <div className='flex items-start gap-3'>
-                    <svg
-                      width='16'
-                      height='16'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      stroke='#36D399'
-                      className='shrink-0 mt-0.5'
-                    >
-                      <circle cx='12' cy='12' r='10' strokeWidth='2' />
-                      <path d='M12 8v4M12 16h.01' strokeWidth='2' />
-                    </svg>
-                    <div>
-                      <p className='text-xs font-semibold text-[#36D399]'>
-                        Dividend Received
-                      </p>
-                      <p className='text-xs text-gray-400 mt-1'>
-                        $375 dividend from MSFT has been credited
-                      </p>
-                    </div>
+                {portfolioAlerts.length > 0 ? (
+                  portfolioAlerts.map((alert, index) => {
+                    const severityColors = {
+                      info: { bg: 'bg-[#36D399]/10', border: 'border-[#36D399]/30', text: 'text-[#36D399]' },
+                      warning: { bg: 'bg-[#F1CB68]/10', border: 'border-[#F1CB68]/30', text: 'text-[#F1CB68]' },
+                      error: { bg: 'bg-[#FF6B6B]/10', border: 'border-[#FF6B6B]/30', text: 'text-[#FF6B6B]' },
+                    };
+                    const colors = severityColors[alert.severity] || severityColors.info;
+                    
+                    return (
+                      <div key={alert.id || index} className={`p-3 rounded-lg ${colors.bg} border ${colors.border}`}>
+                        <div className='flex items-start gap-3'>
+                          <svg
+                            width='16'
+                            height='16'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke={colors.text.replace('text-', '#')}
+                            className='shrink-0 mt-0.5'
+                          >
+                            <circle cx='12' cy='12' r='10' strokeWidth='2' />
+                            <path d='M12 8v4M12 16h.01' strokeWidth='2' />
+                          </svg>
+                          <div>
+                            <p className={`text-xs font-semibold ${colors.text}`}>
+                              {alert.title || 'Alert'}
+                            </p>
+                            <p className='text-xs text-gray-400 mt-1'>
+                              {alert.message || 'No message'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className='text-center py-4 text-gray-400 text-sm'>
+                    No alerts
                   </div>
-                </div>
-                <div className='p-3 rounded-lg bg-[#F1CB68]/10 border border-[#F1CB68]/30'>
-                  <div className='flex items-start gap-3'>
-                    <svg
-                      width='16'
-                      height='16'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      stroke='#F1CB68'
-                      className='shrink-0 mt-0.5'
-                    >
-                      <circle cx='12' cy='12' r='10' strokeWidth='2' />
-                      <path d='M12 8v4M12 16h.01' strokeWidth='2' />
-                    </svg>
-                    <div>
-                      <p className='text-xs font-semibold text-[#F1CB68]'>
-                        Price Alert
-                      </p>
-                      <p className='text-xs text-gray-400 mt-1'>
-                        AAPL reached your target price of $185
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -1065,7 +1249,7 @@ function MetricCard({
 }) {
   return (
     <div
-      className={`rounded-xl border p-4 ${
+      className={`rounded-xl border p-4 min-w-0 ${
         isDarkMode
           ? 'bg-[#1C1C1E] border-[#FFFFFF14]'
           : 'bg-white border-gray-200'
@@ -1073,7 +1257,7 @@ function MetricCard({
     >
       <div className='flex items-center gap-3 mb-3'>
         <div
-          className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+          className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
             isDarkMode ? 'bg-[#2C2C2E]' : 'bg-gray-100'
           }`}
         >
@@ -1087,13 +1271,18 @@ function MetricCard({
           {title}
         </p>
       </div>
-      <p
-        className={`text-2xl font-bold mb-1 ${
-          isDarkMode ? 'text-white' : 'text-gray-900'
-        }`}
-      >
-        {value}
-      </p>
+      <div className='min-w-0'>
+        <p
+          className={`text-lg sm:text-xl md:text-2xl font-bold mb-1 whitespace-nowrap ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}
+          style={{ 
+            lineHeight: '1.2'
+          }}
+        >
+          {value}
+        </p>
+      </div>
       {change && (
         <p
           className={`text-sm ${

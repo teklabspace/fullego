@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { resetPassword } from '@/utils/authApi';
 
 const carouselSlides = [
   {
@@ -29,6 +30,9 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [resetToken, setResetToken] = useState('');
 
   // Auto-rotate carousel
   useEffect(() => {
@@ -39,16 +43,63 @@ export default function ResetPasswordPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleSubmit = e => {
+  // Get reset token from URL params
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      if (token) {
+        setResetToken(token);
+      } else {
+        // If no token in URL, check if it was stored (e.g., from forgot-password flow)
+        const storedToken = sessionStorage.getItem('reset_token');
+        if (storedToken) {
+          setResetToken(storedToken);
+        }
+      }
+    }
+  }, []);
+
+  const handleSubmit = async e => {
     e.preventDefault();
-    if (password !== confirmPassword) {
-      alert('Passwords do not match!');
+    setError('');
+
+    // Validation
+    if (!password || !confirmPassword) {
+      setError('Please enter both password fields');
       return;
     }
-    console.log('New Password:', password);
-    // Reset password and redirect to login
-    alert('Password reset successful!');
-    window.location.href = '/login';
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match!');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return;
+    }
+
+    if (!resetToken) {
+      setError('Reset token is missing. Please request a new password reset.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await resetPassword(resetToken, password);
+      // Clear stored token
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('reset_token');
+      }
+      // Only redirect on success
+      window.location.href = '/login';
+    } catch (err) {
+      setError(err.data?.detail || err.message || 'Password reset failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -76,6 +127,19 @@ export default function ResetPasswordPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className='space-y-6'>
+            {/* Error Message */}
+            {error && (
+              <div className='bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm'>
+                {error}
+              </div>
+            )}
+
+            {!resetToken && (
+              <div className='bg-yellow-500/10 border border-yellow-500/50 text-yellow-400 px-4 py-3 rounded-xl text-sm'>
+                No reset token found. Please use the link from your email or request a new password reset.
+              </div>
+            )}
+
             {/* New Password Field */}
             <div>
               <label
@@ -186,9 +250,10 @@ export default function ResetPasswordPage() {
             {/* Reset Button */}
             <button
               type='submit'
-              className='w-full bg-[#F1CB68] hover:bg-[#D6A738] text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
+              disabled={isLoading || !resetToken}
+              className='w-full bg-[#F1CB68] hover:bg-[#D6A738] disabled:opacity-50 disabled:cursor-not-allowed text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
             >
-              Reset Password
+              {isLoading ? 'Resetting Password...' : 'Reset Password'}
             </button>
 
             <div className='text-center'>

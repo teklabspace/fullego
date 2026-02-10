@@ -7,7 +7,14 @@ import {
 } from '@/config/assetConfig';
 import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import {
+  getAssets,
+  requestAssetSale,
+  requestAssetAppraisal,
+  formatCurrency,
+} from '@/utils/assetsApi';
+import AssetCardSkeleton from '@/components/skeletons/AssetCardSkeleton';
 
 export default function AssetsPage() {
   const { isDarkMode } = useTheme();
@@ -21,153 +28,96 @@ export default function AssetsPage() {
     targetPrice: '',
   });
   const [appraisalType, setAppraisalType] = useState(null);
+  const [assets, setAssets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [submittingSell, setSubmittingSell] = useState(false);
+  const [submittingAppraisal, setSubmittingAppraisal] = useState(false);
 
-  // Dummy asset data
-  const assets = [
-    {
-      id: 1,
-      name: 'Sunseeker Manhattan 68',
-      category: 'Yachts',
-      location: 'Monaco',
-      estimatedValue: '$4,250,000',
-      lastAppraisal: '2024-01-15',
-      image:
-        'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=800&q=80',
-      condition: 'Excellent',
-      description:
-        'Luxury motor yacht with state-of-the-art navigation systems and luxurious interiors.',
-      specifications: {
-        year: '2022',
-        length: '68 ft',
-        capacity: '12 guests',
-      },
-    },
-    {
-      id: 2,
-      name: 'Gulfstream G650',
-      category: 'Private Jets',
-      location: 'New York',
-      estimatedValue: '$54,000,000',
-      lastAppraisal: '2024-01-10',
-      image:
-        'https://images.unsplash.com/photo-1540962351504-03099e0a754b?w=800&q=80',
-      condition: 'Pristine',
-      description:
-        'Ultra-long-range business jet with cutting-edge technology and supreme comfort.',
-      specifications: {
-        year: '2023',
-        range: '7,000 nm',
-        capacity: '19 passengers',
-      },
-    },
-    {
-      id: 3,
-      name: 'Manhattan Penthouse',
-      category: 'Real Estate',
-      location: 'New York',
-      estimatedValue: '$25,000,000',
-      lastAppraisal: '2024-01-20',
-      image:
-        'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&q=80',
-      condition: 'Excellent',
-      description:
-        'Stunning penthouse with panoramic city views and modern architecture.',
-      specifications: {
-        sqft: '6,500',
-        bedrooms: '5',
-        bathrooms: '6',
-      },
-    },
-    {
-      id: 4,
-      name: 'Ferrari SF90 Stradale',
-      category: 'Vehicles',
-      location: 'Dubai',
-      estimatedValue: '$625,000',
-      lastAppraisal: '2023-12-05',
-      image:
-        'https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80',
-      condition: 'Mint',
-      description:
-        'Hybrid supercar combining performance with cutting-edge technology.',
-      specifications: {
-        year: '2023',
-        mileage: '1,200 miles',
-        horsepower: '986 hp',
-      },
-    },
-    {
-      id: 5,
-      name: 'Picasso Original 1932',
-      category: 'Art & Collectibles',
-      location: 'London',
-      estimatedValue: '$15,000,000',
-      lastAppraisal: '2023-11-28',
-      image:
-        'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800&q=80',
-      condition: 'Excellent',
-      description: 'Rare original Picasso painting from his cubist period.',
-      specifications: {
-        artist: 'Pablo Picasso',
-        year: '1932',
-        medium: 'Oil on Canvas',
-      },
-    },
-    {
-      id: 6,
-      name: 'Azimut Grande 27M',
-      category: 'Yachts',
-      location: 'Miami',
-      estimatedValue: '$8,500,000',
-      lastAppraisal: '2024-01-08',
-      image:
-        'https://images.unsplash.com/photo-1605281317010-fe5ffe798166?w=800&q=80',
-      condition: 'Excellent',
-      description:
-        'Italian luxury yacht with elegant design and superior performance.',
-      specifications: {
-        year: '2023',
-        length: '88 ft',
-        capacity: '10 guests',
-      },
-    },
-    {
-      id: 7,
-      name: 'Bombardier Global 7500',
-      category: 'Private Jets',
-      location: 'Los Angeles',
-      estimatedValue: '$75,000,000',
-      lastAppraisal: '2024-01-12',
-      image:
-        'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800&q=80',
-      condition: 'Pristine',
-      description:
-        "World's largest and longest-range purpose-built business jet.",
-      specifications: {
-        year: '2024',
-        range: '7,700 nm',
-        capacity: '19 passengers',
-      },
-    },
-    {
-      id: 8,
-      name: 'Beverly Hills Estate',
-      category: 'Real Estate',
-      location: 'Los Angeles',
-      estimatedValue: '$45,000,000',
-      lastAppraisal: '2023-12-18',
-      image:
-        'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&q=80',
-      condition: 'Excellent',
-      description:
-        'Magnificent estate with pool, tennis court, and panoramic views.',
-      specifications: {
-        sqft: '15,000',
-        bedrooms: '8',
-        bathrooms: '12',
-      },
-    },
-  ];
+  // Fetch assets from API
+  useEffect(() => {
+    const fetchAssets = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const params = {
+          category: selectedCategory !== 'all' ? selectedCategory : undefined,
+          sortBy: 'created_at',
+          order: 'desc',
+        };
+        
+        const response = await getAssets(params);
+        
+        // Format assets for display
+        const formattedAssets = (response.data || []).map(asset => ({
+          ...asset,
+          // Format values for display
+          estimatedValue: asset.estimatedValue
+            ? formatCurrency(asset.estimatedValue, asset.currency)
+            : asset.estimatedValue,
+          currentValue: asset.currentValue
+            ? formatCurrency(asset.currentValue, asset.currency)
+            : asset.currentValue,
+          // Use primary image or first image
+          image: asset.image || (asset.images && asset.images[0]) || null,
+          // Map lastAppraisalDate to lastAppraisal
+          lastAppraisal: asset.lastAppraisalDate || asset.lastAppraisal,
+        }));
+        
+        setAssets(formattedAssets);
+      } catch (err) {
+        console.error('Error fetching assets:', err);
+        
+        // Extract user-friendly error message
+        let errorMessage = 'Failed to load assets';
+        
+        // Get error message from multiple possible locations
+        const rawMessage = err.message || err.data?.detail || err.data?.message || '';
+        
+        if (rawMessage) {
+          // Check if it's a backend SQLAlchemy error
+          if (rawMessage.includes('greenlet_spawn') || 
+              rawMessage.includes('await_only') || 
+              rawMessage.includes('IO attempted in an unexpected place')) {
+            errorMessage = 'Server error: Database connection issue. Please try again later.';
+          } else if (rawMessage.includes('Failed to fetch') || 
+                     rawMessage.includes('network') ||
+                     rawMessage.includes('ERR_FAILED')) {
+            errorMessage = 'Network error: Unable to connect to server. Please check your connection.';
+          } else if (err.status === 500) {
+            // Generic 500 error with technical details hidden
+            errorMessage = 'Server error: Please try again later or contact support.';
+          } else if (err.status === 400) {
+            errorMessage = 'Invalid request. Please check your input and try again.';
+          } else if (err.status === 401) {
+            // Redirect to login page instead of showing error message
+            router.replace('/login');
+            return;
+          } else if (err.status === 403) {
+            errorMessage = 'Access denied. You do not have permission to view assets.';
+          } else if (err.status === 404) {
+            errorMessage = 'Resource not found.';
+          } else {
+            // For other errors, show the message but sanitize SQLAlchemy errors
+            errorMessage = rawMessage.includes('sqlalchemy') || 
+                          rawMessage.includes('greenlet') ||
+                          rawMessage.includes('await_only')
+              ? 'Server error: Please try again later or contact support.'
+              : rawMessage;
+          }
+        } else if (err.status === 500) {
+          errorMessage = 'Server error: Please try again later or contact support.';
+        }
+        
+        setError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAssets();
+  }, [selectedCategory]);
 
   // Get all categories for filtering
   const categories = [
@@ -181,13 +131,10 @@ export default function AssetsPage() {
       })),
   ];
 
-  const filteredAssets =
-    selectedCategory === 'all'
-      ? assets
-      : assets.filter(asset => asset.category === selectedCategory);
+  const filteredAssets = assets; // Assets are already filtered by API
 
   const handleViewDetails = asset => {
-    router.push(`/dashboard/assets/${asset.id}`);
+    router.push(`/dashboard/assets/detail?id=${asset.id}`);
   };
 
   const handleRequestSell = asset => {
@@ -202,21 +149,39 @@ export default function AssetsPage() {
     setAppraisalType(null);
   };
 
-  const handleSubmitSellRequest = () => {
-    // Here you would submit the sell request
-    console.log('Sell Request:', { asset: selectedAsset, ...sellFormData });
-    alert('Sell request submitted successfully!');
-    setShowSellModal(false);
+  const handleSubmitSellRequest = async () => {
+    try {
+      setSubmittingSell(true);
+      await requestAssetSale(selectedAsset.id, {
+        targetPrice: sellFormData.targetPrice ? parseFloat(sellFormData.targetPrice.replace(/[^0-9.-]+/g, '')) : undefined,
+        saleNote: sellFormData.saleNote || undefined,
+      });
+      alert('Sell request submitted successfully!');
+      setShowSellModal(false);
+      setSellFormData({ saleNote: '', targetPrice: '' });
+    } catch (err) {
+      console.error('Error submitting sell request:', err);
+      alert(err.message || 'Failed to submit sell request');
+    } finally {
+      setSubmittingSell(false);
+    }
   };
 
-  const handleSubmitAppraisal = () => {
-    // Here you would submit the appraisal request
-    console.log('Appraisal Request:', {
-      asset: selectedAsset,
-      type: appraisalType,
-    });
-    alert(`${appraisalType} appraisal request submitted successfully!`);
-    setShowAppraisalModal(false);
+  const handleSubmitAppraisal = async () => {
+    try {
+      setSubmittingAppraisal(true);
+      await requestAssetAppraisal(selectedAsset.id, {
+        appraisalType: appraisalType,
+      });
+      alert(`${appraisalType} appraisal request submitted successfully!`);
+      setShowAppraisalModal(false);
+      setAppraisalType(null);
+    } catch (err) {
+      console.error('Error submitting appraisal request:', err);
+      alert(err.message || 'Failed to submit appraisal request');
+    } finally {
+      setSubmittingAppraisal(false);
+    }
   };
 
   return (
@@ -319,18 +284,79 @@ export default function AssetsPage() {
       </div>
 
       {/* Assets Grid */}
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-        {filteredAssets.map(asset => (
-          <AssetCard
-            key={asset.id}
-            asset={asset}
-            isDarkMode={isDarkMode}
-            onViewDetails={() => handleViewDetails(asset)}
-            onRequestSell={() => handleRequestSell(asset)}
-            onRequestAppraisal={() => handleRequestAppraisal(asset)}
-          />
-        ))}
-      </div>
+      {loading ? (
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+          {[...Array(6)].map((_, index) => (
+            <AssetCardSkeleton key={index} isDarkMode={isDarkMode} />
+          ))}
+        </div>
+      ) : error ? (
+        <div className={`p-6 rounded-lg border text-center ${
+          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+        }`}>
+          <div className='mb-4 flex justify-center'>
+            <svg
+              width='48'
+              height='48'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke={isDarkMode ? '#EF4444' : '#DC2626'}
+              strokeWidth='2'
+            >
+              <circle cx='12' cy='12' r='10' />
+              <line x1='12' y1='8' x2='12' y2='12' />
+              <line x1='12' y1='16' x2='12.01' y2='16' />
+            </svg>
+          </div>
+          <p className={`font-semibold mb-2 text-lg ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            Error loading assets
+          </p>
+          <p className={`text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            {error}
+          </p>
+          <button
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+              // Trigger re-fetch by calling the useEffect again
+              window.location.reload();
+            }}
+            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+          >
+            Retry
+          </button>
+        </div>
+      ) : filteredAssets.length === 0 ? (
+        <div className={`p-6 rounded-lg border text-center ${
+          isDarkMode ? 'border-[#FFFFFF14] text-gray-400' : 'border-gray-300 text-gray-600'
+        }`}>
+          <p className='text-lg mb-2'>No assets found</p>
+          <p className='text-sm mb-4'>Get started by adding your first asset</p>
+          <button
+            onClick={() => router.push('/dashboard/assets/add')}
+            className='px-6 py-3 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+          >
+            Add New Asset
+          </button>
+        </div>
+      ) : (
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+          {filteredAssets.map(asset => (
+            <AssetCard
+              key={asset.id}
+              asset={asset}
+              isDarkMode={isDarkMode}
+              onViewDetails={() => handleViewDetails(asset)}
+              onRequestSell={() => handleRequestSell(asset)}
+              onRequestAppraisal={() => handleRequestAppraisal(asset)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Sell Request Modal */}
       {showSellModal && selectedAsset && (
@@ -341,6 +367,7 @@ export default function AssetsPage() {
           onChange={setSellFormData}
           onSubmit={handleSubmitSellRequest}
           onClose={() => setShowSellModal(false)}
+          submitting={submittingSell}
         />
       )}
 
@@ -353,6 +380,7 @@ export default function AssetsPage() {
           onSelectType={setAppraisalType}
           onSubmit={handleSubmitAppraisal}
           onClose={() => setShowAppraisalModal(false)}
+          submitting={submittingAppraisal}
         />
       )}
     </DashboardLayout>
@@ -678,6 +706,7 @@ function SellModal({
   onChange,
   onSubmit,
   onClose,
+  submitting = false,
 }) {
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto'>
@@ -894,9 +923,36 @@ function SellModal({
           </button>
           <button
             onClick={onSubmit}
-            className='flex-1 bg-[#F1CB68] hover:bg-[#BF9B30] text-[#101014] py-2.5 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base'
+            disabled={submittingSell}
+            className={`flex-1 py-2.5 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base ${
+              submittingSell
+                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                : 'bg-[#F1CB68] hover:bg-[#BF9B30] text-[#101014]'
+            }`}
           >
-            Submit Request
+            {submittingSell ? (
+              <span className='flex items-center justify-center gap-2'>
+                <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
+                  <circle
+                    className='opacity-25'
+                    cx='12'
+                    cy='12'
+                    r='10'
+                    stroke='currentColor'
+                    strokeWidth='4'
+                    fill='none'
+                  />
+                  <path
+                    className='opacity-75'
+                    fill='currentColor'
+                    d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                  />
+                </svg>
+                Submitting...
+              </span>
+            ) : (
+              'Submit Request'
+            )}
           </button>
         </div>
       </div>
@@ -912,6 +968,7 @@ function AppraisalModal({
   onSelectType,
   onSubmit,
   onClose,
+  submitting = false,
 }) {
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto'>
@@ -1165,11 +1222,13 @@ function AppraisalModal({
           </button>
           <button
             onClick={onSubmit}
-            disabled={!selectedType}
+            disabled={!selectedType || submitting}
             className={`
               flex-1 py-2.5 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base
               ${
-                selectedType
+                submitting
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  : selectedType
                   ? 'bg-[#F1CB68] hover:bg-[#BF9B30] text-[#101014]'
                   : isDarkMode
                   ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
@@ -1177,7 +1236,29 @@ function AppraisalModal({
               }
             `}
           >
-            Submit Request
+            {submitting ? (
+              <span className='flex items-center justify-center gap-2'>
+                <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
+                  <circle
+                    className='opacity-25'
+                    cx='12'
+                    cy='12'
+                    r='10'
+                    stroke='currentColor'
+                    strokeWidth='4'
+                    fill='none'
+                  />
+                  <path
+                    className='opacity-75'
+                    fill='currentColor'
+                    d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                  />
+                </svg>
+                Submitting...
+              </span>
+            ) : (
+              'Submit Request'
+            )}
           </button>
         </div>
       </div>

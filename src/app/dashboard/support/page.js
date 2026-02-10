@@ -6,6 +6,17 @@ import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import DocumentUploadModal from '@/components/dashboard/DocumentUploadModal';
+import {
+  listTickets,
+  createTicket,
+  updateTicket,
+  uploadTicketDocuments,
+  getTicketStatistics,
+  addTicketComment,
+  getTicketComments,
+  getTicketHistory,
+} from '@/utils/supportTicketsApi';
+import { toast } from 'react-toastify';
 
 export default function SupportPage() {
   const { isDarkMode } = useTheme();
@@ -15,73 +26,44 @@ export default function SupportPage() {
   const [mounted, setMounted] = useState(false);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
-  const [tickets, setTickets] = useState([
-    {
-      id: 'TKT-2023-8762',
-      subject: 'Payment issue with recent subscription renewal',
-      description:
-        'I was charged twice for my subscription renewal this month.',
-      status: 'open',
-      created: 'Nov 15, 2023',
-      updated: 'Nov 18, 2023',
-      issuer: 'John Smith',
-      documents: [],
-    },
-    {
-      id: 'TKT-2023-8721',
-      subject: 'Cannot access premium features after upgrade',
-      description:
-        "I upgraded to the Business plan yesterday, but I still don't have access.",
-      status: 'inprogress',
-      created: 'Nov 12, 2023',
-      updated: 'Nov 16, 2023',
-      issuer: 'Oakridge Family Office',
-      documents: [],
-    },
-    {
-      id: 'TKT-2023-8695',
-      subject: 'Request for custom integration documentation',
-      description: 'My development team needs more detailed API documentation.',
-      status: 'inprogress',
-      created: 'Nov 10, 2023',
-      updated: 'Nov 15, 2023',
-      issuer: 'Isabella W',
-      documents: [],
-    },
-    {
-      id: 'TKT-2023-8674',
-      subject: 'Issues with data export functionality',
-      description:
-        'When I try to export my report data to CSV, some of the data is missing.',
-      status: 'resolved',
-      created: 'Nov 7, 2023',
-      updated: 'Nov 12, 2023',
-      issuer: 'Ryan Green',
-      documents: [],
-    },
-    {
-      id: 'TKT-2023-8642',
-      subject: 'Account login verification problems',
-      description:
-        "I'm not receiving the SMS verification code when trying to log in.",
-      status: 'closed',
-      created: 'Nov 4, 2023',
-      updated: 'Nov 9, 2023',
-      issuer: 'Marta Diaz',
-      documents: [],
-    },
-    {
-      id: 'TKT-2023-8621',
-      subject: 'Feature request: Dark mode for dashboard',
-      description:
-        'Would it be possible to implement a dark mode for the main dashboard?',
-      status: 'closed',
-      created: 'Nov 2, 2023',
-      updated: 'Nov 8, 2023',
-      issuer: 'Matthew M',
-      documents: [],
-    },
-  ]);
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch tickets on mount and when filter changes
+  useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        setLoading(true);
+        const params = {
+          status: ticketFilter === 'all' ? undefined : ticketFilter,
+          search: searchQuery || undefined,
+          limit: 100,
+        };
+        const response = await listTickets(params);
+        const ticketsData = response.data || response || [];
+        setTickets(ticketsData.map(ticket => ({
+          id: ticket.id || ticket.ticketId,
+          subject: ticket.subject,
+          description: ticket.description,
+          status: ticket.status,
+          created: ticket.created ? new Date(ticket.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+          updated: ticket.updated ? new Date(ticket.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+          issuer: ticket.issuer,
+          documents: ticket.documents || [],
+        })));
+      } catch (error) {
+        console.error('Failed to fetch tickets:', error);
+        toast.error('Failed to load tickets. Please refresh the page.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (mounted) {
+      fetchTickets();
+    }
+  }, [mounted, ticketFilter, searchQuery]);
 
   useEffect(() => {
     setMounted(true);
@@ -91,25 +73,36 @@ export default function SupportPage() {
     return null;
   }
 
-  const handleDocumentUpload = uploadData => {
+  const handleDocumentUpload = async (uploadData) => {
     if (selectedTicket) {
-      const updatedTickets = tickets.map(t =>
-        t.id === selectedTicket.id
-          ? {
-              ...t,
-              documents: [
-                ...(t.documents || []),
-                ...uploadData.files.map(f => ({
-                  name: f.name,
-                  size: f.size,
-                  type: f.type,
-                })),
-              ],
-            }
-          : t
-      );
-      setTickets(updatedTickets);
-      setSelectedTicket(null);
+      try {
+        const files = uploadData.files.map(f => f.file || f);
+        await uploadTicketDocuments(selectedTicket.id, files);
+        
+        // Update local state
+        const updatedTickets = tickets.map(t =>
+          t.id === selectedTicket.id
+            ? {
+                ...t,
+                documents: [
+                  ...(t.documents || []),
+                  ...uploadData.files.map(f => ({
+                    name: f.name,
+                    size: f.size,
+                    type: f.type,
+                  })),
+                ],
+              }
+            : t
+        );
+        setTickets(updatedTickets);
+        setSelectedTicket(null);
+        toast.success('Documents uploaded successfully!');
+      } catch (error) {
+        console.error('Failed to upload documents:', error);
+        const errorMsg = error.data?.detail || error.message || 'Failed to upload documents. Please try again.';
+        toast.error(errorMsg);
+      }
     }
   };
 
@@ -215,6 +208,8 @@ export default function SupportPage() {
                 <input
                   type='text'
                   placeholder='Search by keyword or ticket ID'
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className={`w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 rounded-lg text-sm border transition-colors ${
                     isDarkMode
                       ? 'bg-transparent border-white/10 text-white placeholder-gray-500 focus:border-[#F1CB68]'
@@ -600,6 +595,33 @@ export default function SupportPage() {
       <NewTicketModal
         isOpen={isNewTicketModalOpen}
         setIsOpen={setIsNewTicketModalOpen}
+        onTicketCreated={() => {
+          // Refresh tickets list
+          const fetchTickets = async () => {
+            try {
+              const params = {
+                status: ticketFilter === 'all' ? undefined : ticketFilter,
+                search: searchQuery || undefined,
+                limit: 100,
+              };
+              const response = await listTickets(params);
+              const ticketsData = response.data || response || [];
+              setTickets(ticketsData.map(ticket => ({
+                id: ticket.id || ticket.ticketId,
+                subject: ticket.subject,
+                description: ticket.description,
+                status: ticket.status,
+                created: ticket.created ? new Date(ticket.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+                updated: ticket.updated ? new Date(ticket.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+                issuer: ticket.issuer,
+                documents: ticket.documents || [],
+              })));
+            } catch (error) {
+              console.error('Failed to refresh tickets:', error);
+            }
+          };
+          fetchTickets();
+        }}
       />
 
       {/* Document Upload Modal */}

@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Cloudflare Pages compatibility - use static export
-  output: 'export',
+  // Cloudflare Pages compatibility - use static export for production builds
+  // Note: API routes will work in development mode even with output: 'export'
+  output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
   images: {
     unoptimized: true, // Cloudflare Pages doesn't support Next.js image optimization
   },

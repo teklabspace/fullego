@@ -1,10 +1,14 @@
 'use client';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import AssignmentModal from '@/components/dashboard/AssignmentModal';
 import DocumentUploadModal from '@/components/dashboard/DocumentUploadModal';
+import { getDashboardOverview, getCrmUpdates } from '@/utils/crmApi';
+import { listTickets, assignTicket, uploadTicketDocuments } from '@/utils/supportTicketsApi';
+import { getReportStatistics } from '@/utils/reportsApi';
+import { toast } from 'react-toastify';
 
 export default function CRMDashboardPage() {
   const { isDarkMode } = useTheme();
@@ -16,144 +20,157 @@ export default function CRMDashboardPage() {
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [updates, setUpdates] = useState([]);
 
-  // Chart data for stat cards
-  const chartData1 = [
-    { value: 20 },
-    { value: 35 },
-    { value: 25 },
-    { value: 45 },
-    { value: 38 },
-    { value: 52 },
-  ];
+  // Fetch dashboard data on mount
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch dashboard overview statistics
+        const [overviewResponse, updatesResponse, ticketsResponse] = await Promise.allSettled([
+          getDashboardOverview(),
+          getCrmUpdates({ limit: 24 }).catch(err => {
+            // Handle 403 (Forbidden) or other permission errors gracefully
+            if (err.status === 403 || err.status === 401) {
+              console.warn('CRM updates endpoint not accessible:', err.status);
+              return { data: [], message: 'Updates not available' };
+            }
+            throw err;
+          }),
+          listTickets({ status: 'open', limit: 100 }),
+        ]);
 
-  const chartData2 = [
-    { value: 15 },
-    { value: 28 },
-    { value: 32 },
-    { value: 25 },
-    { value: 42 },
-    { value: 48 },
-  ];
+        if (overviewResponse.status === 'fulfilled') {
+          setDashboardStats(overviewResponse.value.data || overviewResponse.value);
+        }
 
-  const chartData3 = [
-    { value: 45 },
-    { value: 38 },
-    { value: 32 },
-    { value: 28 },
-    { value: 18 },
-    { value: 12 },
-  ];
+        if (updatesResponse.status === 'fulfilled') {
+          const updatesData = updatesResponse.value.data || updatesResponse.value || [];
+          setUpdates(Array.isArray(updatesData) ? updatesData : []);
+        } else if (updatesResponse.status === 'rejected') {
+          // If updates fail, use empty array (non-critical feature)
+          console.warn('Failed to load updates, using empty array');
+          setUpdates([]);
+        }
 
-  // Unassigned tasks
-  const [unassignedTasks, setUnassignedTasks] = useState([
-    {
-      id: '#1147',
-      subject: 'New Registry Laws conflict',
-      requester: 'Isabella W',
-      channel: 'Web form',
-      type: '-',
-      assignee: '-',
-      date: 'Jul 21',
-      status: 'New',
-      assignedTo: null,
-      ticketHistory: [],
-    },
-    {
-      id: '#1146',
-      subject: 'Locked out of my registry account',
-      requester: 'Ryan Green',
-      channel: 'Whatsapp',
-      type: '-',
-      assignee: '-',
-      date: 'Jul 21',
-      status: 'New',
-      assignedTo: null,
-      ticketHistory: [],
-    },
-    {
-      id: '#1145',
-      subject: 'KYB Report issues',
-      requester: 'Marta Diaz',
-      channel: 'Web form',
-      type: '-',
-      assignee: '-',
-      date: 'Jul 21',
-      status: 'New',
-      assignedTo: null,
-      ticketHistory: [],
-    },
-  ]);
+        if (ticketsResponse.status === 'fulfilled') {
+          const tickets = ticketsResponse.value.data || ticketsResponse.value || [];
+          // Separate unassigned and assigned tickets
+          const unassigned = tickets.filter(t => !t.assignee || t.assignee === '-').map(ticket => ({
+            id: ticket.id || ticket.ticketId,
+            subject: ticket.subject,
+            requester: ticket.issuer || ticket.requester,
+            channel: ticket.channel || 'Web form',
+            type: ticket.category || '-',
+            assignee: ticket.assignee || '-',
+            date: ticket.created ? new Date(ticket.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-',
+            status: ticket.status === 'open' ? 'New' : ticket.status,
+            assignedTo: ticket.assignee || null,
+            ticketHistory: ticket.history || [],
+          }));
+          
+          const assigned = tickets.filter(t => t.assignee && t.assignee !== '-').map(ticket => ({
+            id: ticket.id || ticket.ticketId,
+            subject: ticket.subject,
+            requester: ticket.issuer || ticket.requester,
+            channel: ticket.channel || 'Web form',
+            group: ticket.group || '-',
+            assignee: ticket.assignee,
+            date: ticket.created ? new Date(ticket.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-',
+            status: ticket.status === 'open' ? 'Open' : ticket.status,
+            assignedTo: ticket.assignee,
+            ticketHistory: ticket.history || [],
+          }));
 
-  // Assigned tasks
-  const [assignedTasks, setAssignedTasks] = useState([
-    {
-      id: '#1129',
-      subject: 'Tax return filing',
-      requester: 'Matthew M',
-      channel: 'Web form',
-      group: 'Support',
-      assignee: 'Monica H',
-      date: 'Jul 21',
-      status: 'Open',
-      assignedTo: 'Monica H',
-      ticketHistory: [],
-    },
-    {
-      id: '#976',
-      subject: 'Refund from verification party',
-      requester: 'Brian Baker',
-      channel: 'SMS',
-      group: 'Support',
-      assignee: 'Monica H',
-      date: 'Jul 19',
-      status: 'Pend',
-      assignedTo: 'Monica H',
-      ticketHistory: [],
-    },
-    {
-      id: '#963',
-      subject: 'License renewal',
-      requester: 'Brian Baker',
-      channel: 'SMS',
-      group: '-',
-      assignee: 'Viola D',
-      date: 'Jul 20',
-      status: 'Open',
-      assignedTo: 'Viola D',
-      ticketHistory: [],
-    },
-  ]);
+          setUnassignedTasks(unassigned);
+          setAssignedTasks(assigned);
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+        toast.error('Failed to load dashboard data. Please refresh the page.');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleAssignTask = assignmentData => {
+    fetchDashboardData();
+  }, []);
+
+  // Initialize with empty arrays - data will come from API
+  const [unassignedTasks, setUnassignedTasks] = useState([]);
+  const [assignedTasks, setAssignedTasks] = useState([]);
+
+  // Chart data from API - no fallback dummy data
+  const chartData1 = dashboardStats?.totalTasksTrend || dashboardStats?.performanceTrends || [];
+  const chartData2 = dashboardStats?.tasksSolvedTrend || dashboardStats?.performanceTrends || [];
+  const chartData3 = dashboardStats?.tasksUnresolvedTrend || dashboardStats?.performanceTrends || [];
+
+  // Get stat values from API - no fallback dummy data
+  const totalTasks = dashboardStats?.totalTasks ?? dashboardStats?.totalTasksReceived ?? 0;
+  const tasksSolved = dashboardStats?.tasksSolved ?? dashboardStats?.tasksResolved ?? 0;
+  const tasksUnresolved = dashboardStats?.tasksUnresolved ?? dashboardStats?.unresolvedTasks ?? 0;
+  const totalTasksChange = dashboardStats?.totalTasksChange ?? dashboardStats?.totalTasksReceivedChange ?? null;
+  const tasksSolvedChange = dashboardStats?.tasksSolvedChange ?? dashboardStats?.tasksResolvedChange ?? null;
+  const tasksUnresolvedChange = dashboardStats?.tasksUnresolvedChange ?? dashboardStats?.unresolvedTasksChange ?? null;
+
+  const handleAssignTask = async (assignmentData) => {
     if (selectedTask) {
-      const taskIndex = unassignedTasks.findIndex(t => t.id === selectedTask.id);
-      if (taskIndex !== -1) {
-        const updatedTask = {
-          ...unassignedTasks[taskIndex],
-          assignee: assignmentData.userName,
-          assignedTo: assignmentData.userName,
-          ticketHistory: [
-            ...(unassignedTasks[taskIndex].ticketHistory || []),
-            {
-              action: 'Task assigned',
-              user: assignmentData.userName,
-              date: new Date().toISOString(),
-              note: assignmentData.internalNote,
-            },
-          ],
-        };
-        const newUnassigned = unassignedTasks.filter(t => t.id !== selectedTask.id);
-        setUnassignedTasks(newUnassigned);
-        setAssignedTasks([...assignedTasks, updatedTask]);
+      try {
+        // Call API to assign ticket
+        await assignTicket(selectedTask.id, {
+          userId: assignmentData.userId,
+          userName: assignmentData.userName,
+          internalNote: assignmentData.internalNote,
+        });
+
+        // Update local state
+        const taskIndex = unassignedTasks.findIndex(t => t.id === selectedTask.id);
+        if (taskIndex !== -1) {
+          const updatedTask = {
+            ...unassignedTasks[taskIndex],
+            assignee: assignmentData.userName,
+            assignedTo: assignmentData.userName,
+            ticketHistory: [
+              ...(unassignedTasks[taskIndex].ticketHistory || []),
+              {
+                action: 'Task assigned',
+                user: assignmentData.userName,
+                date: new Date().toISOString(),
+                note: assignmentData.internalNote,
+              },
+            ],
+          };
+          const newUnassigned = unassignedTasks.filter(t => t.id !== selectedTask.id);
+          setUnassignedTasks(newUnassigned);
+          setAssignedTasks([...assignedTasks, updatedTask]);
+        }
+        toast.success('Task assigned successfully!');
+      } catch (error) {
+        console.error('Failed to assign task:', error);
+        const errorMsg = error.data?.detail || error.message || 'Failed to assign task. Please try again.';
+        toast.error(errorMsg);
       }
     }
     setSelectedTask(null);
   };
 
-  const handleDocumentUpload = uploadData => {
-    console.log('Documents uploaded:', uploadData);
-    // In production, this would update the task/ticket with document references
+  const handleDocumentUpload = async (uploadData) => {
+    if (selectedTask) {
+      try {
+        const files = uploadData.files.map(f => f.file || f);
+        await uploadTicketDocuments(selectedTask.id, files);
+        toast.success('Documents uploaded successfully!');
+        // Refresh task data or update local state
+      } catch (error) {
+        console.error('Failed to upload documents:', error);
+        const errorMsg = error.data?.detail || error.message || 'Failed to upload documents. Please try again.';
+        toast.error(errorMsg);
+      }
+    }
   };
 
   const handleOpenAssignment = task => {
@@ -297,7 +314,7 @@ export default function CRMDashboardPage() {
                   onClick={() => setActiveTab('tasks')}
                   className='px-4 md:px-6 py-2 rounded-full text-sm font-medium transition-all bg-gradient-to-r from-[#222126] to-[#111116] text-white w-full'
                 >
-                  Tasks 12
+                  Tasks {unassignedTasks.length + assignedTasks.length}
                 </button>
               </div>
             ) : (
@@ -327,7 +344,7 @@ export default function CRMDashboardPage() {
                   onClick={() => setActiveTab('updates')}
                   className='px-4 md:px-6 py-2 rounded-full text-sm font-medium transition-all bg-gradient-to-r from-[#222126] to-[#111116] text-white w-full'
                 >
-                  Updates 24
+                  Updates {updates.length}
                 </button>
               </div>
             ) : (
@@ -364,10 +381,10 @@ export default function CRMDashboardPage() {
               <div className='grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8'>
                 <StatCard
                   title='Total tasks received'
-                  value='164'
-                  change='+15%'
+                  value={loading ? '...' : totalTasks.toString()}
+                  change={totalTasksChange ? `${totalTasksChange > 0 ? '+' : ''}${totalTasksChange}%` : '-'}
                   changeLabel='from last week'
-                  isPositive={true}
+                  isPositive={totalTasksChange === null ? true : totalTasksChange >= 0}
                   chartData={chartData1}
                   chartColor='#10B981'
                   isDarkMode={isDarkMode}
@@ -375,10 +392,10 @@ export default function CRMDashboardPage() {
 
                 <StatCard
                   title='Tasks solved'
-                  value='159'
-                  change='+32%'
+                  value={loading ? '...' : tasksSolved.toString()}
+                  change={tasksSolvedChange ? `${tasksSolvedChange > 0 ? '+' : ''}${tasksSolvedChange}%` : '-'}
                   changeLabel='from last week'
-                  isPositive={true}
+                  isPositive={tasksSolvedChange === null ? true : tasksSolvedChange >= 0}
                   chartData={chartData2}
                   chartColor='#10B981'
                   isDarkMode={isDarkMode}
@@ -386,10 +403,10 @@ export default function CRMDashboardPage() {
 
                 <StatCard
                   title='Tasks unresolved'
-                  value='5'
-                  change='-54%'
+                  value={loading ? '...' : tasksUnresolved.toString()}
+                  change={tasksUnresolvedChange ? `${tasksUnresolvedChange > 0 ? '+' : ''}${tasksUnresolvedChange}%` : '-'}
                   changeLabel='from last week'
-                  isPositive={false}
+                  isPositive={tasksUnresolvedChange === null ? false : tasksUnresolvedChange <= 0}
                   chartData={chartData3}
                   chartColor='#EF4444'
                   isDarkMode={isDarkMode}
@@ -466,10 +483,10 @@ export default function CRMDashboardPage() {
             <div className='grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8'>
               <StatCard
                 title='Total tasks received'
-                value='164'
-                change='+15%'
+                value={loading ? '...' : totalTasks.toString()}
+                change={totalTasksChange ? `${totalTasksChange > 0 ? '+' : ''}${totalTasksChange}%` : '-'}
                 changeLabel='from last week'
-                isPositive={true}
+                isPositive={totalTasksChange === null ? true : totalTasksChange >= 0}
                 chartData={chartData1}
                 chartColor='#10B981'
                 isDarkMode={isDarkMode}
@@ -477,10 +494,10 @@ export default function CRMDashboardPage() {
 
               <StatCard
                 title='Tasks solved'
-                value='159'
-                change='+32%'
+                value={loading ? '...' : tasksSolved.toString()}
+                change={tasksSolvedChange ? `${tasksSolvedChange > 0 ? '+' : ''}${tasksSolvedChange}%` : '-'}
                 changeLabel='from last week'
-                isPositive={true}
+                isPositive={tasksSolvedChange === null ? true : tasksSolvedChange >= 0}
                 chartData={chartData2}
                 chartColor='#10B981'
                 isDarkMode={isDarkMode}
@@ -488,10 +505,10 @@ export default function CRMDashboardPage() {
 
               <StatCard
                 title='Tasks unresolved'
-                value='5'
-                change='-54%'
+                value={loading ? '...' : tasksUnresolved.toString()}
+                change={tasksUnresolvedChange ? `${tasksUnresolvedChange > 0 ? '+' : ''}${tasksUnresolvedChange}%` : '-'}
                 changeLabel='from last week'
-                isPositive={false}
+                isPositive={tasksUnresolvedChange === null ? false : tasksUnresolvedChange <= 0}
                 chartData={chartData3}
                 chartColor='#EF4444'
                 isDarkMode={isDarkMode}
@@ -771,7 +788,7 @@ export default function CRMDashboardPage() {
                         isDarkMode ? 'text-white' : 'text-gray-900'
                       }`}
                     >
-                      Assigned (29)
+                      Assigned ({assignedTasks.length})
                     </h3>
                   </div>
                   <div className='flex items-center justify-between'>
@@ -829,7 +846,7 @@ export default function CRMDashboardPage() {
                           isDarkMode ? 'text-gray-400' : 'text-gray-600'
                         }`}
                       >
-                        1-6 out of 29
+                        1-{Math.min(6, assignedTasks.length)} out of {assignedTasks.length}
                       </span>
                       <button
                         className={`p-2 rounded-lg transition-colors ${
@@ -1052,10 +1069,10 @@ export default function CRMDashboardPage() {
             <div className='grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8'>
               <StatCard
                 title='Total tasks received'
-                value='164'
-                change='+15%'
+                value={loading ? '...' : totalTasks.toString()}
+                change={totalTasksChange ? `${totalTasksChange > 0 ? '+' : ''}${totalTasksChange}%` : '-'}
                 changeLabel='from last week'
-                isPositive={true}
+                isPositive={totalTasksChange === null ? true : totalTasksChange >= 0}
                 chartData={chartData1}
                 chartColor='#10B981'
                 isDarkMode={isDarkMode}
@@ -1063,10 +1080,10 @@ export default function CRMDashboardPage() {
 
               <StatCard
                 title='Tasks solved'
-                value='159'
-                change='+32%'
+                value={loading ? '...' : tasksSolved.toString()}
+                change={tasksSolvedChange ? `${tasksSolvedChange > 0 ? '+' : ''}${tasksSolvedChange}%` : '-'}
                 changeLabel='from last week'
-                isPositive={true}
+                isPositive={tasksSolvedChange === null ? true : tasksSolvedChange >= 0}
                 chartData={chartData2}
                 chartColor='#10B981'
                 isDarkMode={isDarkMode}
@@ -1074,10 +1091,10 @@ export default function CRMDashboardPage() {
 
               <StatCard
                 title='Tasks unresolved'
-                value='5'
-                change='-54%'
+                value={loading ? '...' : tasksUnresolved.toString()}
+                change={tasksUnresolvedChange ? `${tasksUnresolvedChange > 0 ? '+' : ''}${tasksUnresolvedChange}%` : '-'}
                 changeLabel='from last week'
-                isPositive={false}
+                isPositive={tasksUnresolvedChange === null ? false : tasksUnresolvedChange <= 0}
                 chartData={chartData3}
                 chartColor='#EF4444'
                 isDarkMode={isDarkMode}
@@ -1130,34 +1147,38 @@ export default function CRMDashboardPage() {
                 </div>
 
                 <div className='space-y-3'>
-                  <UpdateCard
-                    avatar={{
-                      initials: 'JO',
-                      bgColor: 'bg-blue-500',
-                    }}
-                    user='Javier Ortiz'
-                    action='replied to you'
-                    highlight="I didn't receive a OTP code"
-                    subtitle='Email all sent through but...'
-                    time='45s'
-                    hasIndicator={true}
-                    hasMicrophone={true}
-                    isDarkMode={isDarkMode}
-                  />
-
-                  <UpdateCard
-                    avatar={{
-                      bgColor: 'bg-pink-500',
-                      icon: true,
-                    }}
-                    user='Carmen Siloz'
-                    action='replied to you'
-                    highlight='Blockchain Ledger entry'
-                    subtitle='Thanks for your support....'
-                    time='2m'
-                    hasIndicator={true}
-                    isDarkMode={isDarkMode}
-                  />
+                  {updates.filter(u => u.pinned || u.isPinned).length > 0 ? (
+                    updates
+                      .filter(u => u.pinned || u.isPinned)
+                      .map((update, index) => {
+                        const userName = update.user || update.userName || update.actor || 'Unknown User';
+                        const initials = update.initials || userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                        const bgColors = ['bg-blue-500', 'bg-pink-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500'];
+                        const bgColor = update.bgColor || bgColors[index % bgColors.length];
+                        
+                        return (
+                          <UpdateCard
+                            key={update.id || index}
+                            avatar={{
+                              initials: initials,
+                              bgColor: bgColor,
+                            }}
+                            user={userName}
+                            action={update.action || update.message || 'updated'}
+                            highlight={update.highlight || update.title || update.subject || ''}
+                            subtitle={update.subtitle || update.description || update.body || ''}
+                            time={update.time || update.timestamp || update.createdAt || 'Just now'}
+                            hasIndicator={update.hasIndicator || update.isUnread || false}
+                            hasMicrophone={update.hasMicrophone || false}
+                            isDarkMode={isDarkMode}
+                          />
+                        );
+                      })
+                  ) : (
+                    <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      No pinned updates
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1185,58 +1206,38 @@ export default function CRMDashboardPage() {
                 </div>
 
                 <div className='space-y-3'>
-                  <UpdateCard
-                    avatar={{
-                      bgColor: 'bg-pink-500',
-                      icon: true,
-                    }}
-                    user='Taylor B'
-                    action='has reassigned'
-                    highlight='Login OTP issues'
-                    subtitle='to Judy Green - Sales.'
-                    time='2s'
-                    isDarkMode={isDarkMode}
-                  />
-
-                  <UpdateCard
-                    avatar={{
-                      bgColor: 'bg-gray-600',
-                      icon: true,
-                    }}
-                    user='Swalker'
-                    action='replied to you on'
-                    highlight='Verification Report Payment'
-                    subtitle='Can you show me where...'
-                    time='45s'
-                    hasIndicator={true}
-                    isDarkMode={isDarkMode}
-                  />
-
-                  <UpdateCard
-                    avatar={{
-                      bgColor: 'bg-pink-500',
-                      icon: true,
-                    }}
-                    user='Ashley Adams'
-                    action='replied to you'
-                    highlight='Tax filing issues'
-                    subtitle='I got it now, thanks. Is there...'
-                    time='2m'
-                    isDarkMode={isDarkMode}
-                  />
-
-                  <UpdateCard
-                    avatar={{
-                      bgColor: 'bg-pink-500',
-                      icon: true,
-                    }}
-                    user='Ashley Adams'
-                    action='replied to you'
-                    highlight='New registry policy'
-                    subtitle='I got it now, thanks. Is there...'
-                    time='2m'
-                    isDarkMode={isDarkMode}
-                  />
+                  {updates.filter(u => !u.pinned && !u.isPinned).length > 0 ? (
+                    updates
+                      .filter(u => !u.pinned && !u.isPinned)
+                      .map((update, index) => {
+                        const userName = update.user || update.userName || update.actor || 'Unknown User';
+                        const initials = update.initials || userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                        const bgColors = ['bg-pink-500', 'bg-gray-600', 'bg-blue-500', 'bg-purple-500', 'bg-green-500'];
+                        const bgColor = update.bgColor || bgColors[index % bgColors.length];
+                        
+                        return (
+                          <UpdateCard
+                            key={update.id || index}
+                            avatar={{
+                              bgColor: bgColor,
+                              icon: !update.initials,
+                              initials: update.initials || initials,
+                            }}
+                            user={userName}
+                            action={update.action || update.message || 'updated'}
+                            highlight={update.highlight || update.title || update.subject || ''}
+                            subtitle={update.subtitle || update.description || update.body || ''}
+                            time={update.time || update.timestamp || update.createdAt || 'Just now'}
+                            hasIndicator={update.hasIndicator || update.isUnread || false}
+                            isDarkMode={isDarkMode}
+                          />
+                        );
+                      })
+                  ) : (
+                    <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      No ticket updates available
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

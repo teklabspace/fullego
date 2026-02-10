@@ -3,98 +3,177 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
+import {
+  getComplianceDashboard,
+  listComplianceTasks,
+  getComplianceTask,
+  completeComplianceTask,
+  reassignComplianceTask,
+} from '@/utils/complianceApi';
 
 export default function CompliancePage() {
   const { isDarkMode } = useTheme();
   const [dateRange, setDateRange] = useState('5th Jan - 30th Jan');
   const [selectedTask, setSelectedTask] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Loading states
+  const [loading, setLoading] = useState(true);
+  const [loadingTask, setLoadingTask] = useState(false);
+  
+  // Data states
+  const [dashboardData, setDashboardData] = useState(null);
+  const [pendingTasks, setPendingTasks] = useState([]);
 
-  const summaryCards = [
+  // Fetch dashboard data
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        setLoading(true);
+        const data = await getComplianceDashboard();
+        setDashboardData(data);
+      } catch (error) {
+        console.error('Failed to fetch dashboard:', error);
+        toast.error('Failed to load compliance dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboard();
+  }, []);
+
+  // Fetch tasks
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        const response = await listComplianceTasks({ limit: 50 });
+        const tasks = response.data || [];
+        
+        // Transform tasks to match UI format
+        const transformedTasks = tasks.map(task => ({
+          id: task.id,
+          taskName: task.taskName || task.task_name,
+          assignee: task.assignee?.name || 'Unassigned',
+          assigneeId: task.assignee?.id,
+          dueDate: formatDate(task.dueDate || task.due_date),
+          status: capitalizeFirst(task.status || 'pending'),
+          statusColor: getStatusColor(task.status || 'pending'),
+          priority: task.priority || 'medium',
+          description: task.description || '',
+          category: task.category || '',
+        }));
+        
+        setPendingTasks(transformedTasks);
+      } catch (error) {
+        console.error('Failed to fetch tasks:', error);
+        toast.error('Failed to load compliance tasks');
+      }
+    };
+
+    fetchTasks();
+  }, []);
+
+  // Helper functions
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const capitalizeFirst = (str) => {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1).replace(/_/g, ' ');
+  };
+
+  const getStatusColor = (status) => {
+    const statusLower = status?.toLowerCase();
+    if (statusLower === 'overdue') return 'text-red-400';
+    if (statusLower === 'pending') return 'text-[#F1CB68]';
+    if (statusLower === 'completed') return 'text-green-400';
+    return 'text-gray-400';
+  };
+
+  // Summary cards from dashboard data
+  const summaryCards = dashboardData ? [
     {
       title: 'Compliance Score',
-      value: '98.5%',
-      change: '+1.2%',
-      changeColor: 'text-green-400',
-      progress: 98.5,
+      value: `${dashboardData.complianceScore || 0}%`,
+      change: dashboardData.complianceScoreChange 
+        ? `${dashboardData.complianceScoreChange > 0 ? '+' : ''}${dashboardData.complianceScoreChange}%`
+        : 'No change',
+      changeColor: dashboardData.complianceScoreChange > 0 ? 'text-green-400' : 'text-gray-400',
+      progress: dashboardData.complianceScore || 0,
     },
     {
       title: 'Pending Audits',
-      value: '3',
+      value: `${dashboardData.pendingAuditsCount || 0}`,
       change: '- Unchanged',
       changeColor: 'text-gray-400',
       progress: 60,
     },
     {
       title: 'Open Alerts',
-      value: '5',
-      change: '+-2 since last week',
+      value: `${dashboardData.openAlertsCount || 0}`,
+      change: dashboardData.alertsChange 
+        ? `${dashboardData.alertsChange > 0 ? '+' : ''}${dashboardData.alertsChange} since last week`
+        : 'No change',
       changeColor: 'text-gray-400',
       progress: 50,
     },
-  ];
-
-  const pendingTasks = [
+  ] : [
     {
-      id: 1,
-      taskName: 'Review Q3 AML Policy Update',
-      assignee: 'Jane Doe',
-      dueDate: 'Nov 15, 2023',
-      status: 'Overdue',
-      statusColor: 'text-red-400',
+      title: 'Compliance Score',
+      value: '0%',
+      change: 'Loading...',
+      changeColor: 'text-gray-400',
+      progress: 0,
     },
     {
-      id: 2,
-      taskName: 'Complete Annual GDPR Training',
-      assignee: 'John Smith',
-      dueDate: 'Nov 20, 2023',
-      status: 'Pending',
-      statusColor: 'text-[#F1CB68]',
+      title: 'Pending Audits',
+      value: '0',
+      change: 'Loading...',
+      changeColor: 'text-gray-400',
+      progress: 0,
     },
     {
-      id: 3,
-      taskName: 'Submit SOC 2 Evidence Request',
-      assignee: 'Compliance Team',
-      dueDate: 'Dec 05, 2025',
-      status: 'Not Started',
-      statusColor: 'text-gray-400',
-    },
-    {
-      id: 4,
-      taskName: 'Internal Audit for Transaction Monitoring',
-      assignee: 'Alex Johnson',
-      dueDate: 'Oct 20, 2023',
-      status: 'Completed',
-      statusColor: 'text-green-400',
+      title: 'Open Alerts',
+      value: '0',
+      change: 'Loading...',
+      changeColor: 'text-gray-400',
+      progress: 0,
     },
   ];
 
-  const handleViewTask = (taskId) => {
-    const task = pendingTasks.find((t) => t.id === taskId);
-    if (task) {
-      // Convert date format for modal display
-      const dateMap = {
-        1: 'November 15, 2023',
-        2: 'November 20, 2023',
-        3: 'December 05, 2025',
-        4: 'October 20, 2023',
-      };
+  const handleViewTask = async (taskId) => {
+    try {
+      setLoadingTask(true);
+      const taskData = await getComplianceTask(taskId);
       
+      // Transform task data for modal
       setSelectedTask({
-        ...task,
-        dueDate: dateMap[taskId] || task.dueDate,
-        priority: taskId === 1 ? 'High' : taskId === 2 ? 'Medium' : taskId === 3 ? 'High' : 'Medium',
-        description:
-          taskId === 1
-            ? 'Please review the attached draft of the Q3 2023 Anti-Money Laundering (AML) policy updates. Provide feedback and approval by the due date to ensure timely implementation and adherence to new regulatory guidelines.'
-            : taskId === 2
-            ? 'Complete the annual GDPR training module to ensure compliance with data protection regulations. The training covers key updates to GDPR requirements and best practices for data handling.'
-            : taskId === 3
-            ? 'Submit all required evidence documents for the SOC 2 Type II audit. This includes security controls documentation, access logs, and compliance certifications.'
-            : 'Conduct internal audit of transaction monitoring systems to ensure all suspicious activities are properly flagged and reported according to regulatory requirements.',
+        id: taskData.id,
+        taskName: taskData.taskName || taskData.task_name,
+        assignee: taskData.assignee?.name || 'Unassigned',
+        assigneeId: taskData.assignee?.id,
+        dueDate: taskData.dueDate 
+          ? new Date(taskData.dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+          : 'N/A',
+        status: capitalizeFirst(taskData.status || 'pending'),
+        statusColor: getStatusColor(taskData.status),
+        priority: capitalizeFirst(taskData.priority || 'medium'),
+        description: taskData.description || 'No description available',
+        category: taskData.category || '',
+        relatedDocuments: taskData.relatedDocuments || [],
       });
       setIsModalOpen(true);
+    } catch (error) {
+      console.error('Failed to fetch task details:', error);
+      toast.error('Failed to load task details');
+    } finally {
+      setLoadingTask(false);
     }
   };
 
@@ -103,16 +182,118 @@ export default function CompliancePage() {
     setSelectedTask(null);
   };
 
-  const handleReassign = () => {
-    // Handle reassign logic
-    console.log('Reassigning task...');
+  const handleReassign = async () => {
+    if (!selectedTask) return;
+    
+    try {
+      // For now, just show a message - in a real app, you'd have a user picker
+      toast.info('Reassign functionality - select a new assignee');
+      // await reassignComplianceTask(selectedTask.id, { assigneeId: newAssigneeId, notes: 'Reassigned' });
+      // toast.success('Task reassigned successfully');
+      // Refresh tasks list
+      // const response = await listComplianceTasks({ limit: 50 });
+      // setPendingTasks(response.data || []);
+    } catch (error) {
+      console.error('Failed to reassign task:', error);
+      toast.error('Failed to reassign task');
+    }
   };
 
-  const handleMarkAsCompleted = () => {
-    // Handle mark as completed logic
-    console.log('Marking task as completed...');
-    handleCloseModal();
+  const handleMarkAsCompleted = async () => {
+    if (!selectedTask) return;
+    
+    try {
+      await completeComplianceTask(selectedTask.id, {
+        completionNotes: 'Task completed via Compliance Center',
+      });
+      toast.success('Task marked as completed');
+      handleCloseModal();
+      
+      // Refresh tasks list
+      const response = await listComplianceTasks({ limit: 50 });
+      const tasks = response.data || [];
+      const transformedTasks = tasks.map(task => ({
+        id: task.id,
+        taskName: task.taskName || task.task_name,
+        assignee: task.assignee?.name || 'Unassigned',
+        assigneeId: task.assignee?.id,
+        dueDate: formatDate(task.dueDate || task.due_date),
+        status: capitalizeFirst(task.status || 'pending'),
+        statusColor: getStatusColor(task.status || 'pending'),
+        priority: task.priority || 'medium',
+        description: task.description || '',
+        category: task.category || '',
+      }));
+      setPendingTasks(transformedTasks);
+    } catch (error) {
+      console.error('Failed to complete task:', error);
+      toast.error('Failed to mark task as completed');
+    }
   };
+
+  // Show loading state with skeletons
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className='space-y-6 animate-pulse'>
+          {/* Header skeleton */}
+          <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6'>
+            <div className='h-8 w-48 rounded-lg bg-gray-700/40' />
+            <div className='h-10 w-64 rounded-lg bg-gray-700/40' />
+          </div>
+
+          {/* Summary cards skeleton */}
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={`rounded-2xl p-4 md:p-6 border ${
+                  isDarkMode
+                    ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
+                    : 'bg-white border-gray-200'
+                }`}
+              >
+                <div className='h-4 w-24 mb-4 rounded bg-gray-700/40' />
+                <div className='h-8 w-32 mb-3 rounded bg-gray-700/50' />
+                <div className='h-3 w-28 mb-4 rounded bg-gray-700/40' />
+                <div className='w-full h-1 rounded-full bg-gray-700/30' />
+              </div>
+            ))}
+          </div>
+
+          {/* Table skeleton */}
+          <div
+            className={`rounded-2xl p-4 md:p-6 border ${
+              isDarkMode
+                ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
+                : 'bg-white border-gray-200'
+            }`}
+          >
+            <div className='h-6 w-40 mb-6 rounded bg-gray-700/40' />
+            <div className='space-y-4'>
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className={`flex items-center justify-between rounded-xl px-4 py-3 ${
+                    isDarkMode ? 'bg-white/5' : 'bg-gray-100'
+                  }`}
+                >
+                  <div className='flex-1'>
+                    <div className='h-4 w-40 mb-2 rounded bg-gray-700/40' />
+                    <div className='h-3 w-24 rounded bg-gray-700/30' />
+                  </div>
+                  <div className='flex items-center gap-4'>
+                    <div className='h-4 w-24 rounded bg-gray-700/30' />
+                    <div className='h-8 w-20 rounded-lg bg-gray-700/40' />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -308,13 +489,14 @@ export default function CompliancePage() {
                     <td className='px-4 md:px-6 py-4'>
                       <button
                         onClick={() => handleViewTask(task.id)}
+                        disabled={loadingTask}
                         className={`text-sm md:text-base font-medium transition-colors ${
                           isDarkMode
-                            ? 'text-[#F1CB68] hover:text-[#E5C158]'
-                            : 'text-[#F1CB68] hover:text-[#E5C158]'
+                            ? 'text-[#F1CB68] hover:text-[#E5C158] disabled:opacity-50'
+                            : 'text-[#F1CB68] hover:text-[#E5C158] disabled:opacity-50'
                         }`}
                       >
-                        View
+                        {loadingTask ? 'Loading...' : 'View'}
                       </button>
                     </td>
                   </tr>

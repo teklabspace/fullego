@@ -4,10 +4,14 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '@/context/ThemeContext';
+import { getUserProfile } from '@/utils/authApi';
+import { clearTokens } from '@/utils/authApi';
 
 export default function ProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const dropdownRef = useRef(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -17,6 +21,27 @@ export default function ProfileDropdown() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Fetch user profile on mount
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        setIsLoadingProfile(true);
+        const profile = await getUserProfile();
+        setUserProfile(profile);
+        console.log('User profile loaded in Navbar:', profile);
+      } catch (error) {
+        console.error('Failed to fetch user profile in Navbar:', error);
+        // Don't show error toast here - it's just for display
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    if (mounted) {
+      fetchUserProfile();
+    }
+  }, [mounted]);
 
   // Track previous pathname to detect changes
   const prevPathnameRef = useRef(pathname);
@@ -111,7 +136,7 @@ export default function ProfileDropdown() {
       id: 'profile',
       label: 'Profile',
       icon: '/icons/user-icon.svg',
-      href: '/settings?tab=basic',
+      href: '/dashboard/settings?tab=profile',
     },
     {
       id: 'kyc',
@@ -134,7 +159,61 @@ export default function ProfileDropdown() {
 
   const handleLogout = () => {
     setIsOpen(false);
+    clearTokens();
+    localStorage.removeItem('user_info');
     router.push('/login');
+  };
+
+  // Get user display name
+  const getUserDisplayName = () => {
+    if (userProfile) {
+      if (userProfile.first_name) {
+        return userProfile.first_name;
+      }
+      if (userProfile.email) {
+        return userProfile.email.split('@')[0];
+      }
+    }
+    // Fallback to stored user info
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('user_info');
+      if (storedUser) {
+        try {
+          const user = JSON.parse(storedUser);
+          return user.email?.split('@')[0] || 'User';
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    }
+    return 'User';
+  };
+
+  // Get user role/subtitle
+  const getUserSubtitle = () => {
+    // During SSR or before mount, return consistent default
+    if (!mounted) {
+      return 'User Account';
+    }
+    
+    if (userProfile?.role) {
+      return userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1);
+    }
+    
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('user_info');
+      if (storedUser) {
+        try {
+          const user = JSON.parse(storedUser);
+          if (user.role) {
+            return user.role.charAt(0).toUpperCase() + user.role.slice(1);
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    }
+    return 'User Account';
   };
 
   if (!mounted) {
@@ -159,12 +238,12 @@ export default function ProfileDropdown() {
             <p className={`text-[16px] font-semibold leading-[130%] tracking-[-0.02em] font-[Outfit] ${
               isDarkMode ? 'text-white' : 'text-gray-900'
             }`}>
-              Olivia
+              {isLoadingProfile ? 'Loading...' : getUserDisplayName()}
             </p>
             <p className={`text-[16px] font-normal leading-[130%] tracking-[-0.02em] font-[Outfit] ${
               isDarkMode ? 'text-white/60' : 'text-gray-600'
             }`}>
-              User Account
+              {getUserSubtitle()}
             </p>
           </div>
         </button>
@@ -207,12 +286,12 @@ export default function ProfileDropdown() {
           <p className={`text-[16px] font-semibold leading-[130%] tracking-[-0.02em] font-[Outfit] ${
             isDarkMode ? 'text-white' : 'text-gray-900'
           }`}>
-            Olivia
+            {isLoadingProfile ? 'Loading...' : getUserDisplayName()}
           </p>
           <p className={`text-[16px] font-normal leading-[130%] tracking-[-0.02em] font-[Outfit] ${
             isDarkMode ? 'text-white/60' : 'text-gray-600'
           }`}>
-            User Account
+            {getUserSubtitle()}
           </p>
         </div>
       </button>
@@ -261,8 +340,17 @@ export default function ProfileDropdown() {
                   />
                 </div>
                 <div>
-                  <p className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Olivia</p>
-                  <p className={`text-sm ${isDarkMode ? 'text-white/60' : 'text-gray-600'}`}>User Account</p>
+                  <p className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {isLoadingProfile ? 'Loading...' : getUserDisplayName()}
+                  </p>
+                  <p className={`text-sm ${isDarkMode ? 'text-white/60' : 'text-gray-600'}`}>
+                    {getUserSubtitle()}
+                  </p>
+                  {userProfile?.email && (
+                    <p className={`text-xs mt-1 ${isDarkMode ? 'text-white/40' : 'text-gray-500'}`}>
+                      {userProfile.email}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

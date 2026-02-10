@@ -1,7 +1,8 @@
 'use client';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import {
   Area,
   AreaChart,
@@ -11,6 +12,14 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import {
+  getCashFlowSummary,
+  getCashFlowTrends,
+  getCashFlowTransactions,
+  getCashFlowAccounts,
+  createTransfer,
+} from '@/utils/portfolioApi';
+import CashFlowSkeleton from '@/components/skeletons/CashFlowSkeleton';
 
 export default function CashFlowPage() {
   const { isDarkMode } = useTheme();
@@ -29,19 +38,218 @@ export default function CashFlowPage() {
     description: '',
   });
 
-  // Mock data for chart
-  const chartData = [
-    { month: 'Jan', inflow: 25, outflow: 15 },
-    { month: 'Feb', inflow: 30, outflow: 20 },
-    { month: 'Mar', inflow: 28, outflow: 22 },
-    { month: 'Apr', inflow: 35, outflow: 18 },
-    { month: 'May', inflow: 32, outflow: 25 },
-    { month: 'Jun', inflow: 40, outflow: 20 },
-    { month: 'Jul', inflow: 38, outflow: 22 },
-  ];
+  // Loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Mock transaction data
-  const transactions = [
+  // Data states
+  const [cashFlowSummary, setCashFlowSummary] = useState(null);
+  const [chartData, setChartData] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+
+  // Fetch cash flow data
+  useEffect(() => {
+    const fetchCashFlowData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Map activeTab to period (API expects: last30, thisMonth, or custom)
+        // For periods not directly supported, use custom with calculated dates
+        let period = 'last30';
+        let startDate = null;
+        let endDate = null;
+
+        if (activeTab === 'last30') {
+          period = 'last30';
+        } else if (activeTab === 'last7') {
+          // Use custom period for last 7 days
+          period = 'custom';
+          const end = new Date();
+          const start = new Date();
+          start.setDate(start.getDate() - 7);
+          startDate = start.toISOString().split('T')[0];
+          endDate = end.toISOString().split('T')[0];
+        } else if (activeTab === 'last90') {
+          // Use custom period for last 90 days
+          period = 'custom';
+          const end = new Date();
+          const start = new Date();
+          start.setDate(start.getDate() - 90);
+          startDate = start.toISOString().split('T')[0];
+          endDate = end.toISOString().split('T')[0];
+        } else if (activeTab === 'lastYear') {
+          // Use custom period for last year
+          period = 'custom';
+          const end = new Date();
+          const start = new Date();
+          start.setFullYear(start.getFullYear() - 1);
+          startDate = start.toISOString().split('T')[0];
+          endDate = end.toISOString().split('T')[0];
+        } else if (activeTab === 'custom') {
+          period = 'custom';
+          // startDate and endDate should come from user selection
+          // For now, use last 30 days as default
+          const end = new Date();
+          const start = new Date();
+          start.setDate(start.getDate() - 30);
+          startDate = start.toISOString().split('T')[0];
+          endDate = end.toISOString().split('T')[0];
+        }
+
+        // Fetch all data in parallel
+        const [summaryRes, trendsRes, transactionsRes, accountsRes] = await Promise.all([
+          getCashFlowSummary({ period, startDate, endDate }),
+          getCashFlowTrends({ period, granularity: 'daily', startDate, endDate }),
+          getCashFlowTransactions({ period, limit: 50, startDate, endDate }),
+          getCashFlowAccounts(),
+        ]);
+
+        // Set summary
+        if (summaryRes.data) {
+          setCashFlowSummary(summaryRes.data);
+        }
+
+        // Format trends data for chart
+        if (trendsRes.data) {
+          const formatted = trendsRes.data.map(item => ({
+            month: new Date(item.date).toLocaleDateString('en-US', { month: 'short' }),
+            inflow: item.inflow || 0,
+            outflow: item.outflow || 0,
+          }));
+          setChartData(formatted);
+        }
+
+        // Set transactions
+        if (transactionsRes.data) {
+          setTransactions(transactionsRes.data);
+        }
+
+        // Set accounts
+        if (accountsRes.data) {
+          setAccounts(accountsRes.data);
+        }
+      } catch (err) {
+        console.error('Error fetching cash flow data:', err);
+        const errorMessage = err.data?.detail || err.message || 'Failed to load cash flow data';
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCashFlowData();
+  }, [activeTab]);
+
+  // Format currency
+  const formatCurrency = (value) => {
+    if (!value && value !== 0) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  // Handle transfer submission
+  const handleTransferSubmit = async () => {
+    try {
+      setLoading(true);
+      
+      // Prepare transfer data based on transfer type
+      const transferPayload = {
+        transferType: transferType, // 'internal' or 'external'
+        fromAccount: transferData.fromAccount,
+        amount: parseFloat(transferData.amount),
+        transferDate: transferData.transferDate || new Date().toISOString().split('T')[0],
+        frequency: transferData.frequency,
+        description: transferData.description,
+      };
+
+      // Add destination based on transfer type
+      if (transferType === 'internal') {
+        transferPayload.toAccount = transferData.toAccount;
+      } else {
+        transferPayload.walletAddress = transferData.walletAddress;
+      }
+
+      const response = await createTransfer(transferPayload);
+
+      toast.success('Transfer created successfully!');
+      setTransferStep(3);
+      // Don't close modal immediately, show success screen first
+      
+      // Refresh data after a short delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (err) {
+      console.error('Error creating transfer:', err);
+      const errorMessage = err.data?.detail || err.message || 'Failed to create transfer';
+      toast.error(errorMessage);
+      // On error, go back to review step so user can edit
+      setTransferStep(2);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Show skeleton while loading
+  if (loading && !cashFlowSummary) {
+    return (
+      <DashboardLayout>
+        <CashFlowSkeleton isDarkMode={isDarkMode} />
+      </DashboardLayout>
+    );
+  }
+
+  // Show error state
+  if (error && !cashFlowSummary) {
+    return (
+      <DashboardLayout>
+        <div className={`p-6 rounded-lg border text-center ${
+          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+        }`}>
+          <div className='mb-4 flex justify-center'>
+            <svg
+              width='48'
+              height='48'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke={isDarkMode ? '#EF4444' : '#DC2626'}
+              strokeWidth='2'
+            >
+              <circle cx='12' cy='12' r='10' />
+              <line x1='12' y1='8' x2='12' y2='12' />
+              <line x1='12' y1='16' x2='12.01' y2='16' />
+            </svg>
+          </div>
+          <p className={`font-semibold mb-2 text-lg ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            Error loading cash flow
+          </p>
+          <p className={`text-sm mb-4 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            {error}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+          >
+            Retry
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Mock transaction data (fallback)
+  const mockTransactions = [
     {
       id: 1,
       date: '2025-07-28',
@@ -201,9 +409,9 @@ export default function CashFlowPage() {
             <StatCard
               icon='/icons/up-side-yellow-arrow.svg'
               title='Total Inflow'
-              value='$45,000'
-              change='+12% from last month'
-              changePositive={true}
+              value={cashFlowSummary?.totalInflow ? formatCurrency(cashFlowSummary.totalInflow) : '$0.00'}
+              change={cashFlowSummary?.inflowChange != null ? `${cashFlowSummary.inflowChange >= 0 ? '+' : ''}${parseFloat(cashFlowSummary.inflowChange).toFixed(1)}% from last period` : 'No change'}
+              changePositive={cashFlowSummary?.inflowChange >= 0}
               gradientBorder='linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #F1CB68 50%, rgba(0, 0, 0, 0) 100%)'
               isDarkMode={isDarkMode}
             />
@@ -212,9 +420,9 @@ export default function CashFlowPage() {
             <StatCard
               icon='/icons/red-down-arrow.svg'
               title='Total Outflows'
-              value='$27,000'
-              change='-5% from last month'
-              changePositive={false}
+              value={cashFlowSummary?.totalOutflow ? formatCurrency(cashFlowSummary.totalOutflow) : '$0.00'}
+              change={cashFlowSummary?.outflowChange != null ? `${cashFlowSummary.outflowChange >= 0 ? '+' : ''}${parseFloat(cashFlowSummary.outflowChange).toFixed(1)}% from last period` : 'No change'}
+              changePositive={cashFlowSummary?.outflowChange <= 0}
               gradientBorder='linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #FF6B6B 50%, rgba(0, 0, 0, 0) 100%)'
               isDarkMode={isDarkMode}
             />
@@ -223,8 +431,8 @@ export default function CashFlowPage() {
             <StatCard
               icon='/icons/net-cash-flow-icon.svg'
               title='Net Cash Flow'
-              value='+$18000'
-              subtitle='40% of total flow'
+              value={cashFlowSummary?.netCashFlow ? (cashFlowSummary.netCashFlow >= 0 ? '+' : '') + formatCurrency(cashFlowSummary.netCashFlow) : '$0.00'}
+              subtitle={cashFlowSummary?.netPercentage != null ? `${parseFloat(cashFlowSummary.netPercentage).toFixed(1)}% of total flow` : '0% of total flow'}
               gradientBorder='linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #36D399 50%, rgba(0, 0, 0, 0) 100%)'
               isDarkMode={isDarkMode}
             />
@@ -233,7 +441,7 @@ export default function CashFlowPage() {
             <StatCard
               icon='/icons/cash-flow-forecast.svg'
               title='Cash Flow Forecast'
-              value='+$22,500'
+              value={cashFlowSummary?.forecastNext30Days ? (cashFlowSummary.forecastNext30Days >= 0 ? '+' : '') + formatCurrency(cashFlowSummary.forecastNext30Days) : '$0.00'}
               subtitle='Next 30 days'
               gradientBorder='linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #F1CB68 50%, rgba(0, 0, 0, 0) 100%)'
               isDarkMode={isDarkMode}
@@ -328,7 +536,8 @@ export default function CashFlowPage() {
             {/* Chart */}
             <div className='h-64'>
               <ResponsiveContainer width='100%' height='100%'>
-                <AreaChart data={chartData}>
+                {chartData.length > 0 ? (
+                  <AreaChart data={chartData}>
                   <defs>
                     <linearGradient
                       id='inflowGradient'
@@ -394,6 +603,11 @@ export default function CashFlowPage() {
                     dot={{ fill: '#FF6B6B', r: 4 }}
                   />
                 </AreaChart>
+                ) : (
+                  <div className='h-full flex items-center justify-center text-gray-400'>
+                    No chart data available
+                  </div>
+                )}
               </ResponsiveContainer>
             </div>
           </div>
@@ -576,7 +790,8 @@ export default function CashFlowPage() {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map(transaction => (
+                {transactions.length > 0 ? (
+                  transactions.map(transaction => (
                   <tr
                     key={transaction.id}
                     className={`border-b ${
@@ -634,7 +849,14 @@ export default function CashFlowPage() {
                       {transaction.notes}
                     </td>
                   </tr>
-                ))}
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className='px-6 py-8 text-center text-gray-400'>
+                      No transactions found
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -688,6 +910,7 @@ export default function CashFlowPage() {
             step={transferStep}
             transferType={transferType}
             transferData={transferData}
+            accounts={accounts}
             onClose={() => {
               setShowTransferModal(false);
               setTransferStep(1);
@@ -705,7 +928,7 @@ export default function CashFlowPage() {
             onTransferDataChange={setTransferData}
             onNext={() => setTransferStep(2)}
             onEdit={() => setTransferStep(1)}
-            onConfirm={() => setTransferStep(3)}
+            onConfirm={handleTransferSubmit}
             onMakeAnother={() => {
               setTransferStep(1);
               setTransferData({
@@ -806,6 +1029,7 @@ function TransferModal({
   step,
   transferType,
   transferData,
+  accounts = [],
   onClose,
   onTransferTypeChange,
   onTransferDataChange,
@@ -1002,21 +1226,35 @@ function TransferModal({
                       handleInputChange('fromAccount', e.target.value)
                     }
                     className='w-full'
+                    disabled={accounts.length === 0}
                   >
-                    <option value=''>Select Account</option>
-                    <option value='checking'>
-                      Bank A - Checking (****4932)
+                    <option value=''>
+                      {accounts.length === 0 ? 'No accounts available. Please add an account first.' : 'Select Account'}
                     </option>
-                    <option value='savings'>Bank A - Savings (****2341)</option>
-                    <option value='investment'>Wallet - Investment</option>
+                    {accounts.map((account) => (
+                      <option key={account.id || account.accountId} value={account.id || account.accountId}>
+                        {account.name || account.accountName || account.type || 'Account'} 
+                        {account.maskedNumber || (account.accountNumber ? `(${account.accountNumber.slice(-4).padStart(account.accountNumber.length, '*')})` : '')}
+                      </option>
+                    ))}
                   </select>
-                  <p
-                    className={`text-xs mt-1 ${
-                      isDarkMode ? 'text-gray-500' : 'text-gray-500'
-                    }`}
-                  >
-                    Available balance: $45,320.00
-                  </p>
+                  {accounts.length === 0 && (
+                    <p className={`text-xs mt-1 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                      You need to add at least one account before making a transfer.
+                    </p>
+                  )}
+                  {transferData.fromAccount && accounts.length > 0 && (
+                    <p
+                      className={`text-xs mt-1 ${
+                        isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                      }`}
+                    >
+                      {(() => {
+                        const selectedAccount = accounts.find(acc => (acc.id || acc.accountId) === transferData.fromAccount);
+                        return selectedAccount?.balance != null ? `Available balance: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: selectedAccount.currency || 'USD' }).format(selectedAccount.balance)}` : 'Balance not available';
+                      })()}
+                    </p>
+                  )}
                 </div>
 
                 {/* To Account or Wallet Address */}
@@ -1035,21 +1273,38 @@ function TransferModal({
                         handleInputChange('toAccount', e.target.value)
                       }
                       className='w-full'
+                      disabled={accounts.length === 0 || !transferData.fromAccount}
                     >
-                      <option value=''>Select Account</option>
-                      <option value='investment'>Wallet - Investment</option>
-                      <option value='retirement'>Wallet - Retirement</option>
-                      <option value='savings2'>
-                        Bank B - Savings (****5678)
+                      <option value=''>
+                        {accounts.length === 0 
+                          ? 'No accounts available' 
+                          : !transferData.fromAccount
+                          ? 'Select from account first'
+                          : accounts.filter(account => (account.id || account.accountId) !== transferData.fromAccount).length === 0
+                          ? 'No other accounts available'
+                          : 'Select Account'}
                       </option>
+                      {accounts
+                        .filter(account => (account.id || account.accountId) !== transferData.fromAccount)
+                        .map((account) => (
+                          <option key={account.id || account.accountId} value={account.id || account.accountId}>
+                            {account.name || account.accountName || account.type || 'Account'} 
+                            {account.maskedNumber || (account.accountNumber ? `(${account.accountNumber.slice(-4).padStart(account.accountNumber.length, '*')})` : '')}
+                          </option>
+                        ))}
                     </select>
-                    <p
-                      className={`text-xs mt-1 ${
-                        isDarkMode ? 'text-gray-500' : 'text-gray-500'
-                      }`}
-                    >
-                      Current balance: $12,750.00
-                    </p>
+                    {transferData.toAccount && accounts.length > 0 && (
+                      <p
+                        className={`text-xs mt-1 ${
+                          isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                        }`}
+                      >
+                        {(() => {
+                          const selectedAccount = accounts.find(acc => (acc.id || acc.accountId) === transferData.toAccount);
+                          return selectedAccount?.balance != null ? `Current balance: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: selectedAccount.currency || 'USD' }).format(selectedAccount.balance)}` : 'Balance not available';
+                        })()}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div>
@@ -1306,11 +1561,13 @@ function TransferModal({
                   <div>
                     <p className='text-xs text-gray-400'>From</p>
                     <p className='text-sm font-semibold text-white'>
-                      {transferData.fromAccount === 'checking'
-                        ? 'Bank A - Checking (****4932)'
-                        : transferData.fromAccount === 'savings'
-                        ? 'Bank A - Savings (****2341)'
-                        : 'Wallet - Investment'}
+                      {(() => {
+                        const account = accounts.find(acc => (acc.id || acc.accountId) === transferData.fromAccount);
+                        if (account) {
+                          return `${account.name || account.accountName || account.type || 'Account'} ${account.maskedNumber || (account.accountNumber ? `(${account.accountNumber.slice(-4).padStart(account.accountNumber.length, '*')})` : '')}`;
+                        }
+                        return 'Account not found';
+                      })()}
                     </p>
                   </div>
                 </div>
@@ -1482,23 +1739,29 @@ function TransferModal({
                   <div>
                     <p className='text-xs text-gray-400 mb-1'>From</p>
                     <p className='text-sm font-semibold text-white'>
-                      {transferData.fromAccount === 'checking'
-                        ? 'Bank A - Checking (****4932)'
-                        : transferData.fromAccount === 'savings'
-                        ? 'Bank A - Savings (****2341)'
-                        : 'Wallet - Investment'}
+                      {(() => {
+                        const account = accounts.find(acc => (acc.id || acc.accountId) === transferData.fromAccount);
+                        if (account) {
+                          return `${account.name || account.accountName || account.type || 'Account'} ${account.maskedNumber || (account.accountNumber ? `(${account.accountNumber.slice(-4).padStart(account.accountNumber.length, '*')})` : '')}`;
+                        }
+                        return 'Account not found';
+                      })()}
                     </p>
                   </div>
                   <div>
                     <p className='text-xs text-gray-400 mb-1'>To</p>
                     <p className='text-sm font-semibold text-white'>
-                      {transferType === 'internal'
-                        ? transferData.toAccount === 'investment'
-                          ? 'Wallet - Investment'
-                          : transferData.toAccount === 'retirement'
-                          ? 'Wallet - Retirement'
-                          : 'Bank B - Savings (****5678)'
-                        : transferData.walletAddress}
+                      {transferType === 'internal' ? (
+                        (() => {
+                          const account = accounts.find(acc => (acc.id || acc.accountId) === transferData.toAccount);
+                          if (account) {
+                            return `${account.name || account.accountName || account.type || 'Account'} ${account.maskedNumber || (account.accountNumber ? `(${account.accountNumber.slice(-4).padStart(account.accountNumber.length, '*')})` : '')}`;
+                          }
+                          return 'Account not found';
+                        })()
+                      ) : (
+                        transferData.walletAddress || 'No wallet address'
+                      )}
                     </p>
                   </div>
                 </div>

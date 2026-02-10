@@ -1,7 +1,9 @@
 'use client';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTheme } from '@/context/ThemeContext';
+import { getCrmUsers } from '@/utils/crmApi';
+import { toast } from 'react-toastify';
 
 export default function AssignmentModal({
   isOpen,
@@ -14,15 +16,40 @@ export default function AssignmentModal({
   const [selectedUser, setSelectedUser] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [internalNote, setInternalNote] = useState('');
+  const [crmUsers, setCrmUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
-  // Mock CRM users - in production, this would come from an API
-  const crmUsers = [
-    { id: '1', name: 'Sarah Johnson', email: 'sarah.j@akunuba.com' },
-    { id: '2', name: 'Monica H', email: 'monica.h@akunuba.com' },
-    { id: '3', name: 'Viola D', email: 'viola.d@akunuba.com' },
-    { id: '4', name: 'Judy Green', email: 'judy.g@akunuba.com' },
-    { id: '5', name: 'Taylor B', email: 'taylor.b@akunuba.com' },
-  ];
+  // Fetch CRM users when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchUsers = async () => {
+        try {
+          setLoadingUsers(true);
+          const response = await getCrmUsers();
+          const users = response.data || response || [];
+          setCrmUsers(users.map(user => ({
+            id: user.id || user.userId,
+            name: user.name || user.userName || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+            email: user.email,
+          })));
+        } catch (error) {
+          console.error('Failed to fetch CRM users:', error);
+          // Fallback to mock users
+          setCrmUsers([
+            { id: '1', name: 'Sarah Johnson', email: 'sarah.j@akunuba.com' },
+            { id: '2', name: 'Monica H', email: 'monica.h@akunuba.com' },
+            { id: '3', name: 'Viola D', email: 'viola.d@akunuba.com' },
+            { id: '4', name: 'Judy Green', email: 'judy.g@akunuba.com' },
+            { id: '5', name: 'Taylor B', email: 'taylor.b@akunuba.com' },
+          ]);
+          toast.warning('Using fallback user list. Could not load CRM users.');
+        } finally {
+          setLoadingUsers(false);
+        }
+      };
+      fetchUsers();
+    }
+  }, [isOpen]);
 
   const handleSubmit = e => {
     e.preventDefault();
@@ -122,14 +149,15 @@ export default function AssignmentModal({
               required
               value={selectedUser}
               onChange={e => setSelectedUser(e.target.value)}
+              disabled={loadingUsers}
               className={`w-full px-4 py-3 rounded-lg border text-sm transition-colors ${
                 isDarkMode
                   ? 'bg-[#2C2C2E] border-[#FFFFFF14] text-white focus:border-[#F1CB68]'
                   : 'bg-white border-gray-300 text-gray-900 focus:border-[#F1CB68]'
-              } focus:outline-none`}
+              } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <option value='' className={isDarkMode ? 'bg-[#1a1a1d]' : ''}>
-                Select a CRM user
+                {loadingUsers ? 'Loading users...' : 'Select a CRM user'}
               </option>
               {crmUsers.map(user => (
                 <option
