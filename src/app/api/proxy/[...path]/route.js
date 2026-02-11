@@ -12,6 +12,12 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-static';
 export const revalidate = false;
 
+// Required for static export with dynamic routes
+// Return empty array since this is a catch-all proxy route that shouldn't be statically generated
+export async function generateStaticParams() {
+  return [];
+}
+
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 // In Next.js 15, `params` is a Promise and must be awaited before accessing properties
