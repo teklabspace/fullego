@@ -1,10 +1,16 @@
 /**
  * API Proxy Route
  * Proxies all API requests to the backend to avoid CORS issues
- * This route works in development mode
+ * This route works in development mode only
+ * Note: This route is excluded from static export builds
  */
 
 import { NextResponse } from 'next/server';
+
+// Configure for static export compatibility
+// These exports tell Next.js to handle this route during static export
+export const dynamic = 'force-static';
+export const revalidate = false;
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
@@ -30,6 +36,18 @@ export async function DELETE(request, { params }) {
 }
 
 async function handleRequest(request, params, method) {
+  // Return error in static export builds (production)
+  // This route is only available in development mode
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { 
+        error: 'API proxy is not available in production',
+        message: 'This route is only available in development mode. Use direct backend URL in production.'
+      },
+      { status: 404 }
+    );
+  }
+
   try {
     // In Next.js 15, `params` is a Promise and must be awaited
     const resolvedParams = params && typeof params.then === 'function' 
