@@ -49,21 +49,12 @@ export const getDefaultHeaders = (additionalHeaders = {}) => {
  * @returns {Promise} Response data
  */
 export const apiRequest = async (endpoint, options = {}) => {
-  // Check if we're in development and should use proxy
-  const useProxy = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-  
-  let url;
-  if (useProxy) {
-    // Use Next.js API proxy to avoid CORS issues in development
-    const endpointPath = endpoint.replace(/^\//, '');
-    url = `/api/proxy/${endpointPath}`;
-  } else {
-    // Use direct backend URL in production
-    const baseUrl = API_BASE_URL.replace(/\/$/, '');
-    const basePath = API_BASE_PATH.replace(/^\//, '');
-    const endpointPath = endpoint.replace(/^\//, '');
-    url = `${baseUrl}/${basePath}/${endpointPath}`;
-  }
+  // Always use direct backend URL (proxy route removed for static export compatibility)
+  // Note: Backend must have CORS configured to allow requests from the frontend
+  const baseUrl = API_BASE_URL.replace(/\/$/, '');
+  const basePath = API_BASE_PATH.replace(/^\//, '');
+  const endpointPath = endpoint.replace(/^\//, '');
+  const url = `${baseUrl}/${basePath}/${endpointPath}`;
   
   const method = options.method || 'GET';
   const startTime = Date.now();
@@ -86,9 +77,6 @@ export const apiRequest = async (endpoint, options = {}) => {
 
   // Log request
   console.log('[API REQUEST]', method, endpoint, requestBody);
-  if (useProxy) {
-    console.log('[API PROXY] Using proxy route:', url);
-  }
 
   try {
     // Handle FormData specially - don't stringify it
