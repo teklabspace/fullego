@@ -87,10 +87,28 @@ export default function PortfolioOverviewPage() {
 
         // Format performance data for chart
         if (performanceRes.daily_returns) {
-          const formatted = performanceRes.daily_returns.map(item => ({
-            date: new Date(item.date).toLocaleDateString('en-US', { month: 'short' }),
-            value: item.value,
-          }));
+          // Check if dates span multiple years
+          const dates = performanceRes.daily_returns.map(item => new Date(item.date));
+          const years = new Set(dates.map(d => d.getFullYear()));
+          const spansMultipleYears = years.size > 1;
+          
+          const formatted = performanceRes.daily_returns.map(item => {
+            const date = new Date(item.date);
+            let dateLabel;
+            
+            if (spansMultipleYears) {
+              // Show "MMM YY" when spanning multiple years
+              dateLabel = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+            } else {
+              // Show "MMM DD" when within same year
+              dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+            
+            return {
+              date: dateLabel,
+              value: item.value,
+            };
+          });
           setPerformanceData(formatted);
         }
 

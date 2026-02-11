@@ -1,11 +1,11 @@
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { startKYC, getKYCStatus, submitKYC, KYC_STATUS } from '@/utils/kycApi';
 import PersonaVerification from '@/components/verification/PersonaVerification';
 import { toast } from 'react-toastify';
 
-export default function KYCVerificationPage() {
+function KYCVerificationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
@@ -371,5 +371,13 @@ export default function KYCVerificationPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function KYCVerificationPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <KYCVerificationContent />
+    </Suspense>
   );
 }

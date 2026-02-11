@@ -32,6 +32,7 @@
     "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "15.2.5",
+    "globals": "^17.3.0",
     "tailwindcss": "^4",
     "wrangler": "^4.45.4"
   }

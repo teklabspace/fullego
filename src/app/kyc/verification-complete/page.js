@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { getKYCStatus, syncKYCStatus, KYC_STATUS } from '@/utils/kycApi';
 import { toast } from 'react-toastify';
 
-export default function VerificationCompletePage() {
+function VerificationCompleteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState('loading');
@@ -553,5 +553,13 @@ export default function VerificationCompletePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function VerificationCompletePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <VerificationCompleteContent />
+    </Suspense>
   );
 }

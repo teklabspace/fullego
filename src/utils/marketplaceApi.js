@@ -82,12 +82,17 @@ export const createListing = async (listingData) => {
 export const listListings = async (params = {}) => {
   const queryParams = new URLSearchParams();
   if (params.statusFilter) queryParams.append('status_filter', params.statusFilter);
+  if (params.page) queryParams.append('page', params.page);
+  if (params.limit) queryParams.append('limit', params.limit);
   
   const endpoint = `${API_ENDPOINTS.MARKETPLACE.LIST_LISTINGS}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
   
   if (response.data) {
     response.data = transformKeys(response.data);
+  }
+  if (response.pagination) {
+    response.pagination = transformKeys(response.pagination);
   }
   
   return response;
@@ -204,6 +209,8 @@ export const searchMarketplace = async (params = {}) => {
   if (params.minPrice) queryParams.append('min_price', params.minPrice);
   if (params.maxPrice) queryParams.append('max_price', params.maxPrice);
   if (params.sortBy) queryParams.append('sort_by', params.sortBy);
+  if (params.page) queryParams.append('page', params.page);
+  if (params.limit) queryParams.append('limit', params.limit);
   
   const endpoint = `${API_ENDPOINTS.MARKETPLACE.SEARCH}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);

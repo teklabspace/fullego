@@ -156,6 +156,9 @@ export default function Marketplace() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState('price-low-high');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState(null);
+  const [pageSize] = useState(12);
   const [assetTypes, setAssetTypes] = useState({
     'Real Estate': false,
     Bonds: false,
@@ -181,55 +184,64 @@ export default function Marketplace() {
         setLoading(true);
         setError(null);
 
-        // Build search params from filters
-        const searchParams = {};
+        // Build filter params (used to decide between listings vs search)
+        const filterParams = {};
         if (activeCategory !== 'All') {
-          searchParams.assetType = activeCategory;
+          filterParams.assetType = activeCategory;
         }
         const selectedAssetTypes = Object.keys(assetTypes).filter(
           key => assetTypes[key]
         );
         if (selectedAssetTypes.length > 0) {
-          searchParams.assetType = selectedAssetTypes[0]; // Use first selected type
+          filterParams.assetType = selectedAssetTypes[0]; // Use first selected type
         }
         if (priceRange[0] > 0) {
-          searchParams.minPrice = priceRange[0] * 1000;
+          filterParams.minPrice = priceRange[0] * 1000;
         }
         if (priceRange[1] < 10000) {
-          searchParams.maxPrice = priceRange[1] * 1000;
+          filterParams.maxPrice = priceRange[1] * 1000;
         }
         if (sortBy === 'price-low-high' || sortBy === 'price-high-low') {
-          searchParams.sortBy = 'price';
+          filterParams.sortBy = 'price';
         } else if (sortBy === 'return-low-high' || sortBy === 'return-high-low') {
-          searchParams.sortBy = 'return';
+          filterParams.sortBy = 'return';
         }
 
-        // Fetch listings - use searchMarketplace if filters are applied, otherwise use listListings
+        // Always send pagination to the API
+        const baseParams = { page, limit: pageSize };
+
+        // Fetch listings:
+        // - use searchMarketplace when filters are applied
+        // - otherwise use listListings with pagination
         let listingsRes;
-        if (Object.keys(searchParams).length > 0) {
-          listingsRes = await searchMarketplace(searchParams);
+        if (Object.keys(filterParams).length > 0) {
+          listingsRes = await searchMarketplace({ ...filterParams, ...baseParams });
         } else {
-          listingsRes = await listListings({ statusFilter: 'active' });
+          listingsRes = await listListings({ statusFilter: 'active', ...baseParams });
         }
         
         // Log the response for debugging
         console.log('Marketplace API Response:', listingsRes);
         
-        // Handle different response structures
+        // Handle different response structures (support paginated and legacy shapes)
         let listingsData = null;
+        let paginationData = null;
         if (Array.isArray(listingsRes)) {
-          // Direct array response
+          // Direct array response (legacy)
           listingsData = listingsRes;
-        } else if (listingsRes?.data) {
-          // Response with data property
-          listingsData = Array.isArray(listingsRes.data) ? listingsRes.data : null;
-        } else if (listingsRes?.listings) {
+        } else if (listingsRes?.data && Array.isArray(listingsRes.data)) {
+          // Paginated or wrapped response
+          listingsData = listingsRes.data;
+          paginationData = listingsRes.pagination || null;
+        } else if (listingsRes?.listings && Array.isArray(listingsRes.listings)) {
           // Response with listings property
-          listingsData = Array.isArray(listingsRes.listings) ? listingsRes.listings : null;
-        } else if (listingsRes?.results) {
+          listingsData = listingsRes.listings;
+        } else if (listingsRes?.results && Array.isArray(listingsRes.results)) {
           // Response with results property
-          listingsData = Array.isArray(listingsRes.results) ? listingsRes.results : null;
+          listingsData = listingsRes.results;
         }
+        
+        setPagination(paginationData);
         
         if (listingsData && listingsData.length > 0) {
           // Transform API data to match UI structure
@@ -290,7 +302,7 @@ export default function Marketplace() {
     };
 
     fetchListings();
-  }, [activeCategory, assetTypes, priceRange, returnRange, sortBy]);
+  }, [activeCategory, assetTypes, priceRange, returnRange, sortBy, page, pageSize]);
 
   const getFilteredFunds = () => {
     // Only use API listings - no fallback to dummy data
@@ -908,13 +920,54 @@ export default function Marketplace() {
             )}
           </div>
 
-          {/* Loading State */}
+          {/* Loading State - Skeleton Grid */}
           {loading && (
-            <div className='flex items-center justify-center min-h-[400px]'>
-              <div className='text-center'>
-                <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
-                <p className='text-gray-400'>Loading marketplace listings...</p>
-              </div>
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12'>
+              {Array.from({ length: 6 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className='relative bg-[#1a1a24]/60 backdrop-blur-xl rounded-2xl border border-[#FFFFFF1A] p-6 overflow-hidden'
+                >
+                  {/* Image skeleton */}
+                  <div className='w-full h-48 mb-4 rounded-xl bg-white/5 animate-pulse' />
+
+                  {/* Icon skeleton */}
+                  <div className='w-10 h-10 rounded-lg bg-white/5 mb-3 animate-pulse' />
+
+                  {/* Title skeleton */}
+                  <div className='h-5 w-3/4 rounded bg-white/5 mb-4 animate-pulse' />
+
+                  {/* Category badge skeleton */}
+                  <div className='h-6 w-24 rounded-lg bg-white/5 mb-4 animate-pulse' />
+
+                  {/* Stats skeleton */}
+                  <div className='grid grid-cols-2 gap-4 mb-4'>
+                    <div className='space-y-2'>
+                      <div className='h-3 w-16 rounded bg-white/5 animate-pulse' />
+                      <div className='h-4 w-24 rounded bg-white/5 animate-pulse' />
+                    </div>
+                    <div className='space-y-2'>
+                      <div className='h-3 w-16 rounded bg-white/5 animate-pulse' />
+                      <div className='h-4 w-20 rounded bg-white/5 animate-pulse' />
+                    </div>
+                  </div>
+
+                  {/* Risk & tags skeleton */}
+                  <div className='flex items-center justify-between mb-4'>
+                    <div className='space-y-2'>
+                      <div className='h-3 w-16 rounded bg-white/5 animate-pulse' />
+                      <div className='h-3 w-20 rounded bg-white/5 animate-pulse' />
+                    </div>
+                    <div className='space-y-2 text-right'>
+                      <div className='h-3 w-10 rounded bg-white/5 animate-pulse' />
+                      <div className='h-3 w-12 rounded bg-white/5 animate-pulse' />
+                    </div>
+                  </div>
+
+                  {/* Button skeleton */}
+                  <div className='h-10 w-full rounded-lg bg-white/5 animate-pulse' />
+                </div>
+              ))}
             </div>
           )}
 
@@ -927,56 +980,69 @@ export default function Marketplace() {
 
           {/* Investment Cards Grid */}
           {!loading && investmentFunds.length > 0 && (
-            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12'>
-              {investmentFunds.map((fund, index) => (
-                <InvestmentCard
-                  key={fund.id}
-                  fund={fund}
-                  index={index}
-                  onViewDetails={handleViewDetails}
-                />
-              ))}
-            </div>
+            <>
+              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8'>
+                {investmentFunds.map((fund, index) => (
+                  <InvestmentCard
+                    key={fund.id}
+                    fund={fund}
+                    index={index}
+                    onViewDetails={handleViewDetails}
+                  />
+                ))}
+              </div>
+
+              {/* Pagination Controls */}
+              {pagination && pagination.totalPages > 1 && (
+                <div className='flex items-center justify-center gap-4 mb-12'>
+                  <button
+                    disabled={page <= 1}
+                    onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                    className={`px-4 py-2 text-sm rounded-lg border ${
+                      page <= 1
+                        ? 'border-gray-700 text-gray-600 cursor-not-allowed'
+                        : 'border-[#F1CB68] text-[#F1CB68] hover:bg-[#F1CB68]/10'
+                    }`}
+                  >
+                    Previous
+                  </button>
+                  <span className='text-sm text-gray-400'>
+                    Page <span className='text-white'>{pagination.page}</span> of{' '}
+                    <span className='text-white'>{pagination.totalPages}</span>
+                  </span>
+                  <button
+                    disabled={pagination.page >= pagination.totalPages}
+                    onClick={() =>
+                      setPage(prev =>
+                        pagination ? Math.min(pagination.totalPages, prev + 1) : prev + 1
+                      )
+                    }
+                    className={`px-4 py-2 text-sm rounded-lg border ${
+                      pagination.page >= pagination.totalPages
+                        ? 'border-gray-700 text-gray-600 cursor-not-allowed'
+                        : 'border-[#F1CB68] text-[#F1CB68] hover:bg-[#F1CB68]/10'
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
-          {/* Empty State */}
+          {/* Empty / No Results State */}
           {!loading && investmentFunds.length === 0 && !error && (
-            <div className='text-center py-12'>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className='text-center py-12'
+            >
               <p className='text-gray-400 text-lg mb-4'>
                 No listings available at the moment.
               </p>
               <p className='text-gray-500 text-sm'>
                 Please check back later or try adjusting your filters.
               </p>
-            </div>
-          )}
-
-          {/* CTA Section */}
-          {investmentFunds.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className='text-center py-12'
-            >
-              <p className='text-brand-muted text-lg mb-4'>
-                No investments match your filters.
-              </p>
-              <button
-                onClick={() => {
-                  setActiveCategory('All');
-                  setAssetTypes({
-                    'Real Estate': false,
-                    Bonds: false,
-                    Equity: false,
-                    Others: false,
-                  });
-                  setPriceRange([100, 10000]);
-                  setReturnRange([1, 30]);
-                }}
-                className='text-[#F1CB68] hover:underline'
-              >
-                Clear all filters
-              </button>
             </motion.div>
           )}
 
