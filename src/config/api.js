@@ -8,9 +8,8 @@
  * Can be overridden by environment variable NEXT_PUBLIC_API_BASE_URL
  * Defaults to production backend if no env variable is set
  */
-// export const API_BASE_URL =
-//   process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/';
-export const API_BASE_URL = 'http://localhost:8000/';
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'https://akunuba-backend.onrender.com/';
 /**
  * API Version
  */
