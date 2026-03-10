@@ -1,10 +1,42 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-toastify';
 import Container from '../ui/Container';
 
 const Hero = () => {
+  const router = useRouter();
+  const [contactValue, setContactValue] = useState('');
+
+  const handleSignupClick = () => {
+    const value = contactValue.trim();
+
+    if (!value) {
+      toast.error('Please enter your email to get started.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\+?[0-9\s\-()]{7,}$/;
+
+    if (emailRegex.test(value)) {
+      // Redirect to signup page with email prefilled
+      router.push(`/signup?email=${encodeURIComponent(value)}`);
+      return;
+    }
+
+    if (phoneRegex.test(value)) {
+      // Phone-based onboarding not yet available
+      toast.info('Phone signup coming soon. Please use your email instead.');
+      return;
+    }
+
+    toast.error('Please enter a valid email address.');
+  };
+
   return (
     <section
       id='why-akunuba'
@@ -169,6 +201,8 @@ const Hero = () => {
               type='text'
               placeholder='Email/Phone Number'
               className='w-full sm:flex-1 rounded-full bg-transparent px-4 sm:px-4 py-3 text-sm text-brand-white placeholder:text-white focus:outline-none border border-[#FFFFFF1A] sm:border-0'
+              value={contactValue}
+              onChange={e => setContactValue(e.target.value)}
             />
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -178,6 +212,7 @@ const Hero = () => {
                 background:
                   'linear-gradient(95.36deg, #FFFFFF 1.12%, #F1CB68 53.42%)',
               }}
+              onClick={handleSignupClick}
             >
               Sign up
             </motion.button>

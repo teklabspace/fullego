@@ -8,8 +8,9 @@
  * Can be overridden by environment variable NEXT_PUBLIC_API_BASE_URL
  * Defaults to production backend if no env variable is set
  */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/';
+// export const API_BASE_URL =
+//   process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/';
+export const API_BASE_URL = 'http://localhost:8000/';
 /**
  * API Version
  */
@@ -162,9 +163,12 @@ export const API_ENDPOINTS = {
     STRATEGY_BACKTEST: (id) => `/investment/strategies/${id}/backtest`,
     STRATEGY_PERFORMANCE: (id) => `/investment/strategies/${id}/performance`,
     CLONE_STRATEGY: (id) => `/investment/strategies/${id}/clone`,
-    WATCHLIST: '/investment/watchlist',
-    ADD_TO_WATCHLIST: '/investment/watchlist',
-    REMOVE_FROM_WATCHLIST: (id) => `/investment/watchlist/${id}`,
+    // Watchlist
+    WATCHLIST: {
+      LIST: '/investment/watchlist',
+      ADD: '/investment/watchlist',
+      REMOVE: (id) => `/investment/watchlist/${id}`,
+    },
   },
   // Portfolio Management endpoints (from INVESTMENT_APIS.md)
   PORTFOLIO: {
@@ -293,6 +297,7 @@ export const API_ENDPOINTS = {
   // Subscription & Billing APIs (Preferences Tab)
   SUBSCRIPTIONS: {
     BASE: '/subscriptions',
+    GET_PLANS: '/subscriptions/plans',
     GET_CURRENT: '/subscriptions',
     CREATE: '/subscriptions',
     CANCEL: '/subscriptions/cancel',
@@ -455,6 +460,63 @@ export const API_ENDPOINTS = {
     POLICIES: '/compliance/policies',
     GET_POLICY: (policyId) => `/compliance/policies/${policyId}`,
     CREATE_POLICY: '/compliance/policies',
+  },
+  // Notifications endpoints
+  NOTIFICATIONS: {
+    BASE: '/notifications',
+    LIST: '/notifications',
+    UNREAD: '/notifications/unread',
+    UNREAD_COUNT: '/notifications/unread-count',
+    MARK_READ: (id) => `/notifications/${id}/read`,
+    MARK_ALL_READ: '/notifications/read-all',
+    DELETE: (id) => `/notifications/${id}`,
+    SETTINGS: '/notifications/settings',
+    UPDATE_SETTINGS: '/notifications/settings',
+  },
+  // Referrals endpoints
+  REFERRALS: {
+    BASE: '/referrals',
+    LIST: '/referrals/list',
+    CODE: '/referrals/code',
+    GENERATE_CODE: '/referrals/generate-code',
+    REWARDS: '/referrals/rewards',
+    LEADERBOARD: '/referrals/leaderboard',
+  },
+  // Chat/Messaging endpoints
+  CHAT: {
+    BASE: '/chat',
+    CONVERSATIONS: '/chat/conversations',
+    GET_CONVERSATION: (id) => `/chat/conversations/${id}`,
+    CONVERSATION_MESSAGES: (id) => `/chat/conversations/${id}/messages`,
+    SEND_MESSAGE: (id) => `/chat/conversations/${id}/messages`,
+    MARK_READ: (id) => `/chat/conversations/${id}/read`,
+    DELETE_MESSAGE: (id) => `/chat/messages/${id}`,
+    PARTICIPANTS: (id) => `/chat/conversations/${id}/participants`,
+    UPDATE_CONVERSATION: (id) => `/chat/conversations/${id}`,
+  },
+  // Market endpoints
+  MARKET: {
+    BASE: '/market',
+    BENCHMARKS: '/market/benchmarks',
+  },
+  // Tasks endpoints
+  TASKS: {
+    BASE: '/tasks',
+    LIST: '/tasks',
+    DETAILS: (id) => `/tasks/${id}`,
+    UPDATE: (id) => `/tasks/${id}`,
+    DELETE: (id) => `/tasks/${id}`,
+    COMPLETE: (id) => `/tasks/${id}/complete`,
+    REMIND: (id) => `/tasks/${id}/remind`,
+  },
+  // Reminders endpoints
+  REMINDERS: {
+    BASE: '/reminders',
+    LIST: '/reminders',
+    DETAILS: (id) => `/reminders/${id}`,
+    UPDATE: (id) => `/reminders/${id}`,
+    DELETE: (id) => `/reminders/${id}`,
+    SNOOZE: (id) => `/reminders/${id}/snooze`,
   },
 };
 

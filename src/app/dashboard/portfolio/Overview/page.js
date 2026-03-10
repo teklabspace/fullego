@@ -24,6 +24,8 @@ import {
   getRecentActivity,
   getMarketSummary,
   getPortfolioAlerts,
+  getPortfolioRisk,
+  getPortfolioBenchmark,
 } from '@/utils/portfolioApi';
 import PortfolioOverviewSkeleton from '@/components/skeletons/PortfolioOverviewSkeleton';
 
@@ -43,6 +45,8 @@ export default function PortfolioOverviewPage() {
   const [recentActivity, setRecentActivity] = useState([]);
   const [marketSummary, setMarketSummary] = useState(null);
   const [portfolioAlerts, setPortfolioAlerts] = useState([]);
+  const [portfolioRisk, setPortfolioRisk] = useState(null);
+  const [benchmarkComparison, setBenchmarkComparison] = useState(null);
 
   // Fetch all portfolio data
   useEffect(() => {
@@ -185,6 +189,36 @@ export default function PortfolioOverviewPage() {
 
     fetchPortfolioData();
   }, [timeRange]);
+
+  // Fetch risk and benchmark once summary is available
+  useEffect(() => {
+    const fetchRiskAndBenchmark = async () => {
+      try {
+        const [riskRes, benchmarkRes] = await Promise.allSettled([
+          getPortfolioRisk(),
+          portfolioSummary?.totalPortfolioValue
+            ? getPortfolioBenchmark(portfolioSummary.totalPortfolioValue)
+            : Promise.resolve(null),
+        ]);
+
+        if (riskRes.status === 'fulfilled') {
+          const value = riskRes.value;
+          setPortfolioRisk(value.data || value);
+        }
+
+        if (benchmarkRes && benchmarkRes.status === 'fulfilled') {
+          const value = benchmarkRes.value;
+          setBenchmarkComparison(value.data || value);
+        }
+      } catch (err) {
+        console.error('Error fetching portfolio risk/benchmark:', err);
+      }
+    };
+
+    if (portfolioSummary) {
+      fetchRiskAndBenchmark();
+    }
+  }, [portfolioSummary]);
 
   // Format currency
   const formatCurrency = (value) => {
@@ -462,6 +496,21 @@ export default function PortfolioOverviewPage() {
             title='Total Holdings'
             value={portfolioSummary?.totalHoldings?.toString() || '0'}
             subtitle='Active positions'
+            isDarkMode={isDarkMode}
+          />
+          <MetricCard
+            icon='/icons/cash-flow-forecast.svg'
+            title='Risk & Benchmark'
+            value={
+              portfolioRisk?.volatility != null
+                ? `${portfolioRisk.volatility.toFixed(2)}% vol`
+                : '—'
+            }
+            subtitle={
+              benchmarkComparison
+                ? `${benchmarkComparison.outperforming ? 'Outperforming' : 'Underperforming'} by ${benchmarkComparison.differencePercentage != null ? benchmarkComparison.differencePercentage.toFixed(2) : '0.00'}%`
+                : 'Benchmark comparison'
+            }
             isDarkMode={isDarkMode}
           />
         </div>

@@ -238,7 +238,11 @@ export default function ProfileDropdown() {
             <p className={`text-[16px] font-semibold leading-[130%] tracking-[-0.02em] font-[Outfit] ${
               isDarkMode ? 'text-white' : 'text-gray-900'
             }`}>
-              {isLoadingProfile ? 'Loading...' : getUserDisplayName()}
+              {isLoadingProfile ? (
+                <span className={`inline-block h-5 w-24 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+              ) : (
+                getUserDisplayName()
+              )}
             </p>
             <p className={`text-[16px] font-normal leading-[130%] tracking-[-0.02em] font-[Outfit] ${
               isDarkMode ? 'text-white/60' : 'text-gray-600'
@@ -341,7 +345,11 @@ export default function ProfileDropdown() {
                 </div>
                 <div>
                   <p className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {isLoadingProfile ? 'Loading...' : getUserDisplayName()}
+                    {isLoadingProfile ? (
+                      <span className={`inline-block h-6 w-32 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                    ) : (
+                      getUserDisplayName()
+                    )}
                   </p>
                   <p className={`text-sm ${isDarkMode ? 'text-white/60' : 'text-gray-600'}`}>
                     {getUserSubtitle()}

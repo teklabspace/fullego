@@ -5,7 +5,15 @@ import { useTheme } from '@/context/ThemeContext';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
-import { listListings, searchMarketplace, getMyOffers, getMarketHighlights, getMarketTrends, getWatchlist } from '@/utils/marketplaceApi';
+import {
+  listListings,
+  searchMarketplace,
+  getMyOffers,
+  getMarketHighlights,
+  getMarketTrends,
+  getWatchlist,
+  removeFromWatchlist,
+} from '@/utils/marketplaceApi';
 
 export default function MarketplacePage() {
   const { isDarkMode } = useTheme();
@@ -342,7 +350,7 @@ export default function MarketplacePage() {
 
   // Transform watchlist API data to UI format
   const transformedWatchlistItems = (watchlistItems && Array.isArray(watchlistItems) ? watchlistItems : []).map(item => ({
-    id: item.id,
+    id: item.id || item.watchlistItemId || item.listingId,
     name: item.listingTitle || item.name || 'Unknown Listing',
     icon: '⭐',
     listingId: item.listingId,
@@ -351,87 +359,6 @@ export default function MarketplacePage() {
     priceChange: item.priceChangeSinceAdded,
     priceChangePercentage: item.priceChangePercentage,
   }));
-
-  const allInvestmentFunds = [
-    {
-      id: 1,
-      name: 'European Logistic Funds',
-      category: 'Real Estate',
-      assetType: 'Real Estate',
-      minimum: '€250,000',
-      minimumValue: 250000,
-      targetIRR: '14.5%',
-      returnValue: 14.5,
-      riskLevel: 'Medium',
-      type: '#Service',
-      subType: '#Commercial',
-    },
-    {
-      id: 2,
-      name: 'Next-Gen Technology Fund',
-      category: 'Private Equity',
-      assetType: 'Equity',
-      minimum: '$500,000',
-      minimumValue: 500000,
-      targetIRR: '22.7%',
-      returnValue: 22.7,
-      riskLevel: 'High',
-      type: '#Technology',
-      subType: '#Growth',
-    },
-    {
-      id: 3,
-      name: 'Urban Residential Portfolio',
-      category: 'Real Estate',
-      assetType: 'Real Estate',
-      minimum: '€350,000',
-      minimumValue: 350000,
-      targetIRR: '9.2%',
-      returnValue: 9.2,
-      riskLevel: 'Low',
-      type: '#Residential',
-      subType: '#USA',
-    },
-    {
-      id: 4,
-      name: 'Corporate Bond Portfolio',
-      category: 'Private Credit',
-      assetType: 'Bonds',
-      minimum: '$150,000',
-      minimumValue: 150000,
-      targetIRR: '7.5%',
-      returnValue: 7.5,
-      riskLevel: 'Low',
-      type: '#Fixed Income',
-      subType: '#Corporate',
-    },
-    {
-      id: 5,
-      name: 'Healthcare Innovation Fund',
-      category: 'Private Equity',
-      assetType: 'Equity',
-      minimum: '$750,000',
-      minimumValue: 750000,
-      targetIRR: '28.3%',
-      returnValue: 28.3,
-      riskLevel: 'High',
-      type: '#Healthcare',
-      subType: '#Growth',
-    },
-    {
-      id: 6,
-      name: 'Infrastructure Bonds',
-      category: 'Alternatives',
-      assetType: 'Bonds',
-      minimum: '$200,000',
-      minimumValue: 200000,
-      targetIRR: '6.8%',
-      returnValue: 6.8,
-      riskLevel: 'Low',
-      type: '#Infrastructure',
-      subType: '#Fixed',
-    },
-  ];
 
   // Toggle asset type filter
   const toggleAssetType = type => {
@@ -787,9 +714,20 @@ export default function MarketplacePage() {
                                   className={`shrink-0 ml-2 ${
                                     isDarkMode ? 'text-gray-400' : 'text-gray-600'
                                   }`}
-                                  onClick={() => {
-                                    // TODO: Implement remove from watchlist
-                                    console.log('Remove from watchlist', item.id);
+                                  onClick={async () => {
+                                    if (!item.id) return;
+                                    // Optimistic UI update
+                                    const previous = [...watchlistItems];
+                                    setWatchlistItems(prev =>
+                                      (prev || []).filter(w => (w.id || w.watchlistItemId || w.listingId) !== item.id)
+                                    );
+                                    try {
+                                      await removeFromWatchlist(item.id);
+                                    } catch (err) {
+                                      console.error('Failed to remove from watchlist', err);
+                                      // Revert on failure
+                                      setWatchlistItems(previous);
+                                    }
                                   }}
                                 >
                                   <svg
@@ -870,106 +808,6 @@ export default function MarketplacePage() {
     </div>
   );
 }
-
-// Mock data for active offers
-const mockOffers = [
-  {
-    id: 1,
-    assetName: 'Gulfstream G700 Jet',
-    assetThumbnail:
-      'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400',
-    category: 'Jet',
-    offerAmount: '$45,000,000',
-    offerAmountValue: 45000000,
-    currency: 'USD',
-    offerStatus: 'Pending',
-    role: 'Buyer',
-    counterparty: 'John D.',
-    counterpartyId: 'user_123',
-    dateUpdated: '2024-01-15T10:30:00Z',
-    listingId: 'listing_001',
-  },
-  {
-    id: 2,
-    assetName: 'Luxury Yacht Ocean Breeze',
-    assetThumbnail:
-      'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400',
-    category: 'Yacht',
-    offerAmount: '$12,500,000',
-    offerAmountValue: 12500000,
-    currency: 'USD',
-    offerStatus: 'Countered',
-    role: 'Seller',
-    counterparty: 'Sarah M.',
-    counterpartyId: 'user_456',
-    dateUpdated: '2024-01-14T15:20:00Z',
-    listingId: 'listing_002',
-  },
-  {
-    id: 3,
-    assetName: 'Picasso Original Painting',
-    assetThumbnail:
-      'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400',
-    category: 'Art',
-    offerAmount: '€8,750,000',
-    offerAmountValue: 8750000,
-    currency: 'EUR',
-    offerStatus: 'Accepted',
-    role: 'Lister',
-    counterparty: 'Art Gallery Inc.',
-    counterpartyId: 'user_789',
-    dateUpdated: '2024-01-13T09:15:00Z',
-    listingId: 'listing_003',
-  },
-  {
-    id: 4,
-    assetName: 'Private Island Paradise',
-    assetThumbnail:
-      'https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=400',
-    category: 'Real Estate',
-    offerAmount: '$25,000,000',
-    offerAmountValue: 25000000,
-    currency: 'USD',
-    offerStatus: 'Pending',
-    role: 'Buyer',
-    counterparty: 'Michael R.',
-    counterpartyId: 'user_321',
-    dateUpdated: '2024-01-12T14:45:00Z',
-    listingId: 'listing_004',
-  },
-  {
-    id: 5,
-    assetName: 'Vintage Ferrari Collection',
-    assetThumbnail:
-      'https://images.unsplash.com/photo-1492144534655-ae79c2c03457?w=400',
-    category: 'Collectibles',
-    offerAmount: '$15,200,000',
-    offerAmountValue: 15200000,
-    currency: 'USD',
-    offerStatus: 'Rejected',
-    role: 'Seller',
-    counterparty: 'David L.',
-    counterpartyId: 'user_654',
-    dateUpdated: '2024-01-11T11:30:00Z',
-    listingId: 'listing_005',
-  },
-  {
-    id: 6,
-    assetName: 'Commercial Office Complex',
-    assetThumbnail:
-      'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400',
-    category: 'Real Estate',
-    offerAmount: '$85,000,000',
-    offerAmountValue: 85000000,
-    currency: 'USD',
-    offerStatus: 'Expired',
-    role: 'Lister',
-    counterparty: 'Real Estate Group',
-    counterpartyId: 'user_987',
-    dateUpdated: '2024-01-10T16:00:00Z',
-    listingId: 'listing_006',
-  },
-];
 
 // Active Offers Content Component
 function ActiveOffersContent({ isDarkMode, router, myOffers = [] }) {

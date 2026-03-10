@@ -2,6 +2,7 @@ import { Poppins } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/context/ThemeContext';
 import ToastProvider from '@/components/providers/ToastProvider';
+import SWRProvider from '@/components/providers/SWRProvider';
 
 const poppins = Poppins({
   variable: '--font-poppins',
@@ -25,7 +26,9 @@ export default function RootLayout({ children }) {
     <html lang='en' suppressHydrationWarning={true}>
       <body className={`${poppins.variable} font-poppins antialiased`}>
         <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <SWRProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </SWRProvider>
         </ThemeProvider>
       </body>
     </html>

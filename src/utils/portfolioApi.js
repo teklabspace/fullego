@@ -389,20 +389,39 @@ export const getCashFlowAccounts = async () => {
 /**
  * Create Transfer
  * POST /api/v1/portfolio/cash-flow/transfers
+ * 
+ * @param {Object} transferData - Transfer data
+ * @param {string} transferData.transferType - Transfer type: 'internal' or 'external'
+ * @param {string} transferData.fromAccountId - Source account ID
+ * @param {string} transferData.toAccountId - Destination account ID (for internal transfers)
+ * @param {string} transferData.walletAddress - Wallet address (for external transfers)
+ * @param {number} transferData.amount - Transfer amount
+ * @param {string} transferData.transferDate - Transfer date in YYYY-MM-DD format
+ * @param {string} transferData.frequency - Frequency: 'one-time' or 'recurring'
+ * @param {string} transferData.description - Transfer description
  */
 export const createTransfer = async (transferData) => {
   // Transform camelCase to snake_case for API
-  const transformedData = {};
-  for (const [key, value] of Object.entries(transferData)) {
-    const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-    transformedData[snakeKey] = value;
-  }
+  // Handle both camelCase and snake_case input
+  const transformedData = {
+    transfer_type: transferData.transferType || transferData.transfer_type,
+    from_account_id: transferData.fromAccountId || transferData.from_account_id,
+    to_account_id: transferData.toAccountId || transferData.to_account_id,
+    wallet_address: transferData.walletAddress || transferData.wallet_address,
+    amount: transferData.amount,
+    transfer_date: transferData.transferDate || transferData.transfer_date,
+    frequency: transferData.frequency,
+    description: transferData.description
+  };
   
   const endpoint = `/portfolio/cash-flow/transfers`;
   const response = await apiPost(endpoint, transformedData);
   
   if (response.data) {
     response.data = transformKeys(response.data);
+  }
+  if (response.transfer) {
+    response.transfer = transformKeys(response.transfer);
   }
   
   return response;

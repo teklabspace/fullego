@@ -4,11 +4,12 @@ import { useTheme } from '@/context/ThemeContext';
 import { getAccountStats, getMyAccount } from '@/utils/accountsApi';
 import { getUserProfile } from '@/utils/authApi';
 import { getBankAccounts } from '@/utils/bankingApi';
+import { getBenchmarks } from '@/utils/marketApi';
 import
   {
     getPortfolioHistory,
     getPortfolioPerformance,
-    getPortfolioSummary
+    getPortfolioSummary,
   } from '@/utils/portfolioApi';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -20,7 +21,7 @@ import
     ResponsiveContainer,
     Tooltip,
     XAxis,
-    YAxis
+    YAxis,
   } from 'recharts';
 
 export default function DashboardPage() {
@@ -311,6 +312,34 @@ const formatPercentage = (value) => {
 // Net Worth & Investable Card Component
 function NetWorthInvestableCard({ portfolioSummary, portfolioPerformance, loading }) {
   const { isDarkMode } = useTheme();
+  const [benchmarks, setBenchmarks] = React.useState([]);
+  const [benchmarksLoading, setBenchmarksLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    const fetchBenchmarks = async () => {
+      try {
+        const response = await getBenchmarks();
+        const data = response?.benchmarks || response?.data || [];
+        if (isMounted && Array.isArray(data)) {
+          setBenchmarks(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch market benchmarks:', error);
+      } finally {
+        if (isMounted) {
+          setBenchmarksLoading(false);
+        }
+      }
+    };
+
+    fetchBenchmarks();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Calculate net worth from portfolio summary
   const hasPortfolioSummary = !!portfolioSummary;
@@ -331,13 +360,6 @@ function NetWorthInvestableCard({ portfolioSummary, portfolioPerformance, loadin
     portfolioSummary?.returnPercentage;
   const investableReturn = portfolioPerformance?.totalReturnPercentage ??
     portfolioSummary?.returnPercentage;
-
-  // Market benchmarks (mock data - can be replaced with actual market data API)
-  const benchmarks = [
-    { name: 'S&P 500', value: 14 },
-    { name: 'DOW JONES', value: 9 },
-    { name: 'TSLA', value: 9 },
-  ];
 
   if (loading && !portfolioSummary) {
     return (
@@ -436,16 +458,40 @@ function NetWorthInvestableCard({ portfolioSummary, portfolioPerformance, loadin
               {formatPercentage(investableReturn)}
             </span>
           </div>
-          {benchmarks.map((benchmark, index) => (
-            <div key={index} className='flex items-center justify-between'>
-              <span className={`text-xs ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-600'
-              }`}>{benchmark.name}</span>
-              <span className='text-[#10B981] text-xs font-medium'>
-                {formatPercentage(benchmark.value)}
-              </span>
+          {benchmarksLoading ? (
+            <div
+              className={`text-xs text-center py-2 ${
+                isDarkMode ? 'text-gray-500' : 'text-gray-400'
+              }`}
+            >
+              Loading market benchmarks...
             </div>
-          ))}
+          ) : benchmarks.length > 0 ? (
+            benchmarks.map((benchmark, index) => (
+              <div key={benchmark.symbol || benchmark.name || index} className='flex items-center justify-between'>
+                <span
+                  className={`text-xs ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  {benchmark.name || benchmark.symbol}
+                </span>
+                <span className='text-[#10B981] text-xs font-medium'>
+                  {formatPercentage(
+                    benchmark.changePercentage ?? benchmark.change_percentage ?? benchmark.value,
+                  )}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div
+              className={`text-xs text-center py-2 ${
+                isDarkMode ? 'text-gray-500' : 'text-gray-400'
+              }`}
+            >
+              No benchmark data available
+            </div>
+          )}
         </div>
       </div>
     </div>

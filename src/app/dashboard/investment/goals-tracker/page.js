@@ -1,7 +1,7 @@
 'use client';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
-import { getInvestmentGoals } from '@/utils/investmentApi';
+import { addToWatchlist, removeFromWatchlist, getInvestmentGoals } from '@/utils/investmentApi';
 import { searchAssets } from '@/utils/portfolioApi';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -399,6 +399,32 @@ function GoalCard({ goal, isDarkMode }) {
 // Marketplace Asset Card Component
 function MarketplaceAssetCard({ asset, isDarkMode }) {
   const [isSaved, setIsSaved] = useState(false);
+  const [watchlistItemId, setWatchlistItemId] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const handleToggleWatchlist = async () => {
+    if (!asset.symbol) return;
+
+    try {
+      setSaving(true);
+      if (!isSaved || !watchlistItemId) {
+        const item = await addToWatchlist(asset.symbol, 'crypto', asset.name);
+        setWatchlistItemId(item?.id || null);
+        setIsSaved(true);
+        toast.success('Added to watchlist');
+      } else {
+        await removeFromWatchlist(watchlistItemId);
+        setIsSaved(false);
+        setWatchlistItemId(null);
+        toast.success('Removed from watchlist');
+      }
+    } catch (error) {
+      console.error('Failed to update watchlist:', error);
+      toast.error('Failed to update watchlist. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div
@@ -520,7 +546,8 @@ function MarketplaceAssetCard({ asset, isDarkMode }) {
             </button>
           ) : (
             <button
-              onClick={() => setIsSaved(!isSaved)}
+              onClick={handleToggleWatchlist}
+              disabled={saving}
               className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium border transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
                 isDarkMode
                   ? 'border-[#FFFFFF14] hover:bg-white/5 text-gray-300'

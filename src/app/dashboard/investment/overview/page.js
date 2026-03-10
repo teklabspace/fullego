@@ -6,6 +6,9 @@ import {
     getCryptoPrices,
     getInvestmentActivity,
     getTraderProfile,
+    getInvestmentPerformance,
+    getInvestmentAnalytics,
+    getInvestmentRecommendations,
 } from '@/utils/investmentApi';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -24,6 +27,9 @@ export default function InvestmentOverviewPage() {
   const [activities, setActivities] = useState([]);
   const [cryptoPrices, setCryptoPrices] = useState([]);
   const [traderProfile, setTraderProfile] = useState(null);
+  const [investmentPerformance, setInvestmentPerformance] = useState(null);
+  const [investmentAnalytics, setInvestmentAnalytics] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
 
   // Fetch all investment overview data
   useEffect(() => {
@@ -123,6 +129,45 @@ export default function InvestmentOverviewPage() {
     fetchInvestmentData();
   }, []);
 
+  // Fetch portfolio-level investment analytics/performance/recommendations
+  useEffect(() => {
+    const fetchInvestmentAnalyticsData = async () => {
+      try {
+        const [performanceRes, analyticsRes, recommendationsRes] = await Promise.allSettled([
+          getInvestmentPerformance({ timeRange: '1Y' }),
+          getInvestmentAnalytics({ timeRange: '1Y' }),
+          getInvestmentRecommendations({}),
+        ]);
+
+        if (performanceRes.status === 'fulfilled') {
+          const value = performanceRes.value;
+          setInvestmentPerformance(value.data || value);
+        } else {
+          console.error('Error fetching investment performance:', performanceRes.reason);
+        }
+
+        if (analyticsRes.status === 'fulfilled') {
+          const value = analyticsRes.value;
+          setInvestmentAnalytics(value.data || value);
+        } else {
+          console.error('Error fetching investment analytics:', analyticsRes.reason);
+        }
+
+        if (recommendationsRes.status === 'fulfilled') {
+          const value = recommendationsRes.value;
+          const data = value.data || value.recommendations || [];
+          setRecommendations(Array.isArray(data) ? data : []);
+        } else {
+          console.error('Error fetching investment recommendations:', recommendationsRes.reason);
+        }
+      } catch (err) {
+        console.error('Error fetching investment analytics data:', err);
+      }
+    };
+
+    fetchInvestmentAnalyticsData();
+  }, []);
+
   // Format currency
   const formatCurrency = (value) => {
     if (!value && value !== 0) return '$0.00';
@@ -217,6 +262,50 @@ export default function InvestmentOverviewPage() {
             }`}>
               For browsing your stocks, Bonds, ETFs, etc.
             </p>
+          </div>
+
+          {/* Investment Analytics Summary */}
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mt-4'>
+            <AnalyticsMetricCard
+              label='Total Return'
+              value={
+                investmentPerformance?.totalReturnPercentage != null
+                  ? `${investmentPerformance.totalReturnPercentage.toFixed(2)}%`
+                  : '—'
+              }
+              helper='Since selected period'
+              isDarkMode={isDarkMode}
+            />
+            <AnalyticsMetricCard
+              label='Annualized Return'
+              value={
+                investmentAnalytics?.annualizedReturn != null
+                  ? `${investmentAnalytics.annualizedReturn.toFixed(2)}%`
+                  : '—'
+              }
+              helper='Portfolio annualized'
+              isDarkMode={isDarkMode}
+            />
+            <AnalyticsMetricCard
+              label='Sharpe Ratio'
+              value={
+                investmentAnalytics?.sharpeRatio != null
+                  ? investmentAnalytics.sharpeRatio.toFixed(2)
+                  : '—'
+              }
+              helper='Risk-adjusted'
+              isDarkMode={isDarkMode}
+            />
+            <AnalyticsMetricCard
+              label='Max Drawdown'
+              value={
+                investmentAnalytics?.maxDrawdown != null
+                  ? `${investmentAnalytics.maxDrawdown.toFixed(2)}%`
+                  : '—'
+              }
+              helper='Worst peak-to-trough'
+              isDarkMode={isDarkMode}
+            />
           </div>
 
           {/* Asset Summary Cards */}
@@ -603,7 +692,95 @@ export default function InvestmentOverviewPage() {
           )}
         </div>
       </div>
+
+      {/* Recommendations Section */}
+      <div className='mt-8'>
+        <h2
+          className={`text-lg font-bold mb-4 ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}
+        >
+          Investment Recommendations
+        </h2>
+        {recommendations.length > 0 ? (
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+            {recommendations.slice(0, 6).map((rec) => (
+              <div
+                key={rec.id}
+                className={`rounded-xl border p-4 ${
+                  isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+                }`}
+              >
+                <div className='flex items-center justify-between mb-2'>
+                  <div>
+                    <p
+                      className={`text-sm font-semibold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}
+                    >
+                      {rec.name || rec.symbol || 'Asset'}
+                    </p>
+                    <p className='text-xs text-gray-400'>
+                      {rec.type || rec.recommendationType || 'Recommendation'}
+                    </p>
+                  </div>
+                  {rec.potentialReturn != null && (
+                    <span className='text-xs font-semibold text-green-400'>
+                      {rec.potentialReturn >= 0 ? '+' : ''}
+                      {rec.potentialReturn.toFixed(2)}%
+                    </span>
+                  )}
+                </div>
+                {rec.reason && (
+                  <p
+                    className={`text-xs ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}
+                  >
+                    {rec.reason}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className={isDarkMode ? 'text-gray-400 text-sm' : 'text-gray-600 text-sm'}>
+            No recommendations available yet.
+          </p>
+        )}
+      </div>
     </DashboardLayout>
+  );
+}
+
+// Simple analytics metric card
+function AnalyticsMetricCard({ label, value, helper, isDarkMode }) {
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${
+        isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+      }`}
+    >
+      <p
+        className={`text-xs font-medium mb-2 ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}
+      >
+        {label}
+      </p>
+      <p
+        className={`text-xl font-bold mb-1 ${
+          isDarkMode ? 'text-white' : 'text-gray-900'
+        }`}
+      >
+        {value}
+      </p>
+      {helper && (
+        <p className={isDarkMode ? 'text-gray-500 text-xs' : 'text-gray-500 text-xs'}>
+          {helper}
+        </p>
+      )}
+    </div>
   );
 }
 

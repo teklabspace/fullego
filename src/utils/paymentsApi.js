@@ -93,9 +93,19 @@ export const handlePaymentWebhook = async (webhookData) => {
 /**
  * Get Payment History
  * GET /api/v1/payments/history
+ * 
+ * @param {Object} params - Query parameters
+ * @param {number} params.limit - Number of payments (default: 20, max: 100)
+ * @param {number} params.offset - Pagination offset (default: 0)
+ * @param {string} params.status - Filter by status: 'completed', 'pending', 'failed', 'refunded' (optional)
  */
-export const getPaymentHistory = async () => {
-  const endpoint = API_ENDPOINTS.PAYMENTS.HISTORY;
+export const getPaymentHistory = async (params = {}) => {
+  const queryParams = new URLSearchParams();
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.offset) queryParams.append('offset', params.offset.toString());
+  if (params.status) queryParams.append('status', params.status);
+  
+  const endpoint = `${API_ENDPOINTS.PAYMENTS.HISTORY}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
   
   if (response.data) {
@@ -142,10 +152,18 @@ export const getPaymentMethods = async () => {
 /**
  * Add Payment Method
  * POST /api/v1/payments/payment-methods
+ * 
+ * @param {Object} paymentMethodData - Payment method data
+ * @param {string} paymentMethodData.paymentMethodId - Stripe payment method ID
+ * @param {boolean} paymentMethodData.isDefault - Set as default payment method (optional)
  */
-export const addPaymentMethod = async (paymentMethodId) => {
+export const addPaymentMethod = async (paymentMethodData) => {
   const endpoint = API_ENDPOINTS.PAYMENTS.ADD_PAYMENT_METHOD;
-  const response = await apiPost(endpoint, { payment_method_id: paymentMethodId });
+  const body = transformToSnake({
+    payment_method_id: paymentMethodData.paymentMethodId,
+    is_default: paymentMethodData.isDefault || false
+  });
+  const response = await apiPost(endpoint, body);
   
   if (response.data) {
     response.data = transformKeys(response.data);
@@ -205,19 +223,35 @@ export const getRefunds = async (paymentId) => {
 /**
  * Create Invoice
  * POST /api/v1/payments/invoices
+ * 
+ * @param {Object} invoiceData - Invoice data
+ * @param {number} invoiceData.amount - Invoice amount (required)
+ * @param {string} invoiceData.currency - Currency code (default: "USD")
+ * @param {string} invoiceData.description - Invoice description (required)
+ * @param {string} invoiceData.dueDate - Due date in YYYY-MM-DD format (required)
+ * @param {string} invoiceData.customerEmail - Customer email (optional)
+ * @param {Array} invoiceData.lineItems - Line items array (optional)
+ * @param {Object} invoiceData.metadata - Additional metadata (optional)
  */
 export const createInvoice = async (invoiceData) => {
-  const queryParams = new URLSearchParams();
-  if (invoiceData.amount) queryParams.append('amount', invoiceData.amount);
-  if (invoiceData.currency) queryParams.append('currency', invoiceData.currency);
-  if (invoiceData.description) queryParams.append('description', invoiceData.description);
-  if (invoiceData.dueDate) queryParams.append('due_date', invoiceData.dueDate);
+  const transformedData = transformToSnake({
+    amount: invoiceData.amount,
+    currency: invoiceData.currency || 'USD',
+    description: invoiceData.description,
+    due_date: invoiceData.dueDate,
+    customer_email: invoiceData.customerEmail,
+    line_items: invoiceData.lineItems,
+    metadata: invoiceData.metadata
+  });
   
-  const endpoint = `${API_ENDPOINTS.PAYMENTS.CREATE_INVOICE}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-  const response = await apiPost(endpoint, {});
+  const endpoint = API_ENDPOINTS.PAYMENTS.CREATE_INVOICE;
+  const response = await apiPost(endpoint, transformedData);
   
   if (response.data) {
     response.data = transformKeys(response.data);
+  }
+  if (response.invoice) {
+    response.invoice = transformKeys(response.invoice);
   }
   
   return response;
@@ -226,13 +260,25 @@ export const createInvoice = async (invoiceData) => {
 /**
  * List Invoices
  * GET /api/v1/payments/invoices
+ * 
+ * @param {Object} params - Query parameters
+ * @param {string} params.statusFilter - Filter by status: 'paid', 'unpaid', 'overdue' (optional)
+ * @param {number} params.limit - Number of invoices (default: 20, max: 100) (optional)
+ * @param {number} params.offset - Pagination offset (default: 0) (optional)
  */
 export const listInvoices = async (params = {}) => {
   const queryParams = new URLSearchParams();
   if (params.statusFilter) queryParams.append('status_filter', params.statusFilter);
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.offset) queryParams.append('offset', params.offset.toString());
   
   const endpoint = `${API_ENDPOINTS.PAYMENTS.LIST_INVOICES}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
+  
+  // Handle both array and object responses
+  if (Array.isArray(response)) {
+    return { data: response.map(transformKeys) };
+  }
   
   if (response.data) {
     response.data = transformKeys(response.data);
@@ -259,13 +305,20 @@ export const getInvoice = async (invoiceId) => {
 /**
  * Pay Invoice
  * POST /api/v1/payments/invoices/{invoice_id}/pay
+ * 
+ * @param {string} invoiceId - Invoice ID
+ * @param {string} paymentMethodId - Optional: Payment method ID to use (defaults to default payment method)
  */
-export const payInvoice = async (invoiceId) => {
+export const payInvoice = async (invoiceId, paymentMethodId = null) => {
+  const body = paymentMethodId ? transformToSnake({ payment_method_id: paymentMethodId }) : {};
   const endpoint = API_ENDPOINTS.PAYMENTS.PAY_INVOICE(invoiceId);
-  const response = await apiPost(endpoint, {});
+  const response = await apiPost(endpoint, body);
   
   if (response.data) {
     response.data = transformKeys(response.data);
+  }
+  if (response.invoice) {
+    response.invoice = transformKeys(response.invoice);
   }
   
   return response;

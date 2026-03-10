@@ -20,79 +20,6 @@ import {
 } from '@/utils/conciergeApi';
 import { toast } from 'react-toastify';
 
-// Mock appraisal data (fallback)
-const mockAppraisals = [
-  {
-    id: 1,
-    assetName: 'Gulfstream G700 Jet',
-    assetImage: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400',
-    category: 'Jet',
-    requestDate: '2024-01-15',
-    status: 'In Progress',
-    assignedProvider: 'Internal Team',
-    appraisedValue: null,
-    valuationDate: null,
-    assignedTo: null,
-    comments: [],
-    documents: [],
-  },
-  {
-    id: 2,
-    assetName: 'Luxury Yacht Ocean Breeze',
-    assetImage: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400',
-    category: 'Yacht',
-    requestDate: '2024-01-10',
-    status: 'Completed',
-    assignedProvider: 'Marine Appraisal Group',
-    appraisedValue: '$12,500,000',
-    valuationDate: '2024-01-20',
-  },
-  {
-    id: 3,
-    assetName: 'Picasso Original Painting',
-    assetImage: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400',
-    category: 'Art',
-    requestDate: '2024-01-08',
-    status: 'Pending',
-    assignedProvider: 'Art Valuation Experts',
-    appraisedValue: null,
-    valuationDate: null,
-  },
-  {
-    id: 4,
-    assetName: 'Private Island Paradise',
-    assetImage: 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=400',
-    category: 'Real Estate',
-    requestDate: '2024-01-05',
-    status: 'Awaiting Info',
-    assignedProvider: 'Real Estate Appraisers Inc.',
-    appraisedValue: null,
-    valuationDate: null,
-  },
-  {
-    id: 5,
-    assetName: 'Vintage Ferrari Collection',
-    assetImage: 'https://images.unsplash.com/photo-1492144534655-ae79c2c03457?w=400',
-    category: 'Collectibles',
-    requestDate: '2024-01-12',
-    status: 'Completed',
-    assignedProvider: 'Classic Car Valuations',
-    appraisedValue: '$15,200,000',
-    valuationDate: '2024-01-18',
-  },
-  {
-    id: 6,
-    assetName: 'Commercial Office Complex',
-    assetImage: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400',
-    category: 'Real Estate',
-    requestDate: '2024-01-03',
-    status: 'In Progress',
-    assignedProvider: 'Commercial Property Assessors',
-    appraisedValue: null,
-    valuationDate: null,
-  },
-];
-
 export default function ConciergeServicePage() {
   const { isDarkMode } = useTheme();
   const router = useRouter();
@@ -149,14 +76,14 @@ export default function ConciergeServicePage() {
         }
       } catch (error) {
         console.error('Failed to fetch appraisals:', error);
-        toast.error('Failed to load appraisals. Using fallback data.');
-        // Fallback to mock data
-        setAppraisals(mockAppraisals);
+        toast.error('Failed to load appraisals');
+        // Set empty state on error - no fallback to mock data
+        setAppraisals([]);
         setStats({
-          total: mockAppraisals.length,
-          inProgress: mockAppraisals.filter(a => a.status === 'In Progress').length,
-          completed: mockAppraisals.filter(a => a.status === 'Completed').length,
-          awaitingInfo: mockAppraisals.filter(a => a.status === 'Awaiting Info').length,
+          total: 0,
+          inProgress: 0,
+          completed: 0,
+          awaitingInfo: 0,
         });
       } finally {
         setLoading(false);

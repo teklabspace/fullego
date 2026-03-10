@@ -127,21 +127,21 @@ export default function CompliancePage() {
     {
       title: 'Compliance Score',
       value: '0%',
-      change: 'Loading...',
+      change: '—',
       changeColor: 'text-gray-400',
       progress: 0,
     },
     {
       title: 'Pending Audits',
       value: '0',
-      change: 'Loading...',
+      change: '—',
       changeColor: 'text-gray-400',
       progress: 0,
     },
     {
       title: 'Open Alerts',
       value: '0',
-      change: 'Loading...',
+      change: '—',
       changeColor: 'text-gray-400',
       progress: 0,
     },
@@ -496,7 +496,11 @@ export default function CompliancePage() {
                             : 'text-[#F1CB68] hover:text-[#E5C158] disabled:opacity-50'
                         }`}
                       >
-                        {loadingTask ? 'Loading...' : 'View'}
+                        {loadingTask ? (
+                          <span className={`inline-block h-4 w-12 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                        ) : (
+                          'View'
+                        )}
                       </button>
                     </td>
                   </tr>

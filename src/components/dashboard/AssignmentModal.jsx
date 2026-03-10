@@ -34,15 +34,9 @@ export default function AssignmentModal({
           })));
         } catch (error) {
           console.error('Failed to fetch CRM users:', error);
-          // Fallback to mock users
-          setCrmUsers([
-            { id: '1', name: 'Sarah Johnson', email: 'sarah.j@akunuba.com' },
-            { id: '2', name: 'Monica H', email: 'monica.h@akunuba.com' },
-            { id: '3', name: 'Viola D', email: 'viola.d@akunuba.com' },
-            { id: '4', name: 'Judy Green', email: 'judy.g@akunuba.com' },
-            { id: '5', name: 'Taylor B', email: 'taylor.b@akunuba.com' },
-          ]);
-          toast.warning('Using fallback user list. Could not load CRM users.');
+          // Do not use mock users; show warning and leave list empty
+          setCrmUsers([]);
+          toast.warning('Could not load CRM users. Please try again later.');
         } finally {
           setLoadingUsers(false);
         }

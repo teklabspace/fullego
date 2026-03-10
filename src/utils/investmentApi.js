@@ -459,6 +459,7 @@ export const getInvestmentPerformance = async (params = {}) => {
  */
 export const getInvestmentAnalytics = async (params = {}) => {
   const queryParams = new URLSearchParams();
+  if (params.timeRange) queryParams.append('time_range', params.timeRange);
   if (params.metric) queryParams.append('metric', params.metric);
   if (params.groupBy) queryParams.append('group_by', params.groupBy);
   
@@ -490,4 +491,181 @@ export const getInvestmentRecommendations = async (params = {}) => {
   }
   
   return response;
+};
+
+/**
+ * Adjust Investment Goal
+ * POST /api/v1/investment/goals/{goal_id}/adjust
+ * 
+ * @param {string} goalId - Goal ID
+ * @param {Object} adjustmentData - Adjustment data
+ * @param {number} adjustmentData.targetAmount - Optional: new target amount
+ * @param {string} adjustmentData.targetDate - Optional: new target date (YYYY-MM-DD)
+ * @param {number} adjustmentData.monthlyContribution - Optional: new monthly contribution
+ * @param {string} adjustmentData.riskTolerance - Optional: "conservative" | "moderate" | "aggressive"
+ * @param {string} adjustmentData.notes - Optional: notes about the adjustment
+ */
+export const adjustGoal = async (goalId, adjustmentData) => {
+  const transformedData = transformToSnake({
+    target_amount: adjustmentData.targetAmount,
+    target_date: adjustmentData.targetDate,
+    monthly_contribution: adjustmentData.monthlyContribution,
+    risk_tolerance: adjustmentData.riskTolerance,
+    notes: adjustmentData.notes
+  });
+  
+  const endpoint = API_ENDPOINTS.INVESTMENT.ADJUST_GOAL(goalId);
+  const response = await apiPost(endpoint, transformedData);
+  
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+  if (response.updated_parameters) {
+    response.updated_parameters = transformKeys(response.updated_parameters);
+  }
+  
+  return response;
+};
+
+/**
+ * Backtest Strategy
+ * POST /api/v1/investment/strategies/{strategy_id}/backtest
+ * 
+ * @param {string} strategyId - Strategy ID
+ * @param {Object} backtestParams - Backtest parameters
+ * @param {string} backtestParams.startDate - Required: backtest start date (YYYY-MM-DD)
+ * @param {string} backtestParams.endDate - Required: backtest end date (YYYY-MM-DD)
+ * @param {number} backtestParams.initialCapital - Required: initial investment amount
+ */
+export const backtestStrategy = async (strategyId, backtestParams) => {
+  const transformedData = transformToSnake({
+    start_date: backtestParams.startDate,
+    end_date: backtestParams.endDate,
+    initial_capital: backtestParams.initialCapital
+  });
+  
+  const endpoint = API_ENDPOINTS.INVESTMENT.STRATEGY_BACKTEST(strategyId);
+  const response = await apiPost(endpoint, transformedData);
+  
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+  
+  return response;
+};
+
+/**
+ * Get Strategy Performance
+ * GET /api/v1/investment/strategies/{strategy_id}/performance
+ * 
+ * @param {string} strategyId - Strategy ID
+ * @param {number} days - Optional: Number of days for performance calculation (default: 30, max: 365)
+ */
+export const getStrategyPerformance = async (strategyId, days = 30) => {
+  const queryParams = new URLSearchParams();
+  if (days) queryParams.append('days', days.toString());
+  
+  const endpoint = `${API_ENDPOINTS.INVESTMENT.STRATEGY_PERFORMANCE(strategyId)}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await apiGet(endpoint);
+  
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+  if (response.performance) {
+    response.performance = transformKeys(response.performance);
+  }
+  if (response.period) {
+    response.period = transformKeys(response.period);
+  }
+  if (response.trades) {
+    response.trades = transformKeys(response.trades);
+  }
+  
+  return response;
+};
+
+/**
+ * Clone Strategy
+ * POST /api/v1/investment/strategies/{strategy_id}/clone
+ * 
+ * @param {string} strategyId - Strategy ID to clone
+ * @param {Object} cloneData - Clone data
+ * @param {string} cloneData.newName - Required: name for the cloned strategy
+ * @param {Object} cloneData.adjustParameters - Optional: adjust strategy parameters
+ */
+export const cloneStrategy = async (strategyId, cloneData) => {
+  const transformedData = transformToSnake({
+    new_name: cloneData.newName,
+    adjust_parameters: cloneData.adjustParameters
+  });
+  
+  const endpoint = API_ENDPOINTS.INVESTMENT.CLONE_STRATEGY(strategyId);
+  const response = await apiPost(endpoint, transformedData);
+  
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+  
+  return response;
+};
+
+// ============================================================================
+// WATCHLIST API
+// ============================================================================
+
+/**
+ * Get investment watchlist items
+ * GET /api/v1/investment/watchlist
+ * @returns {Promise<Object>} Watchlist items with total count
+ */
+export const getWatchlist = async () => {
+  try {
+    const endpoint = API_ENDPOINTS.INVESTMENT.WATCHLIST.LIST;
+    const response = await apiGet(endpoint);
+    return transformKeys(response);
+  } catch (error) {
+    console.error('Error fetching watchlist:', error);
+    throw error;
+  }
+};
+
+/**
+ * Add an item to investment watchlist
+ * POST /api/v1/investment/watchlist
+ * @param {string} symbol - Asset symbol (e.g., 'AAPL')
+ * @param {string} assetType - Asset type: 'stock' | 'crypto' | 'etf' | 'bond'
+ * @param {string|null} name - Optional asset name
+ * @returns {Promise<Object>} Created watchlist item
+ */
+export const addToWatchlist = async (symbol, assetType, name = null) => {
+  try {
+    const endpoint = API_ENDPOINTS.INVESTMENT.WATCHLIST.ADD;
+    const body = {
+      symbol: symbol.toUpperCase(),
+      assetType,
+      ...(name && { name }),
+    };
+    const response = await apiPost(endpoint, body);
+    return transformKeys(response.watchlistItem || response);
+  } catch (error) {
+    console.error('Error adding to watchlist:', error);
+    throw error;
+  }
+};
+
+/**
+ * Remove an item from investment watchlist
+ * DELETE /api/v1/investment/watchlist/{item_id}
+ * @param {string} itemId - UUID of the watchlist item
+ * @returns {Promise<boolean>} Success status
+ */
+export const removeFromWatchlist = async (itemId) => {
+  try {
+    const endpoint = API_ENDPOINTS.INVESTMENT.WATCHLIST.REMOVE(itemId);
+    await apiDelete(endpoint);
+    return true;
+  } catch (error) {
+    console.error('Error removing from watchlist:', error);
+    throw error;
+  }
 };

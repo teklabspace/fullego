@@ -1,7 +1,10 @@
 'use client';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { getTasks, createTask, markTaskComplete } from '@/utils/tasksApi';
+import { getReminders, createReminder } from '@/utils/remindersApi';
+import { toast } from 'react-toastify';
 
 function SettingsContent() {
   const router = useRouter();
@@ -9,6 +12,15 @@ function SettingsContent() {
   const tabFromUrl = searchParams.get('tab') || 'notification';
   const [activeTab, setActiveTab] = useState(tabFromUrl);
   const [notifSubTab, setNotifSubTab] = useState('all');
+  const [tasks, setTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [reminders, setReminders] = useState([]);
+  const [remindersLoading, setRemindersLoading] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [creatingTask, setCreatingTask] = useState(false);
+  const [newReminderTitle, setNewReminderTitle] = useState('');
+  const [newReminderDate, setNewReminderDate] = useState('');
+  const [creatingReminder, setCreatingReminder] = useState(false);
 
   const tabs = [
     { id: 'basic', label: 'Basics' },
@@ -16,44 +28,98 @@ function SettingsContent() {
     { id: 'notification', label: 'Notification' },
   ];
 
+  useEffect(() => {
+    if (activeTab !== 'tasks') return;
 
-  const notifications = [
-    {
-      id: 1,
-      icon: '/icons/Frame2121453925.svg',
+    const fetchData = async () => {
+      try {
+        setTasksLoading(true);
+        const tasksResponse = await getTasks({}, 20, 0);
+        const tasksData = tasksResponse?.data || tasksResponse?.tasks || [];
+        setTasks(Array.isArray(tasksData) ? tasksData : []);
+      } catch (error) {
+        console.error('Failed to load tasks:', error);
+        setTasks([]);
+      } finally {
+        setTasksLoading(false);
+      }
 
-      message: 'Your asset increased by 5% in the past 24 hours.',
-      time: '2m ago',
-    },
-    {
-      id: 2,
-      icon: '/icons/document-notification.svg',
+      try {
+        setRemindersLoading(true);
+        const remindersResponse = await getReminders({}, 20, 0);
+        const remindersData =
+          remindersResponse?.data || remindersResponse?.reminders || [];
+        setReminders(Array.isArray(remindersData) ? remindersData : []);
+      } catch (error) {
+        console.error('Failed to load reminders:', error);
+        setReminders([]);
+      } finally {
+        setRemindersLoading(false);
+      }
+    };
 
-      message: 'A new document has been shared with you.',
-      time: '2m ago',
-    },
-    {
-      id: 3,
-      icon: '/icons/Frame2121453925.svg',
+    fetchData();
+  }, [activeTab]);
 
-      message: 'ETH is now $2400.34.',
-      time: '24hrs ago',
-    },
-    {
-      id: 4,
-      icon: '/icons/Frame2121453925.svg',
+  const handleCreateTask = async () => {
+    if (!newTaskTitle.trim()) return;
 
-      message: 'AAPL Trade at $458,060.97 was successful.',
-      time: '7days ago',
-    },
-    {
-      id: 5,
-      icon: '/icons/Frame2121453925.svg',
-      iconColor: '#F1CB68',
-      message: 'BTC Halving will take place in 4 days.',
-      time: '7days ago',
-    },
-  ];
+    try {
+      setCreatingTask(true);
+      await createTask({
+        title: newTaskTitle.trim(),
+      });
+      setNewTaskTitle('');
+      const tasksResponse = await getTasks({}, 20, 0);
+      const tasksData = tasksResponse?.data || tasksResponse?.tasks || [];
+      setTasks(Array.isArray(tasksData) ? tasksData : []);
+      toast.success('Task created');
+    } catch (error) {
+      console.error('Failed to create task:', error);
+      toast.error('Failed to create task. Please try again.');
+    } finally {
+      setCreatingTask(false);
+    }
+  };
+
+  const handleCompleteTask = async (taskId) => {
+    try {
+      await markTaskComplete(taskId);
+      const tasksResponse = await getTasks({}, 20, 0);
+      const tasksData = tasksResponse?.data || tasksResponse?.tasks || [];
+      setTasks(Array.isArray(tasksData) ? tasksData : []);
+      toast.success('Task marked as complete');
+    } catch (error) {
+      console.error('Failed to complete task:', error);
+      toast.error('Failed to complete task. Please try again.');
+    }
+  };
+
+  const handleCreateReminder = async () => {
+    if (!newReminderTitle.trim() || !newReminderDate) return;
+
+    try {
+      setCreatingReminder(true);
+      const isoDate = new Date(newReminderDate).toISOString();
+      await createReminder({
+        title: newReminderTitle.trim(),
+        reminderDate: isoDate,
+        notificationChannels: ['email'],
+      });
+      setNewReminderTitle('');
+      setNewReminderDate('');
+      const remindersResponse = await getReminders({}, 20, 0);
+      const remindersData =
+        remindersResponse?.data || remindersResponse?.reminders || [];
+      setReminders(Array.isArray(remindersData) ? remindersData : []);
+      toast.success('Reminder created');
+    } catch (error) {
+      console.error('Failed to create reminder:', error);
+      toast.error('Failed to create reminder. Please try again.');
+    } finally {
+      setCreatingReminder(false);
+    }
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -120,36 +186,9 @@ function SettingsContent() {
 
               {/* Notifications List */}
               <div className='px-6 pb-6'>
-                {notifications.map((notification, index) => (
-                  <div
-                    key={notification.id}
-                    className={`flex items-start gap-4 py-5 ${
-                      index !== notifications.length - 1
-                        ? 'border-b border-white/5'
-                        : ''
-                    }`}
-                  >
-                    {/* Icon */}
-                    <div>
-                      <Image
-                        src={notification.icon}
-                        alt='Icon'
-                        width={50}
-                        height={20}
-                      />
-                    </div>
-
-                    {/* Content */}
-                    <div className='flex-1'>
-                      <p className='text-white text-sm mb-2'>
-                        {notification.message}
-                      </p>
-                      <p className='text-gray-400 text-xs'>
-                        {notification.time}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                <p className='text-gray-400 text-sm'>
+                  Notifications are managed from the main Notifications page. No sample data is shown here.
+                </p>
               </div>
             </div>
           </div>
@@ -217,7 +256,7 @@ function SettingsContent() {
                   </label>
                   <input
                     type='text'
-                    defaultValue='Olivia Benson'
+                    defaultValue=''
                     className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
                   />
                 </div>
@@ -229,7 +268,7 @@ function SettingsContent() {
                   </label>
                   <input
                     type='email'
-                    defaultValue='hello@gmail.com'
+                    defaultValue=''
                     className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
                   />
                 </div>
@@ -241,7 +280,7 @@ function SettingsContent() {
                   </label>
                   <input
                     type='text'
-                    defaultValue='United States'
+                    defaultValue=''
                     className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
                   />
                 </div>
@@ -253,7 +292,7 @@ function SettingsContent() {
                   </label>
                   <textarea
                     rows={4}
-                    defaultValue='Lorem ipsum dolor sit amet, consectetur'
+                    defaultValue=''
                     className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors resize-none'
                   />
                 </div>
@@ -268,17 +307,158 @@ function SettingsContent() {
             <h1 className='text-3xl font-bold text-white mb-6'>
               Task & Reminders
             </h1>
-            <div
-              className='rounded-2xl p-8'
-              style={{
-                background:
-                  'linear-gradient(135deg, rgba(30, 30, 35, 0.8) 0%, rgba(20, 20, 25, 0.9) 100%)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-              }}
-            >
-              <p className='text-gray-400'>
-                Task & Reminders content coming soon...
-              </p>
+            <div className='grid gap-6 md:grid-cols-2'>
+              {/* Tasks Card */}
+              <div
+                className='rounded-2xl p-6'
+                style={{
+                  background:
+                    'linear-gradient(135deg, rgba(30, 30, 35, 0.8) 0%, rgba(20, 20, 25, 0.9) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                }}
+              >
+                <h2 className='text-lg font-semibold text-white mb-4'>
+                  My Tasks
+                </h2>
+                <div className='flex items-center gap-2 mb-4'>
+                  <input
+                    type='text'
+                    placeholder='New task title'
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    className='flex-1 px-3 py-2 rounded-lg bg-transparent border border-white/10 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#F1CB68]'
+                  />
+                  <button
+                    onClick={handleCreateTask}
+                    disabled={creatingTask || !newTaskTitle.trim()}
+                    className='px-3 py-2 rounded-lg text-xs font-medium bg-white text-black disabled:opacity-50'
+                  >
+                    Add
+                  </button>
+                </div>
+                {tasksLoading ? (
+                  <div className='space-y-3'>
+                    <div className='h-4 bg-white/10 rounded w-3/4 animate-pulse' />
+                    <div className='h-4 bg-white/10 rounded w-2/3 animate-pulse' />
+                    <div className='h-4 bg-white/10 rounded w-1/2 animate-pulse' />
+                  </div>
+                ) : tasks && tasks.length > 0 ? (
+                  <ul className='space-y-3 max-h-72 overflow-y-auto'>
+                    {tasks.map(task => (
+                      <li
+                        key={task.id}
+                        className='border border-white/10 rounded-xl p-3 flex flex-col gap-2'
+                      >
+                        <div className='flex items-center justify-between'>
+                          <p className='text-sm font-medium text-white truncate'>
+                            {task.title}
+                          </p>
+                          <span className='text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-200 capitalize'>
+                            {task.status || 'pending'}
+                          </span>
+                        </div>
+                        {task.dueDate || task.due_date ? (
+                          <p className='text-xs text-gray-400'>
+                            Due:{' '}
+                            {new Date(
+                              task.dueDate || task.due_date,
+                            ).toLocaleString()}
+                          </p>
+                        ) : null}
+                        {task.status !== 'completed' && (
+                          <button
+                            onClick={() => handleCompleteTask(task.id)}
+                            className='self-start mt-1 text-xs text-black bg-white px-2 py-1 rounded-full font-medium'
+                          >
+                            Mark complete
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className='text-gray-400 text-sm'>
+                    You have no tasks yet.
+                  </p>
+                )}
+              </div>
+
+              {/* Reminders Card */}
+              <div
+                className='rounded-2xl p-6'
+                style={{
+                  background:
+                    'linear-gradient(135deg, rgba(30, 30, 35, 0.8) 0%, rgba(20, 20, 25, 0.9) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                }}
+              >
+                <h2 className='text-lg font-semibold text-white mb-4'>
+                  Upcoming Reminders
+                </h2>
+                <div className='flex flex-col gap-2 mb-4'>
+                  <input
+                    type='text'
+                    placeholder='New reminder title'
+                    value={newReminderTitle}
+                    onChange={(e) => setNewReminderTitle(e.target.value)}
+                    className='w-full px-3 py-2 rounded-lg bg-transparent border border-white/10 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#F1CB68]'
+                  />
+                  <input
+                    type='datetime-local'
+                    value={newReminderDate}
+                    onChange={(e) => setNewReminderDate(e.target.value)}
+                    className='w-full px-3 py-2 rounded-lg bg-transparent border border-white/10 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#F1CB68]'
+                  />
+                  <button
+                    onClick={handleCreateReminder}
+                    disabled={
+                      creatingReminder ||
+                      !newReminderTitle.trim() ||
+                      !newReminderDate
+                    }
+                    className='self-start px-3 py-2 rounded-lg text-xs font-medium bg-white text-black disabled:opacity-50'
+                  >
+                    Add Reminder
+                  </button>
+                </div>
+                {remindersLoading ? (
+                  <div className='space-y-3'>
+                    <div className='h-4 bg-white/10 rounded w-3/4 animate-pulse' />
+                    <div className='h-4 bg-white/10 rounded w-2/3 animate-pulse' />
+                    <div className='h-4 bg-white/10 rounded w-1/2 animate-pulse' />
+                  </div>
+                ) : reminders && reminders.length > 0 ? (
+                  <ul className='space-y-3 max-h-72 overflow-y-auto'>
+                    {reminders.map(reminder => (
+                      <li
+                        key={reminder.id}
+                        className='border border-white/10 rounded-xl p-3 flex flex-col gap-1'
+                      >
+                        <p className='text-sm font-medium text-white truncate'>
+                          {reminder.title}
+                        </p>
+                        {reminder.reminderDate || reminder.reminder_date ? (
+                          <p className='text-xs text-gray-400'>
+                            At:{' '}
+                            {new Date(
+                              reminder.reminderDate || reminder.reminder_date,
+                            ).toLocaleString()}
+                          </p>
+                        ) : null}
+                        {reminder.status && (
+                          <p className='text-xs text-gray-500 capitalize'>
+                            Status: {reminder.status}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className='text-gray-400 text-sm'>
+                    You have no reminders yet.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         );

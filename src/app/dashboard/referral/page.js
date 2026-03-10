@@ -2,81 +2,155 @@
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
+import {
+  getReferralStats,
+  getReferralList,
+  getReferralCode,
+  generateReferralCode,
+} from '@/utils/referralsApi';
 
 export default function ReferralPage() {
   const { isDarkMode } = useTheme();
   const [copied, setCopied] = useState(false);
-  const referralCode = 'OLIVIA2024';
-  const referralLink = `https://akunuba.com/register?ref=${referralCode}`;
+  const [loading, setLoading] = useState(true);
+  const [referralCode, setReferralCode] = useState('');
+  const [referralLink, setReferralLink] = useState('');
+  const [referralStats, setReferralStats] = useState({
+    totalReferrals: 0,
+    completedReferrals: 0,
+    pendingReferrals: 0,
+    activeReferrals: 0,
+  });
+  const [referrals, setReferrals] = useState([]);
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState(null);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+  });
 
-  // Mock referral data
-  const referralStats = {
-    totalReferrals: 24,
-    activeReferrals: 18,
+  useEffect(() => {
+    fetchAllData();
+  }, [page, statusFilter]);
+
+  const fetchAllData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        fetchReferralStats(),
+        fetchReferralCode(),
+        fetchReferralList(),
+      ]);
+    } catch (error) {
+      console.error('Failed to fetch referral data:', error);
+      toast.error('Failed to load referral data');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const referrals = [
-    {
-      id: 1,
-      name: 'John Smith',
-      email: 'john.smith@email.com',
-      joinedDate: '2024-01-15',
-      status: 'active',
-      avatar: '/icons/user-avatar.svg',
-    },
-    {
-      id: 2,
-      name: 'Sarah Johnson',
-      email: 'sarah.j@email.com',
-      joinedDate: '2024-01-20',
-      status: 'active',
-      avatar: '/icons/user-avatar.svg',
-    },
-    {
-      id: 3,
-      name: 'Michael Brown',
-      email: 'm.brown@email.com',
-      joinedDate: '2024-02-05',
-      status: 'active',
-      avatar: '/icons/user-avatar.svg',
-    },
-    {
-      id: 4,
-      name: 'Emily Davis',
-      email: 'emily.davis@email.com',
-      joinedDate: '2024-02-10',
-      status: 'pending',
-      avatar: '/icons/user-avatar.svg',
-    },
-    {
-      id: 5,
-      name: 'David Wilson',
-      email: 'd.wilson@email.com',
-      joinedDate: '2024-02-18',
-      status: 'active',
-      avatar: '/icons/user-avatar.svg',
-    },
-    {
-      id: 6,
-      name: 'Lisa Anderson',
-      email: 'lisa.a@email.com',
-      joinedDate: '2024-03-01',
-      status: 'active',
-      avatar: '/icons/user-avatar.svg',
-    },
-  ];
-
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(referralCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const fetchReferralStats = async () => {
+    try {
+      const stats = await getReferralStats();
+      const statsData = stats.data || stats;
+      setReferralStats({
+        totalReferrals: statsData.totalReferrals || statsData.total_referrals || 0,
+        completedReferrals: statsData.completedReferrals || statsData.completed_referrals || 0,
+        pendingReferrals: statsData.pendingReferrals || statsData.pending_referrals || 0,
+        activeReferrals: statsData.completedReferrals || statsData.completed_referrals || 0,
+      });
+    } catch (error) {
+      console.error('Failed to fetch referral stats:', error);
+    }
   };
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(referralLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const fetchReferralCode = async () => {
+    try {
+      const codeData = await getReferralCode();
+      const data = codeData.data || codeData;
+      const code = data.referralCode || data.referral_code || '';
+      const link = data.referralLink || data.referral_link || '';
+      setReferralCode(code);
+      setReferralLink(
+        link.startsWith('http')
+          ? link
+          : `${typeof window !== 'undefined' ? window.location.origin : 'https://akunuba.com'}${link}`
+      );
+    } catch (error) {
+      console.error('Failed to fetch referral code:', error);
+    }
+  };
+
+  const fetchReferralList = async () => {
+    try {
+      const response = await getReferralList({
+        page,
+        limit: 20,
+        statusFilter: statusFilter,
+      });
+      const responseData = response.data || response;
+      const referralsData = Array.isArray(responseData) ? responseData : responseData.data || [];
+      
+      // Transform API data to match UI format
+      const transformedReferrals = referralsData.map((ref) => ({
+        id: ref.id,
+        name: ref.referredName || ref.referred_name || ref.referredEmail?.split('@')[0] || 'User',
+        email: ref.referredEmail || ref.referred_email || '',
+        joinedDate: ref.completedAt || ref.completed_at || ref.createdAt || ref.created_at || '',
+        status: ref.status === 'completed' ? 'active' : ref.status || 'pending',
+        avatar: '/icons/user-avatar.svg',
+      }));
+      
+      setReferrals(transformedReferrals);
+      
+      if (response.pagination) {
+        setPagination({
+          total: response.pagination.total || response.total || 0,
+          page: response.pagination.page || response.page || 1,
+          limit: response.pagination.limit || response.limit || 20,
+          totalPages: Math.ceil((response.pagination.total || response.total || 0) / (response.pagination.limit || response.limit || 20)),
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch referral list:', error);
+      toast.error('Failed to load referrals');
+    }
+  };
+
+  const handleCopyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(referralCode);
+      setCopied(true);
+      toast.success('Referral code copied!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast.error('Failed to copy referral code');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      setCopied(true);
+      toast.success('Referral link copied!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast.error('Failed to copy referral link');
+    }
+  };
+
+  const handleGenerateCode = async () => {
+    try {
+      await generateReferralCode();
+      await fetchReferralCode();
+      toast.success('New referral code generated!');
+    } catch (error) {
+      toast.error('Failed to generate referral code');
+    }
   };
 
   const getStatusBadge = status => {
@@ -267,12 +341,17 @@ export default function ReferralPage() {
                   }`}
                 >
                   <code className='text-lg font-mono font-bold'>
-                    {referralCode}
+                    {loading ? (
+                      <span className={`inline-block h-5 w-32 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                    ) : (
+                      referralCode || 'No code available'
+                    )}
                   </code>
                 </div>
                 <button
                   onClick={handleCopyCode}
-                  className={`px-6 py-3 rounded-lg font-medium transition-all hover:opacity-90 cursor-pointer ${
+                  disabled={!referralCode || loading}
+                  className={`px-6 py-3 rounded-lg font-medium transition-all hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                     copied
                       ? 'bg-green-500 text-white'
                       : isDarkMode
@@ -282,6 +361,18 @@ export default function ReferralPage() {
                 >
                   {copied ? 'Copied!' : 'Copy'}
                 </button>
+                {!referralCode && (
+                  <button
+                    onClick={handleGenerateCode}
+                    className={`px-6 py-3 rounded-lg font-medium transition-all hover:opacity-90 cursor-pointer ${
+                      isDarkMode
+                        ? 'bg-white/10 text-white hover:bg-white/20'
+                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                    }`}
+                  >
+                    Generate Code
+                  </button>
+                )}
               </div>
             </div>
 
@@ -303,12 +394,17 @@ export default function ReferralPage() {
                   }`}
                 >
                   <code className='text-sm font-mono break-all'>
-                    {referralLink}
+                    {loading ? (
+                      <span className={`inline-block h-4 w-full rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                    ) : (
+                      referralLink || 'No link available'
+                    )}
                   </code>
                 </div>
                 <button
                   onClick={handleCopyLink}
-                  className={`px-6 py-3 rounded-lg font-medium transition-all hover:opacity-90 cursor-pointer ${
+                  disabled={!referralLink || loading}
+                  className={`px-6 py-3 rounded-lg font-medium transition-all hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                     copied
                       ? 'bg-green-500 text-white'
                       : isDarkMode
@@ -423,7 +519,7 @@ export default function ReferralPage() {
           </div>
         </div>
 
-        {/* Referrals List */}
+          {/* Referrals List */}
         <div
           className={`rounded-2xl p-6 md:p-8 ${
             isDarkMode
@@ -440,6 +536,25 @@ export default function ReferralPage() {
               Your Referrals
             </h2>
             <div className='flex items-center gap-2'>
+              {/* Status Filter */}
+              <select
+                value={statusFilter || 'all'}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setStatusFilter(value === 'all' ? null : value);
+                  setPage(1);
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium border ${
+                  isDarkMode
+                    ? 'bg-white/5 border-white/10 text-white'
+                    : 'bg-gray-100 border-gray-200 text-gray-900'
+                }`}
+              >
+                <option value='all'>All Status</option>
+                <option value='pending'>Pending</option>
+                <option value='completed'>Completed</option>
+                <option value='cancelled'>Cancelled</option>
+              </select>
               <button
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 cursor-pointer ${
                   isDarkMode
@@ -451,6 +566,86 @@ export default function ReferralPage() {
               </button>
             </div>
           </div>
+
+          {loading ? (
+            // Skeleton Loader for Referrals Table
+            <>
+              {/* Desktop Table Skeleton */}
+              <div className='hidden md:block overflow-x-auto'>
+                <table className='w-full'>
+                  <thead>
+                    <tr className={`border-b ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+                      <th className={`text-left px-6 py-4 text-xs font-semibold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <div className={`h-4 w-20 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                      </th>
+                      <th className={`text-left px-6 py-4 text-xs font-semibold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <div className={`h-4 w-24 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                      </th>
+                      <th className={`text-left px-6 py-4 text-xs font-semibold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <div className={`h-4 w-20 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <tr key={i} className={`border-b ${isDarkMode ? 'border-white/5' : 'border-gray-100'}`}>
+                        <td className='px-6 py-4'>
+                          <div className='flex items-center gap-3'>
+                            <div className={`w-10 h-10 rounded-full animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                            <div className='space-y-2'>
+                              <div className={`h-4 w-32 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                              <div className={`h-3 w-48 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                            </div>
+                          </div>
+                        </td>
+                        <td className='px-6 py-4'>
+                          <div className={`h-4 w-24 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                        </td>
+                        <td className='px-6 py-4'>
+                          <div className={`h-6 w-20 rounded-full animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile List Skeleton */}
+              <div className='md:hidden space-y-4'>
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className={`p-4 rounded-lg border animate-pulse ${
+                      isDarkMode
+                        ? 'border-white/10 bg-white/5'
+                        : 'border-gray-200 bg-gray-50'
+                    }`}
+                  >
+                    <div className='flex items-start justify-between mb-3'>
+                      <div className='flex items-center gap-3'>
+                        <div className={`w-10 h-10 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                        <div className='space-y-2'>
+                          <div className={`h-4 w-24 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                          <div className={`h-3 w-32 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                        </div>
+                      </div>
+                      <div className={`h-6 w-16 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                    </div>
+                    <div className='flex items-center justify-between'>
+                      <div className='space-y-1'>
+                        <div className={`h-3 w-12 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                        <div className={`h-4 w-20 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : referrals.length === 0 ? (
+            <div className='text-center py-12'>
+              <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>No referrals found</p>
+            </div>
+          ) : (
+            <>
 
           {/* Desktop Table */}
           <div className='hidden md:block overflow-x-auto'>
@@ -601,6 +796,8 @@ export default function ReferralPage() {
               </div>
             ))}
           </div>
+            </>
+          )}
 
           {/* Pagination */}
           <div
@@ -613,12 +810,14 @@ export default function ReferralPage() {
                 isDarkMode ? 'text-gray-400' : 'text-gray-600'
               }`}
             >
-              Showing 1-{referrals.length} of {referralStats.totalReferrals}{' '}
+              Showing {referrals.length > 0 ? (page - 1) * pagination.limit + 1 : 0}-{Math.min(page * pagination.limit, pagination.total)} of {pagination.total}{' '}
               referrals
             </p>
             <div className='flex items-center gap-2'>
               <button
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 cursor-pointer ${
+                onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                disabled={page === 1}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                   isDarkMode
                     ? 'text-gray-400 hover:text-white'
                     : 'text-gray-600 hover:text-gray-900'
@@ -627,7 +826,9 @@ export default function ReferralPage() {
                 Previous
               </button>
               <button
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 cursor-pointer ${
+                onClick={() => setPage(prev => Math.min(pagination.totalPages, prev + 1))}
+                disabled={page >= pagination.totalPages}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                   isDarkMode
                     ? 'bg-[#F1CB68] text-black'
                     : 'bg-[#F1CB68] text-black'

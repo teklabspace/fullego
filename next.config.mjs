@@ -2,7 +2,7 @@
 const nextConfig = {
   // Cloudflare Pages compatibility - use static export for production builds
   // Note: API routes are excluded from static export builds automatically
-  output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
+  // output disabled: use Node server runtime for dynamic dashboard routes
   images: {
     unoptimized: true, // Cloudflare Pages doesn't support Next.js image optimization
   },

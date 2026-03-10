@@ -2,7 +2,7 @@
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { useState, useEffect } from 'react';
 import { getDashboardOverview, getCrmUpdates } from '@/utils/crmApi';
-import { getReportStatistics } from '@/utils/reportsApi';
+import { getReportStatistics, listReports, generateReport } from '@/utils/reportsApi';
 import { toast } from 'react-toastify';
 
 export default function TasksView({ isDarkMode }) {
@@ -10,13 +10,15 @@ export default function TasksView({ isDarkMode }) {
   const [dashboardStats, setDashboardStats] = useState(null);
   const [updates, setUpdates] = useState([]);
   const [reportStats, setReportStats] = useState(null);
+  const [reports, setReports] = useState([]);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         
-        const [overviewResponse, updatesResponse, reportStatsResponse] = await Promise.allSettled([
+        const [overviewResponse, updatesResponse, reportStatsResponse, reportsResponse] = await Promise.allSettled([
           getDashboardOverview(),
           getCrmUpdates({ limit: 24 }).catch(err => {
             if (err.status === 403 || err.status === 401) {
@@ -25,6 +27,7 @@ export default function TasksView({ isDarkMode }) {
             throw err;
           }),
           getReportStatistics().catch(() => null),
+          listReports({ page: 1, limit: 20 }).catch(() => null),
         ]);
 
         if (overviewResponse.status === 'fulfilled') {
@@ -41,6 +44,14 @@ export default function TasksView({ isDarkMode }) {
         if (reportStatsResponse.status === 'fulfilled' && reportStatsResponse.value) {
           setReportStats(reportStatsResponse.value.data || reportStatsResponse.value);
         }
+
+      if (reportsResponse.status === 'fulfilled' && reportsResponse.value) {
+        const value = reportsResponse.value;
+        const data = value.data || value.reports || [];
+        setReports(Array.isArray(data) ? data : []);
+      } else {
+        setReports([]);
+      }
       } catch (error) {
         console.error('Failed to fetch reports data:', error);
         toast.error('Failed to load reports data. Please refresh the page.');
@@ -68,6 +79,34 @@ export default function TasksView({ isDarkMode }) {
   // Filter updates
   const pinnedUpdates = updates.filter(u => u.pinned || u.isPinned);
   const ticketUpdates = updates.filter(u => !u.pinned && !u.isPinned);
+
+  const handleGenerateSampleReport = async () => {
+    try {
+      setGenerating(true);
+      const payload = {
+        reportType: 'portfolio',
+        format: 'pdf',
+        dateRange: {
+          startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          endDate: new Date().toISOString(),
+        },
+      };
+      await generateReport(payload);
+      toast.success('Report generation started');
+      // Refresh reports list
+      const res = await listReports({ page: 1, limit: 20 }).catch(() => null);
+      if (res) {
+        const data = res.data || res.reports || [];
+        setReports(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Failed to generate report:', error);
+      const msg = error?.data?.detail || error.message || 'Failed to generate report';
+      toast.error(msg);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   return (
     <>
@@ -116,6 +155,114 @@ export default function TasksView({ isDarkMode }) {
         >
           Updates
         </h2>
+
+        {/* Reports Overview */}
+        <div>
+          <div className='flex items-center justify-between mb-4'>
+            <h3
+              className={`text-lg font-semibold ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}
+            >
+              Reports
+            </h3>
+            <button
+              onClick={handleGenerateSampleReport}
+              disabled={generating}
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+                isDarkMode
+                  ? 'bg-[#F1CB68] text-black hover:bg-[#F1CB68]/90 disabled:opacity-50'
+                  : 'bg-[#F1CB68] text-black hover:bg-[#F1CB68]/90 disabled:opacity-50'
+              }`}
+            >
+              {generating ? 'Generating…' : 'Generate sample report'}
+            </button>
+          </div>
+
+          <div
+            className={`rounded-2xl border ${
+              isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+            }`}
+          >
+            <div className='overflow-x-auto'>
+              <table className='w-full text-sm'>
+                <thead>
+                  <tr
+                    className={`border-b ${
+                      isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                    }`}
+                  >
+                    <th className='px-4 py-3 text-left text-xs font-medium text-gray-400'>
+                      Type
+                    </th>
+                    <th className='px-4 py-3 text-left text-xs font-medium text-gray-400'>
+                      Status
+                    </th>
+                    <th className='px-4 py-3 text-left text-xs font-medium text-gray-400'>
+                      Format
+                    </th>
+                    <th className='px-4 py-3 text-left text-xs font-medium text-gray-400'>
+                      Created
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reports.length > 0 ? (
+                    reports.map((report, idx) => (
+                      <tr
+                        key={report.id || idx}
+                        className={`border-b ${
+                          isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                        }`}
+                      >
+                        <td className='px-4 py-3'>
+                          <span
+                            className={isDarkMode ? 'text-gray-200' : 'text-gray-800'}
+                          >
+                            {report.reportType || report.type || 'portfolio'}
+                          </span>
+                        </td>
+                        <td className='px-4 py-3'>
+                          <span className='text-xs font-medium text-gray-400'>
+                            {report.status || 'pending'}
+                          </span>
+                        </td>
+                        <td className='px-4 py-3'>
+                          <span className='text-xs text-gray-400'>
+                            {report.format || 'pdf'}
+                          </span>
+                        </td>
+                        <td className='px-4 py-3'>
+                          <span className='text-xs text-gray-500'>
+                            {report.createdAt ||
+                              report.created_at ||
+                              '—'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className='px-4 py-6 text-center text-xs text-gray-400'
+                      >
+                        {loading ? (
+                          <div className='flex items-center justify-center gap-2'>
+                            <div className={`h-4 w-4 rounded-full border-2 border-t-transparent animate-spin ${isDarkMode ? 'border-gray-400' : 'border-gray-600'}`} />
+                            <span>Loading reports…</span>
+                          </div>
+                        ) : (
+                          'No reports found'
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
 
         {/* Pinned Section */}
         <div>
@@ -168,7 +315,23 @@ export default function TasksView({ isDarkMode }) {
               })
             ) : (
               <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                {loading ? 'Loading...' : 'No pinned updates'}
+                {loading ? (
+                  <div className='space-y-3'>
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className={`p-4 rounded-lg border animate-pulse ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className='flex items-start gap-3'>
+                          <div className={`w-10 h-10 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                          <div className='flex-1 space-y-2'>
+                            <div className={`h-4 w-3/4 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                            <div className={`h-3 w-1/2 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  'No pinned updates'
+                )}
               </div>
             )}
           </div>
@@ -224,7 +387,23 @@ export default function TasksView({ isDarkMode }) {
               })
             ) : (
               <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                {loading ? 'Loading...' : 'No ticket updates available'}
+                {loading ? (
+                  <div className='space-y-3'>
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className={`p-4 rounded-lg border animate-pulse ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className='flex items-start gap-3'>
+                          <div className={`w-10 h-10 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                          <div className='flex-1 space-y-2'>
+                            <div className={`h-4 w-3/4 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                            <div className={`h-3 w-1/2 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  'No ticket updates available'
+                )}
               </div>
             )}
           </div>

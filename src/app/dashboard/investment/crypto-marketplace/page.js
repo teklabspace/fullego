@@ -2,6 +2,8 @@
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { useState } from 'react';
+import { addToWatchlist, removeFromWatchlist } from '@/utils/investmentApi';
+import { toast } from 'react-toastify';
 import {
   LineChart,
   Line,
@@ -438,6 +440,8 @@ function BitcoinPriceCard({ isDarkMode }) {
 // Marketplace Asset Card Component
 function MarketplaceAssetCard({ asset, isDarkMode }) {
   const [isSaved, setIsSaved] = useState(false);
+  const [watchlistItemId, setWatchlistItemId] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const getLogoColor = logo => {
     switch (logo) {
@@ -470,6 +474,30 @@ function MarketplaceAssetCard({ asset, isDarkMode }) {
         return 'DD';
       default:
         return '?';
+    }
+  };
+
+  const handleToggleWatchlist = async () => {
+    if (!asset.symbol) return;
+
+    try {
+      setSaving(true);
+      if (!isSaved || !watchlistItemId) {
+        const item = await addToWatchlist(asset.symbol, 'crypto', asset.name);
+        setWatchlistItemId(item?.id || null);
+        setIsSaved(true);
+        toast.success('Added to watchlist');
+      } else {
+        await removeFromWatchlist(watchlistItemId);
+        setIsSaved(false);
+        setWatchlistItemId(null);
+        toast.success('Removed from watchlist');
+      }
+    } catch (error) {
+      console.error('Failed to update watchlist:', error);
+      toast.error('Failed to update watchlist. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -567,7 +595,8 @@ function MarketplaceAssetCard({ asset, isDarkMode }) {
             Buy
           </button>
           <button
-            onClick={() => setIsSaved(!isSaved)}
+            onClick={handleToggleWatchlist}
+            disabled={saving}
             className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all flex items-center gap-2 ${
               isDarkMode
                 ? 'border-[#FFFFFF14] hover:bg-white/5 text-gray-300'

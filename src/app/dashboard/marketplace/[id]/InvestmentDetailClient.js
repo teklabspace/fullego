@@ -94,7 +94,7 @@ export default function InvestmentDetailClient() {
     }
   }, [investmentId]);
 
-  // Transform API data to match UI structure (fallback to mock if API fails)
+  // Transform API data to match UI structure
   const investment = listing ? {
     name: listing.title || listing.assetName || 'Untitled Listing',
     category: listing.assetType || listing.category || 'Other',

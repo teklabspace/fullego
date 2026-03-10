@@ -4,6 +4,14 @@ import Sidebar from '@/components/dashboard/Sidebar';
 import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'react-toastify';
+import {
+  listTickets,
+  getTicket,
+  getTicketComments,
+  addTicketComment,
+} from '@/utils/supportTicketsApi';
+import { getConversations, getMessages, sendMessage } from '@/utils/chatApi';
 
 export default function SupportDashboardPage() {
   const { isDarkMode } = useTheme();
@@ -18,6 +26,9 @@ export default function SupportDashboardPage() {
   const messagesEndRef = useRef(null);
   const [showChatView, setShowChatView] = useState(false); // For mobile/tablet view control
   const [isMobile, setIsMobile] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [tickets, setTickets] = useState([]);
+  const [conversations, setConversations] = useState([]);
 
   useEffect(() => {
     setMounted(true);
@@ -33,148 +44,174 @@ export default function SupportDashboardPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Mock data for tickets and chats
-  const mockItems = [
-    {
-      id: '1',
-      type: 'chat',
-      userName: 'John Doe',
-      userAvatar: '/icons/user-avatar.svg',
-      lastMessage: 'Need help with asset appraisal',
-      timestamp: '2m ago',
-      status: 'active',
-      isOnline: true,
-      unreadCount: 2,
-    },
-    {
-      id: '2',
-      type: 'ticket',
-      userName: 'Sarah Lee',
-      userAvatar: '/icons/user-avatar.svg',
-      lastMessage: 'Billing issue on invoice #2024',
-      timestamp: '15m ago',
-      status: 'inprogress',
-      isOnline: false,
-      priority: 'high',
-      ticketId: 'TKT-2024-001',
-    },
-    {
-      id: '3',
-      type: 'chat',
-      userName: 'Peter N.',
-      userAvatar: '/icons/user-avatar.svg',
-      lastMessage: "Can't upload document",
-      timestamp: '1h ago',
-      status: 'waiting',
-      isOnline: true,
-      unreadCount: 1,
-    },
-    {
-      id: '4',
-      type: 'ticket',
-      userName: 'Michael Chen',
-      userAvatar: '/icons/user-avatar.svg',
-      lastMessage: 'Request for API documentation',
-      timestamp: '2h ago',
-      status: 'closed',
-      isOnline: false,
-      priority: 'medium',
-      ticketId: 'TKT-2024-002',
-    },
-    {
-      id: '5',
-      type: 'chat',
-      userName: 'Emma Wilson',
-      userAvatar: '/icons/user-avatar.svg',
-      lastMessage: 'Question about investment strategy',
-      timestamp: '3h ago',
-      status: 'active',
-      isOnline: false,
-    },
-    {
-      id: '6',
-      type: 'ticket',
-      userName: 'David Brown',
-      userAvatar: '/icons/user-avatar.svg',
-      lastMessage: 'Account verification issue',
-      timestamp: '5h ago',
-      status: 'inprogress',
-      isOnline: false,
-      priority: 'high',
-      ticketId: 'TKT-2024-003',
-    },
-  ];
+  // Fetch tickets & chat conversations
+  useEffect(() => {
+    fetchTickets();
+    fetchConversations();
+  }, [activeFilter, searchQuery]);
 
-  // Initialize messages for each item
-  const initialMessages = {
-    1: [
-      {
-        id: '1',
-        sender: 'user',
-        message: 'Hello, I need help with asset appraisal.',
-        timestamp: '10:30 AM',
-      },
-      {
-        id: '2',
-        sender: 'admin',
-        message:
-          'Hi John! I can help you with that. Could you provide more details about the asset?',
-        timestamp: '10:32 AM',
-      },
-      {
-        id: '3',
-        sender: 'user',
-        message: "It's a vintage watch collection. I have about 15 pieces.",
-        timestamp: '10:35 AM',
-      },
-      {
-        id: '4',
-        sender: 'admin',
-        message:
-          "Great! Please upload photos and any documentation you have. I'll connect you with our appraisal specialist.",
-        timestamp: '10:37 AM',
-      },
-      {
-        id: '5',
-        sender: 'system',
-        message: 'Ticket assigned to Agent Sarah',
-        timestamp: '10:38 AM',
-      },
-    ],
-    2: [
-      {
-        id: '1',
-        sender: 'user',
-        message: 'I have a billing issue with invoice #2024.',
-        timestamp: '9:15 AM',
-      },
-      {
-        id: '2',
-        sender: 'admin',
-        message: 'I can help you with that. Let me check your account.',
-        timestamp: '9:20 AM',
-      },
-    ],
-    3: [
-      {
-        id: '1',
-        sender: 'user',
-        message: "I can't upload my document. It keeps failing.",
-        timestamp: '8:45 AM',
-      },
-    ],
-    4: [],
-    5: [],
-    6: [],
+  // Fetch ticket/chat messages when item is selected
+  useEffect(() => {
+    if (!selectedItem) return;
+    if (selectedItem.type === 'ticket') {
+      fetchTicketComments(selectedItem.id);
+    } else if (selectedItem.type === 'chat') {
+      fetchConversationMessages(selectedItem.id);
+    }
+  }, [selectedItem]);
+
+  const fetchTickets = async () => {
+    try {
+      setLoading(true);
+      const response = await listTickets({
+        status:
+          activeFilter === 'all' ||
+          activeFilter === 'chats' ||
+          activeFilter === 'tickets'
+            ? undefined
+            : activeFilter,
+        search: searchQuery || undefined,
+        limit: 100,
+      });
+      const ticketsData = response.data || response || [];
+      
+      // Transform tickets to match UI format
+      const transformedTickets = ticketsData.map((ticket) => ({
+        id: ticket.id || ticket.ticketId,
+        type: 'ticket',
+        userName: ticket.userName || ticket.user_name || ticket.userEmail?.split('@')[0] || 'User',
+        userAvatar: '/icons/user-avatar.svg',
+        lastMessage: ticket.description || ticket.subject || 'No description',
+        timestamp: ticket.updatedAt ? formatTimeAgo(ticket.updatedAt) : formatTimeAgo(ticket.updated_at || ticket.created_at),
+        status: ticket.status || 'open',
+        isOnline: false,
+        priority: ticket.priority || 'medium',
+        ticketId: ticket.ticketId || ticket.id,
+        subject: ticket.subject,
+        description: ticket.description,
+      }));
+      
+      setTickets(transformedTickets);
+      
+      // Update selected item if it exists
+      if (selectedItem && selectedItem.type === 'ticket') {
+        const updatedTicket = transformedTickets.find(t => t.id === selectedItem.id);
+        if (updatedTicket) {
+          setSelectedItem(updatedTicket);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch tickets:', error);
+      toast.error('Failed to load support tickets');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Initialize messages state with initial messages
-  useEffect(() => {
-    if (Object.keys(messages).length === 0) {
-      setMessages(initialMessages);
+  const fetchConversations = async () => {
+    try {
+      const response = await getConversations('active', 50, 0);
+      const data = response?.conversations || response?.data || [];
+
+      const transformedConversations = data.map(conv => {
+        const primaryParticipant =
+          conv.participants?.find(p => p.role !== 'admin') ||
+          conv.participants?.[0];
+
+        return {
+          id: conv.id,
+          type: 'chat',
+          userName:
+            conv.subject ||
+            primaryParticipant?.userName ||
+            primaryParticipant?.userId ||
+            'Conversation',
+          userAvatar: primaryParticipant?.userAvatar || '/icons/user-avatar.svg',
+          lastMessage: conv.lastMessage?.content || 'No messages yet',
+          timestamp: formatTimeAgo(
+            conv.updatedAt || conv.lastMessage?.timestamp,
+          ),
+          status: 'open',
+          isOnline: conv.participants?.some(p => p.isOnline),
+          unreadCount: conv.unreadCount || 0,
+        };
+      });
+
+      setConversations(transformedConversations);
+    } catch (error) {
+      console.error('Failed to fetch chat conversations:', error);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
+
+  const fetchTicketComments = async (ticketId) => {
+    try {
+      const response = await getTicketComments(ticketId);
+      const comments = response.data || response || [];
+      
+      // Transform comments to messages format
+      const transformedMessages = comments.map((comment) => ({
+        id: comment.id,
+        sender: comment.isAdmin || comment.is_admin ? 'admin' : 'user',
+        message: comment.message || comment.content || '',
+        timestamp: comment.createdAt ? formatTime(comment.createdAt) : formatTime(comment.created_at),
+      }));
+      
+      setMessages(prev => ({
+        ...prev,
+        [ticketId]: transformedMessages,
+      }));
+    } catch (error) {
+      console.error('Failed to fetch ticket comments:', error);
+    }
+  };
+
+  const fetchConversationMessages = async (conversationId) => {
+    try {
+      const response = await getMessages(conversationId, 50);
+      const msgs = response?.messages || response?.data || [];
+
+      const transformedMessages = msgs.map(message => ({
+        id: message.id,
+        sender: 'user',
+        message: message.content || '',
+        timestamp: message.timestamp ? formatTime(message.timestamp) : getCurrentTime(),
+      }));
+
+      setMessages(prev => ({
+        ...prev,
+        [conversationId]: transformedMessages,
+      }));
+    } catch (error) {
+      console.error('Failed to fetch conversation messages:', error);
+    }
+  };
+
+  const formatTimeAgo = (dateString) => {
+    if (!dateString) return 'Just now';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const formatTime = (dateString) => {
+    if (!dateString) return getCurrentTime();
+    const date = new Date(dateString);
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    const displayMinutes = minutes < 10 ? `0${minutes}` : minutes;
+    return `${displayHours}:${displayMinutes} ${ampm}`;
+  };
+
+  // Only use API data - no mock data
+  const allItems = [...tickets, ...conversations];
 
   // Get messages for selected item
   const currentMessages = selectedItem ? messages[selectedItem.id] || [] : [];
@@ -191,29 +228,56 @@ export default function SupportDashboardPage() {
   };
 
   // Handle send message
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedItem) return;
 
-    const newMessage = {
-      id: Date.now().toString(),
-      sender: 'admin',
-      message: messageInput.trim(),
-      timestamp: getCurrentTime(),
-    };
+    const content = messageInput.trim();
 
-    // Update messages state
-    setMessages(prev => ({
-      ...prev,
-      [selectedItem.id]: [...(prev[selectedItem.id] || []), newMessage],
-    }));
+    try {
+      if (selectedItem.type === 'ticket') {
+        await addTicketComment(selectedItem.id, { message: content });
 
-    // Clear input
-    setMessageInput('');
+        const newMessage = {
+          id: Date.now().toString(),
+          sender: 'admin',
+          message: content,
+          timestamp: getCurrentTime(),
+        };
 
-    // Scroll to bottom after message is added
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+        setMessages(prev => ({
+          ...prev,
+          [selectedItem.id]: [...(prev[selectedItem.id] || []), newMessage],
+        }));
+      } else if (selectedItem.type === 'chat') {
+        const sentMessage = await sendMessage(selectedItem.id, content);
+        const created = sentMessage?.message || sentMessage;
+
+        const newMessage = {
+          id: created?.id || Date.now().toString(),
+          sender: 'admin',
+          message: created?.content || content,
+          timestamp: created?.timestamp
+            ? formatTime(created.timestamp)
+            : getCurrentTime(),
+        };
+
+        setMessages(prev => ({
+          ...prev,
+          [selectedItem.id]: [...(prev[selectedItem.id] || []), newMessage],
+        }));
+      }
+
+      // Clear input
+      setMessageInput('');
+
+      // Scroll to bottom after message is added
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      toast.error('Failed to send message. Please try again.');
+    }
   };
 
   // Scroll to bottom when messages change
@@ -234,7 +298,7 @@ export default function SupportDashboardPage() {
   };
 
   // Filter items based on active filter and search
-  const filteredItems = mockItems.filter(item => {
+  const filteredItems = allItems.filter(item => {
     const matchesFilter =
       activeFilter === 'all' ||
       (activeFilter === 'chats' && item.type === 'chat') ||
@@ -608,12 +672,10 @@ export default function SupportDashboardPage() {
                                 : 'bg-gray-100 text-gray-700'
                             }`}
                           >
-                            {
-                              mockItems.filter(
-                                i => i.userName === selectedItem.userName
-                              ).length
-                            }{' '}
-                            chats
+                            {tickets.filter(
+                              t => t.userName === selectedItem.userName
+                            ).length}{' '}
+                            tickets
                           </span>
                         )}
                       </div>

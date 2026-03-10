@@ -60,6 +60,24 @@ const transformToSnake = (obj) => {
 // ============================================================================
 
 /**
+ * Get Available Plans
+ * GET /api/v1/subscriptions/plans
+ */
+export const getAvailablePlans = async () => {
+  const endpoint = API_ENDPOINTS.SUBSCRIPTIONS.GET_PLANS;
+  const response = await apiGet(endpoint);
+
+  if (response.plans) {
+    response.plans = transformKeys(response.plans);
+  }
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
+  return response;
+};
+
+/**
  * Get Current Subscription
  * GET /api/v1/subscriptions
  */
@@ -123,14 +141,24 @@ export const renewSubscription = async () => {
 /**
  * Upgrade/Downgrade Subscription
  * PUT /api/v1/subscriptions/upgrade
+ * 
+ * @param {Object} updateData - Update data
+ * @param {string} updateData.planId - New plan ID (optional)
+ * @param {string} updateData.billingCycle - New billing cycle: 'monthly' or 'annual' (optional)
  */
-export const updateSubscriptionPlan = async (plan) => {
+export const updateSubscriptionPlan = async (updateData) => {
   const endpoint = API_ENDPOINTS.SUBSCRIPTIONS.UPGRADE;
-  const body = transformToSnake({ plan });
+  const body = transformToSnake({
+    plan_id: updateData.planId,
+    billing_cycle: updateData.billingCycle
+  });
   const response = await apiPut(endpoint, body);
 
   if (response.data) {
     response.data = transformKeys(response.data);
+  }
+  if (response.subscription) {
+    response.subscription = transformKeys(response.subscription);
   }
 
   return response;
@@ -139,9 +167,17 @@ export const updateSubscriptionPlan = async (plan) => {
 /**
  * Get Subscription History
  * GET /api/v1/subscriptions/history
+ * 
+ * @param {Object} params - Query parameters
+ * @param {number} params.limit - Number of records (default: 20, max: 100)
+ * @param {number} params.offset - Pagination offset (default: 0)
  */
-export const getSubscriptionHistory = async () => {
-  const endpoint = API_ENDPOINTS.SUBSCRIPTIONS.HISTORY;
+export const getSubscriptionHistory = async (params = {}) => {
+  const queryParams = new URLSearchParams();
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.offset) queryParams.append('offset', params.offset.toString());
+  
+  const endpoint = `${API_ENDPOINTS.SUBSCRIPTIONS.HISTORY}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
 
   if (response.data) {
