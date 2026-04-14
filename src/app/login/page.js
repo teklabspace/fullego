@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { login } from '@/utils/authApi';
 import { toast } from 'react-toastify';
+import { API_BASE_URL, API_BASE_PATH } from '@/config/api';
 
 const carouselSlides = [
   {
@@ -180,8 +181,17 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = () => {
-    // Handle Google OAuth
-    console.log('Google login');
+    try {
+      // Safely join base URL and path to avoid double slashes
+      const base = API_BASE_URL.replace(/\/+$/, '');
+      const path = `${API_BASE_PATH}/auth/google/login`.replace(/^\/+/, '/');
+      const googleAuthUrl = `${base}${path}`;
+      window.location.href = googleAuthUrl;
+    } catch (err) {
+      // Fallback so the button never silently fails
+      console.error('Google login redirect failed:', err);
+      toast.error('Unable to start Google sign-in. Please try again.');
+    }
   };
 
   return (
