@@ -6,10 +6,10 @@ const nextConfig = {
   images: {
     unoptimized: true, // Cloudflare Pages doesn't support Next.js image optimization
   },
-  // Disable features that don't work with static export
-  trailingSlash: true,
-  // Skip dynamic routes during build (they'll be handled client-side)
-  skipTrailingSlashRedirect: true,
+  // Default URL shape (no trailing slash). Matches OAuth redirects like
+  // /auth/google/callback?... and avoids 404s when trailingSlash:true +
+  // skipTrailingSlashRedirect broke slash-less URLs on Edge/CDN.
+  trailingSlash: false,
   // Disable source maps for faster builds (optional)
   productionBrowserSourceMaps: false,
   // Disable ESLint during builds to allow deployment

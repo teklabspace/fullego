@@ -1,0 +1,5 @@
+# Optional: old bookmarks with trailing slash → canonical paths (no trailing slash).
+/auth/google/callback/ /auth/google/callback 308
+/signup/ /signup 308
+/login/ /login 308
+/verify-email/ /verify-email 308

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { register } from '@/utils/authApi';
 import Image from 'next/image';
 
@@ -27,6 +27,7 @@ const carouselSlides = [
 ];
 
 export default function SignupClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -40,9 +41,19 @@ export default function SignupClient() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const emailFromQuery = searchParams.get('email');
-    if (emailFromQuery) setEmail(emailFromQuery);
-  }, [searchParams]);
+    const emailParam = searchParams.get('email');
+    const firstParam = searchParams.get('first_name');
+    const lastParam = searchParams.get('last_name');
+    const oauthParam = searchParams.get('oauth');
+
+    if (emailParam) setEmail(emailParam);
+    if (firstParam) setFirstName(firstParam);
+    if (lastParam) setLastName(lastParam);
+
+    if (emailParam || firstParam || lastParam || oauthParam) {
+      router.replace('/signup', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     const timer = setInterval(() => {
