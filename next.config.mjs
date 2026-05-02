@@ -1,8 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Cloudflare Pages compatibility - use static export for production builds
-  // Note: API routes are excluded from static export builds automatically
-  // output disabled: use Node server runtime for dynamic dashboard routes
+  // Emit `out/` for Cloudflare Pages (wrangler.toml pages_build_output_dir = "out").
+  output: 'export',
   images: {
     unoptimized: true, // Cloudflare Pages doesn't support Next.js image optimization
   },
