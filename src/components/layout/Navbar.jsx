@@ -175,7 +175,7 @@ const Navbar = () => {
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Link href='/' className='flex items-center gap-3'>
               <Image
-                src={isDarkMode ? '/darkmode_Logo.svg' : '/lightmode_logo.svg'}
+                src={isDarkMode ? '/darkmode_logo.svg' : '/lightmode_logo.svg'}
                 alt='Akunuba Logo'
                 width={150}
                 height={150}

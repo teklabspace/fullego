@@ -23,10 +23,10 @@ export default function Navbar({ onMenuClick }) {
           <div className='flex md:hidden items-center gap-4'>
             {/* Logo */}
             <div className='flex items-center gap-2'>
-              <img 
-                src={isDarkMode ? '/darkmode_logo.svg' : '/Dblighmodeicon.svg'} 
-                alt='Akunuba' 
-                className='h-9600px' 
+              <img
+                src={isDarkMode ? '/darkmode_logo.svg' : '/lightmode_logo.svg'}
+                alt='Akunuba'
+                className='h-10 w-auto object-contain'
               />
             </div>
           </div>

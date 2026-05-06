@@ -296,9 +296,9 @@ export default function Sidebar({ isOpen, onClose }) {
           <div className='flex items-center justify-between px-6 py-5 '>
             <div className='h-12 relative'>
               <img
-                src={isDarkMode ? '/darkmode_logo.svg' : '/Dblighmodeicon.svg'}
+                src={isDarkMode ? '/darkmode_logo.svg' : '/lightmode_logo.svg'}
                 alt='Akunuba'
-                className='h-12 transition-all'
+                className='h-12 w-auto object-contain transition-all'
               />
             </div>
             <button
@@ -309,7 +309,6 @@ export default function Sidebar({ isOpen, onClose }) {
                   : 'text-[#101014] hover:text-[#101014]/70'
               }`}
             >
-              image.png
               <Icon name='X' size={40} />
             </button>
           </div>
