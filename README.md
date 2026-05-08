@@ -22,7 +22,7 @@ entrepreneurs**
 Akunuba is a luxury wealth and lifestyle management platform designed for
 high-net-worth individuals and entrepreneurs. It combines investment tracking,
 asset management, estate planning, and exclusive marketplace access into one
-AI-power dashboard, making it easy to grow, manage, and protect generational
+AI-powered dashboard, making it easy to grow, manage, and protect generational
 wealth.
 
 ### Key Highlights
