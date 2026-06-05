@@ -151,13 +151,18 @@ wealth.
    npm install
    ```
 
-3. **Run the development server**
+3. **Configure environment (optional)**
+
+   Copy `.env.local.example` to `.env.local` and adjust values for local API or
+   third-party integrations.
+
+4. **Run the development server**
 
    ```bash
    npm run dev
    ```
 
-4. **Open your browser** Navigate to
+5. **Open your browser** Navigate to
    [http://localhost:3000](http://localhost:3000)
 
 ### Available Scripts
