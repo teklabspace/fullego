@@ -4,7 +4,15 @@ import Image from 'next/image';
 import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { getKYCStatus, getKYCRejectionReason, resubmitKYC, startKYC, submitKYC, KYC_STATUS } from '@/utils/kycApi';
+import { getKYCStatus, getKYCRejectionReason, resubmitKYC, submitKYC, KYC_STATUS } from '@/utils/kycApi';
+import {
+  getKycUserFacingError,
+  handleKycStartResponse,
+  isPersonaInquiryCreateDisabledError,
+  redirectToVerificationUrl,
+  startKycWithHostedFlowFirst,
+  tryClientHostedPersonaFallback,
+} from '@/utils/kycFlow';
 import { usePersonaVerification } from '@/components/verification/PersonaVerification';
 import { toast } from 'react-toastify';
 
@@ -20,6 +28,7 @@ export default function KYCPage() {
   const [verificationLevel, setVerificationLevel] = useState(null); // 'individual', 'family', '3rd'
   const [verificationType, setVerificationType] = useState(null); // 'kyc', 'kyb'
   const [showSelection, setShowSelection] = useState(false);
+  const [kycServerBlocked, setKycServerBlocked] = useState(false);
   const { startVerification } = usePersonaVerification();
 
   useEffect(() => {
@@ -32,6 +41,10 @@ export default function KYCPage() {
       const status = await getKYCStatus();
       console.log('KYC Status:', status);
       setKycStatus(status);
+
+      if (redirectToVerificationUrl(status)) {
+        return;
+      }
       if (status.status === KYC_STATUS.REJECTED) {
         try {
           const reason = await getKYCRejectionReason();
@@ -66,74 +79,80 @@ export default function KYCPage() {
       autoVerificationType = 'KYC';
     }
 
+    if (kycServerBlocked) {
+      return;
+    }
+
     setIsStarting(true);
     setError('');
     try {
-      let response = await startKYC(verificationLevel, autoVerificationType);
-      console.log('KYC Started:', response);
-      
-      // Priority 1: If verification_url is available, redirect to Persona's hosted page
-      if (response.verification_url) {
-        console.log('Redirecting to Persona hosted verification:', response.verification_url);
-        window.location.href = response.verification_url;
-        return; // Don't set loading to false, we're redirecting
+      const { outcome } = await startKycWithHostedFlowFirst({
+        verificationLevel,
+        verificationType: autoVerificationType,
+        onEmbeddedInquiryId: launchPersonaFlow,
+      });
+
+      if (outcome === 'approved') {
+        router.push('/dashboard');
+        return;
       }
-      
-      // If no persona_inquiry_id, try fetching status again (sometimes it takes a moment)
-      if (!response.persona_inquiry_id) {
-        console.log('No persona_inquiry_id in initial response, fetching status...');
-        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
-        response = await getKYCStatus();
-        console.log('KYC Status after retry:', response);
+      if (outcome === 'embedded') {
+        setIsStarting(false);
+        return;
       }
-      
-      setKycStatus(response);
-      if (response.verification_url) {
-        // Redirect to Persona's hosted page
-        window.location.href = response.verification_url;
-      } else if (response.persona_inquiry_id) {
-        launchPersonaFlow(response.persona_inquiry_id);
-      } else {
-        // If still no persona_inquiry_id or verification_url, redirect to kyc-verification page
-        const errorMessage = 'Failed to initialize verification. Please try again.';
-        router.push(`/kyc-verification?error=${encodeURIComponent(errorMessage)}`);
+      if (outcome === 'redirected') {
+        return;
       }
     } catch (err) {
-      console.error('Failed to start KYC:', err);
-      const errorMessage = err.data?.detail || err.message || 'Failed to start verification';
-      setError(errorMessage);
+      if (isPersonaInquiryCreateDisabledError(err) && tryClientHostedPersonaFallback()) {
+        return;
+      }
+      if (!isPersonaInquiryCreateDisabledError(err)) {
+        console.error('Failed to start KYC:', err);
+      }
+      if (isPersonaInquiryCreateDisabledError(err)) {
+        setKycServerBlocked(true);
+      }
+      setError(getKycUserFacingError(err));
       setIsStarting(false);
-      // Redirect to verification page with error
-      router.push(`/kyc-verification?error=${encodeURIComponent(errorMessage)}`);
     }
   };
 
   const handleContinueKYC = async () => {
+    if (kycServerBlocked) {
+      return;
+    }
+
     setIsStarting(true);
+    setError('');
     try {
-      // Refresh status to get latest persona_inquiry_id
-      const status = await getKYCStatus();
-      setKycStatus(status);
-      
-      // Priority: Use verification_url if available (hosted flow)
-      if (status.verification_url) {
-        console.log('Redirecting to Persona hosted verification:', status.verification_url);
-        window.location.href = status.verification_url;
+      const { outcome } = await startKycWithHostedFlowFirst({
+        onEmbeddedInquiryId: launchPersonaFlow,
+      });
+
+      if (outcome === 'approved') {
+        router.push('/dashboard');
         return;
       }
-      
-      if (status.persona_inquiry_id) {
-        launchPersonaFlow(status.persona_inquiry_id);
-      } else {
-        // If no persona_inquiry_id, redirect to kyc-verification page
-        const errorMessage = 'Failed to continue verification. Please try again.';
-        router.push(`/kyc-verification?error=${encodeURIComponent(errorMessage)}`);
+      if (outcome === 'embedded') {
+        setIsStarting(false);
+        return;
+      }
+      if (outcome === 'redirected') {
+        return;
       }
     } catch (err) {
-      console.error('Failed to continue KYC:', err);
-      const errorMessage = err.data?.detail || err.message || 'Failed to continue verification';
-      // Redirect to verification page with error
-      router.push(`/kyc-verification?error=${encodeURIComponent(errorMessage)}`);
+      if (isPersonaInquiryCreateDisabledError(err) && tryClientHostedPersonaFallback()) {
+        return;
+      }
+      if (!isPersonaInquiryCreateDisabledError(err)) {
+        console.error('Failed to continue KYC:', err);
+      }
+      if (isPersonaInquiryCreateDisabledError(err)) {
+        setKycServerBlocked(true);
+      }
+      setError(getKycUserFacingError(err));
+      setIsStarting(false);
     }
   };
 
@@ -187,35 +206,25 @@ export default function KYCPage() {
       let response = await resubmitKYC();
       setKycStatus(response);
       
-      // Priority: Use verification_url if available (hosted flow)
-      if (response.verification_url) {
-        console.log('Redirecting to Persona hosted verification:', response.verification_url);
-        window.location.href = response.verification_url;
+      const result = handleKycStartResponse(response, {
+        onEmbeddedInquiryId: launchPersonaFlow,
+      });
+      if (result === 'redirected') return;
+
+      if (result === 'embedded') {
+        setIsResubmitting(false);
         return;
       }
-      
-      // If no persona_inquiry_id, try fetching status again
-      if (!response.persona_inquiry_id) {
-        console.log('No persona_inquiry_id in resubmit response, fetching status...');
-        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
-        response = await getKYCStatus();
-        setKycStatus(response);
-      }
-      
-      if (response.verification_url) {
-        window.location.href = response.verification_url;
-      } else if (response.persona_inquiry_id) {
-        launchPersonaFlow(response.persona_inquiry_id);
-      } else {
-        // If still no persona_inquiry_id, redirect to kyc-verification page
-        const errorMessage = 'Failed to resubmit verification. Please try again.';
-        router.push(`/kyc-verification?error=${encodeURIComponent(errorMessage)}`);
-      }
+
+      setError(getKycErrorMessage(response));
+      setIsResubmitting(false);
     } catch (err) {
       console.error('Failed to resubmit KYC:', err);
-      const errorMessage = err.data?.detail || err.message || 'Failed to resubmit KYC';
-      // Redirect to verification page with error
-      router.push(`/kyc-verification?error=${encodeURIComponent(errorMessage)}`);
+      if (isPersonaInquiryCreateDisabledError(err)) {
+        setKycServerBlocked(true);
+      }
+      setError(getKycUserFacingError(err));
+      setIsResubmitting(false);
     }
   };
 
@@ -270,7 +279,9 @@ export default function KYCPage() {
           <p className='text-gray-400 mt-2'>Complete your identity verification to unlock all features</p>
         </div>
         {error && (
-          <div className='mb-6 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm'>{error}</div>
+          <div className='mb-6 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm'>
+            {error}
+          </div>
         )}
         <div className='rounded-2xl p-8' style={{ background: 'linear-gradient(135deg, rgba(30, 30, 35, 0.8) 0%, rgba(20, 20, 25, 0.9) 100%)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
           {isLoading ? (
@@ -343,7 +354,7 @@ export default function KYCPage() {
                         <div className='flex gap-2'>
                           <button
                             onClick={handleStartKYC}
-                            disabled={isStarting}
+                            disabled={isStarting || kycServerBlocked}
                             className='flex-1 px-8 py-3 rounded-full text-base font-bold transition-all hover:opacity-90 cursor-pointer disabled:opacity-50'
                             style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)', color: '#000000' }}
                           >
@@ -363,14 +374,14 @@ export default function KYCPage() {
                       )}
                     </div>
                   ) : (
-                    <button onClick={handleStartKYC} disabled={isStarting} className='px-8 py-3 rounded-full text-base font-bold transition-all hover:opacity-90 cursor-pointer disabled:opacity-50' style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)', color: '#000000' }}>
+                    <button onClick={handleStartKYC} disabled={isStarting || kycServerBlocked} className='px-8 py-3 rounded-full text-base font-bold transition-all hover:opacity-90 cursor-pointer disabled:opacity-50' style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)', color: '#000000' }}>
                       {isStarting ? <><Spinner />Starting...</> : 'Start Verification'}
                     </button>
                   )}
                 </>
               )}
               {kycStatus?.status === KYC_STATUS.IN_PROGRESS && (
-                <button onClick={handleContinueKYC} disabled={isStarting} className='px-8 py-3 rounded-full text-base font-bold transition-all hover:opacity-90 cursor-pointer disabled:opacity-50' style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)', color: '#000000' }}>
+                <button onClick={handleContinueKYC} disabled={isStarting || kycServerBlocked} className='px-8 py-3 rounded-full text-base font-bold transition-all hover:opacity-90 cursor-pointer disabled:opacity-50' style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)', color: '#000000' }}>
                   {isStarting ? <><Spinner />Loading...</> : 'Continue Verification'}
                 </button>
               )}

@@ -33,6 +33,8 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState('');
   const [otpFromResponse, setOtpFromResponse] = useState('');
   const [isVerificationFlow, setIsVerificationFlow] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpSuccessMessage, setOtpSuccessMessage] = useState('');
   const inputRefs = [
     useRef(null),
     useRef(null),
@@ -42,21 +44,32 @@ export default function ForgotPasswordPage() {
     useRef(null),
   ];
 
+  const getOtpErrorMessage = err =>
+    err.data?.detail ||
+    err.data?.message ||
+    err.message ||
+    'Failed to send verification code. Please try again.';
+
   const handleEmailSubmitForVerification = async (emailToUse) => {
     setError('');
+    setOtpSuccessMessage('');
+    setOtpSent(false);
     setIsLoading(true);
 
     try {
       const response = await requestOTP(emailToUse);
+      setOtpSent(true);
+      setOtpSuccessMessage(
+        response.message || 'Verification code sent. Check your inbox.'
+      );
       if (response.otp) {
         setOtpFromResponse(response.otp);
         console.log('OTP (dev mode):', response.otp);
       }
     } catch (err) {
-      setError(
-        err.data?.detail || err.message || 'Failed to send OTP. Please try again.'
-      );
-      setStep(1); // Go back to email step on error
+      setOtpSent(false);
+      setError(getOtpErrorMessage(err));
+      setStep(1);
     } finally {
       setIsLoading(false);
     }
@@ -92,20 +105,24 @@ export default function ForgotPasswordPage() {
   const handleEmailSubmit = async e => {
     e.preventDefault();
     setError('');
+    setOtpSuccessMessage('');
+    setOtpSent(false);
     setIsLoading(true);
 
     try {
       const response = await requestOTP(email);
-      // Store OTP if returned in development mode
+      setOtpSent(true);
+      setOtpSuccessMessage(
+        response.message || 'Verification code sent. Check your inbox.'
+      );
       if (response.otp) {
         setOtpFromResponse(response.otp);
         console.log('OTP (dev mode):', response.otp);
       }
       setStep(2);
     } catch (err) {
-      setError(
-        err.data?.detail || err.message || 'Failed to send OTP. Please try again.'
-      );
+      setOtpSent(false);
+      setError(getOtpErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -176,20 +193,24 @@ export default function ForgotPasswordPage() {
 
   const handleResend = async () => {
     setError('');
+    setOtpSuccessMessage('');
     setIsLoading(true);
     setOtp(['', '', '', '', '', '']);
 
     try {
       const response = await requestOTP(email);
+      setOtpSent(true);
+      setOtpSuccessMessage(
+        response.message || 'Verification code sent. Check your inbox.'
+      );
       if (response.otp) {
         setOtpFromResponse(response.otp);
         console.log('OTP (dev mode):', response.otp);
       }
       inputRefs[0].current?.focus();
     } catch (err) {
-      setError(
-        err.data?.detail || err.message || 'Failed to resend OTP. Please try again.'
-      );
+      setOtpSent(false);
+      setError(getOtpErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -282,19 +303,33 @@ export default function ForgotPasswordPage() {
                   </svg>
                 </div>
                 <h1 className='text-white text-3xl lg:text-4xl font-semibold mb-2'>
-                  OTP verification
+                  {isVerificationFlow ? 'Verify your email' : 'OTP verification'}
                 </h1>
                 <p className='text-gray-400 text-sm'>
-                  We've sent a 6 digit code to {email}
+                  {otpSent
+                    ? `We've sent a 6 digit code to ${email}`
+                    : isLoading
+                      ? `Sending a verification code to ${email}…`
+                      : `Enter the code sent to ${email} once you receive it`}
                   <br />
                   Not your email?{' '}
                   <button
-                    onClick={() => setStep(1)}
+                    type='button'
+                    onClick={() => {
+                      setStep(1);
+                      setOtpSent(false);
+                      setOtpSuccessMessage('');
+                    }}
                     className='text-[#F1CB68] hover:text-[#D6A738] transition-colors'
                   >
                     Change it
                   </button>
                 </p>
+                {otpSuccessMessage && (
+                  <div className='bg-green-500/10 border border-green-500/50 text-green-400 px-4 py-3 rounded-xl text-sm mt-4'>
+                    {otpSuccessMessage}
+                  </div>
+                )}
                 {otpFromResponse && (
                   <div className='bg-yellow-500/10 border border-yellow-500/50 text-yellow-400 px-4 py-3 rounded-xl text-sm'>
                     Development Mode: OTP is {otpFromResponse}

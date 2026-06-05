@@ -4,6 +4,7 @@
  */
 
 import { API_BASE_PATH, API_BASE_URL } from '@/config/api';
+import { isPersonaInquiryCreateMessage } from '@/utils/kycErrors';
 
 /**
  * Simple Logger utility for API calls
@@ -12,8 +13,25 @@ export const apiLogger = {
   info: (message, data = {}) => {
     console.log('[API]', message, data);
   },
-  error: (message, error = {}) => {
-    console.error('[API ERROR]', message, error);
+  error: (message, meta = {}) => {
+    if (meta instanceof Error) {
+      console.error(
+        '[API ERROR]',
+        message,
+        meta.message,
+        meta.status != null ? `(HTTP ${meta.status})` : ''
+      );
+      return;
+    }
+    const detail =
+      meta?.detail ??
+      meta?.message ??
+      (typeof meta === 'string' ? meta : null);
+    if (detail) {
+      console.error('[API ERROR]', message, detail, meta?.status != null ? `(HTTP ${meta.status})` : '');
+    } else {
+      console.error('[API ERROR]', message, meta);
+    }
   },
   success: (message, data = {}) => {
     console.log('[API SUCCESS]', message, data);
@@ -125,30 +143,13 @@ export const apiRequest = async (endpoint, options = {}) => {
         (endpoint.includes('/assets/') && responseData?.detail?.includes('not found'))
       );
 
-      // Don't log 405 (Method Not Allowed), 400 (Bad Request), 403 (Forbidden), 401 (Unauthorized), 404 (asset details), or 422 UUID errors as errors
-      // These are expected when endpoints have issues, backend bugs, validation errors, routing problems, permission issues, or assets don't exist
-      // 422 UUID errors occur when backend routes are misconfigured (e.g., treating "my" as UUID parameter)
-      // 403/401 errors are permission-related and should be handled gracefully by the calling code
-      // 404 asset details errors are expected when assets don't exist in the backend yet
-      if (response.status === 404 && is404AssetDetails) {
-        // Log 404 asset details as debug info (not an error)
-        console.log('[API] Asset not found:', endpoint, '- This is expected if asset does not exist in backend');
-      } else if (response.status === 403 || response.status === 401) {
-        // Log permission errors as warnings instead of errors (less noisy)
-        // These are expected when endpoints require special permissions or don't exist yet
-        console.warn('[API PERMISSION]', method, endpoint, response.status, 'Access denied or endpoint not available');
-      } else if (response.status !== 405 && response.status !== 400 && response.status !== 403 && response.status !== 401 && !is422UUIDError) {
-        console.error('[API ERROR RESPONSE]', method, endpoint, response.status, responseData);
-      }
-      
       // Extract error message from response
       let errorMessage = 'API request failed';
-      
+
       if (responseData) {
         if (typeof responseData === 'string') {
           errorMessage = responseData;
         } else if (responseData.detail) {
-          // Handle array of validation errors (FastAPI style)
           if (Array.isArray(responseData.detail)) {
             const errorMessages = responseData.detail.map(err => {
               if (typeof err === 'string') return err;
@@ -172,11 +173,31 @@ export const apiRequest = async (endpoint, options = {}) => {
           errorMessage = JSON.stringify(responseData);
         }
       }
+
+      const isKycPersonaHostedRequired =
+        endpoint.includes('kyc/start') &&
+        isPersonaInquiryCreateMessage(errorMessage);
+
+      if (response.status === 404 && is404AssetDetails) {
+        console.log('[API] Asset not found:', endpoint, '- This is expected if asset does not exist in backend');
+      } else if (response.status === 403 || response.status === 401) {
+        console.warn('[API PERMISSION]', method, endpoint, response.status, 'Access denied or endpoint not available');
+      } else if (isKycPersonaHostedRequired) {
+        console.warn(
+          '[API] KYC start: Persona inquiry API not enabled on server; hosted flow required.',
+          response.status
+        );
+      } else if (response.status !== 405 && response.status !== 400 && response.status !== 403 && response.status !== 401 && !is422UUIDError) {
+        console.error('[API ERROR RESPONSE]', method, endpoint, response.status, responseData);
+      }
       
       // Create error object with backend error details
       const error = new Error(errorMessage);
       error.status = response.status;
       error.data = responseData;
+      if (isKycPersonaHostedRequired) {
+        error.isPersonaHostedFlowRequired = true;
+      }
       throw error;
     }
 

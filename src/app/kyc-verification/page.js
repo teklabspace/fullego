@@ -1,7 +1,15 @@
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, Suspense } from 'react';
-import { startKYC, getKYCStatus, submitKYC, KYC_STATUS } from '@/utils/kycApi';
+import { getKYCStatus, submitKYC, KYC_STATUS } from '@/utils/kycApi';
+import {
+  getKycErrorMessage,
+  getKycUserFacingError,
+  handleKycStartResponse,
+  isPersonaInquiryCreateDisabledError,
+  startKycWithHostedFlowFirst,
+  tryClientHostedPersonaFallback,
+} from '@/utils/kycFlow';
 import PersonaVerification from '@/components/verification/PersonaVerification';
 import { toast } from 'react-toastify';
 
@@ -77,11 +85,22 @@ function KYCVerificationContent() {
           // If 404, show selection UI (or use profile if available)
           if (err.status === 404) {
             if (selectedProfile && profileToLevelMap[selectedProfile]) {
-              // Auto-start with profile selection
               const mappedLevel = profileToLevelMap[selectedProfile];
-              const autoType = selectedProfile === 'institutional' ? 'KYB' : 'KYC';
-              kycResponse = await startKYC(mappedLevel, autoType);
-              console.log('KYC Started with profile selection:', kycResponse);
+              const autoType =
+                selectedProfile === 'institutional' ? 'KYB' : 'KYC';
+              const started = await startKycWithHostedFlowFirst({
+                verificationLevel: mappedLevel,
+                verificationType: autoType,
+                onEmbeddedInquiryId: id => {
+                  setInquiryId(id);
+                  setIsLoading(false);
+                },
+              });
+              if (started.outcome === 'redirected' || started.outcome === 'approved') {
+                if (started.outcome === 'approved') router.push('/dashboard');
+                return;
+              }
+              kycResponse = started.data;
             } else {
               // Show selection UI
               setShowSelection(true);
@@ -93,45 +112,71 @@ function KYCVerificationContent() {
           }
         }
 
-        // If status is not_started or no Persona inquiry ID, show selection UI first
-        if (!kycResponse.persona_inquiry_id || kycResponse.status === 'not_started') {
-          console.log('No Persona inquiry ID or status is not_started, showing selection...');
-          setShowSelection(true);
-          setIsLoading(false);
+        const applyResponse = response => {
+          if (response?.status === KYC_STATUS.APPROVED) {
+            router.push('/dashboard');
+            return 'done';
+          }
+          return handleKycStartResponse(response, {
+            onEmbeddedInquiryId: id => {
+              setInquiryId(id);
+              setIsLoading(false);
+            },
+          });
+        };
+
+        // Use existing hosted URL from GET /kyc/status before POST /kyc/start
+        let flow = applyResponse(kycResponse);
+        if (flow === 'done' || flow === 'redirected' || flow === 'embedded') return;
+
+        const needsStart =
+          kycResponse.status === KYC_STATUS.NOT_STARTED ||
+          (kycResponse.status === KYC_STATUS.IN_PROGRESS &&
+            !kycResponse.verification_url);
+
+        if (needsStart) {
+          if (selectedProfile && profileToLevelMap[selectedProfile]) {
+            const mappedLevel = profileToLevelMap[selectedProfile];
+            const autoType =
+              selectedProfile === 'institutional' ? 'KYB' : 'KYC';
+            const started = await startKycWithHostedFlowFirst({
+              verificationLevel: mappedLevel,
+              verificationType: autoType,
+              onEmbeddedInquiryId: id => {
+                setInquiryId(id);
+                setIsLoading(false);
+              },
+            });
+            if (started.outcome === 'approved') {
+              router.push('/dashboard');
+              return;
+            }
+            if (started.outcome === 'redirected' || started.outcome === 'embedded') {
+              return;
+            }
+            kycResponse = started.data;
+            flow = applyResponse(kycResponse);
+            if (flow === 'done' || flow === 'redirected' || flow === 'embedded') {
+              return;
+            }
+          } else if (kycResponse.status === KYC_STATUS.NOT_STARTED) {
+            setShowSelection(true);
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        setShowSelection(true);
+        setIsLoading(false);
+      } catch (err) {
+        if (isPersonaInquiryCreateDisabledError(err) && tryClientHostedPersonaFallback()) {
           return;
         }
-
-        // If still no persona_inquiry_id after starting, wait a bit and retry
-        if (!kycResponse.persona_inquiry_id && !kycResponse.verification_url) {
-          console.log('No persona_inquiry_id or verification_url in startKYC response, waiting and retrying...');
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-          kycResponse = await getKYCStatus();
-          console.log('KYC Status after retry:', kycResponse);
+        if (!isPersonaInquiryCreateDisabledError(err)) {
+          console.error('Failed to start KYC:', err);
         }
-
-        // Priority 1: If we have verification_url, redirect to Persona's hosted page (recommended flow)
-        if (kycResponse.verification_url) {
-          console.log('Redirecting to Persona hosted verification:', kycResponse.verification_url);
-          window.location.href = kycResponse.verification_url;
-          return; // Don't set loading to false, we're redirecting
-        }
-        
-        // Priority 2: If we have Persona inquiry ID, use embedded SDK
-        if (kycResponse.persona_inquiry_id) {
-          console.log('Setting Persona inquiry ID for embedded flow:', kycResponse.persona_inquiry_id);
-          setInquiryId(kycResponse.persona_inquiry_id);
-          setIsLoading(false);
-        } else {
-          // This should not happen, but handle it gracefully
-          console.error('Failed to get Persona inquiry ID or verification URL after starting KYC');
-          const errorMessage = 'Failed to initialize verification. Please try again.';
-          router.push(`/kyc-verification?error=${encodeURIComponent(errorMessage)}`);
-        }
-      } catch (err) {
-        console.error('Failed to start KYC:', err);
-        const errorMessage = err.data?.detail || err.message || 'Failed to start verification. Please try again.';
-        // Redirect to start verification page with error
-        router.push(`/kyc-verification?error=${encodeURIComponent(errorMessage)}`);
+        setError(getKycUserFacingError(err));
+        setIsLoading(false);
       }
     };
 
@@ -201,39 +246,33 @@ function KYCVerificationContent() {
     setShowSelection(false);
 
     try {
-      let kycResponse = await startKYC(verificationLevel, autoVerificationType);
-      console.log('KYC Started:', kycResponse);
-      
-      // If still no persona_inquiry_id after starting, wait a bit and retry
-      if (!kycResponse.persona_inquiry_id && !kycResponse.verification_url) {
-        console.log('No persona_inquiry_id or verification_url in startKYC response, waiting and retrying...');
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-        kycResponse = await getKYCStatus();
-        console.log('KYC Status after retry:', kycResponse);
+      const started = await startKycWithHostedFlowFirst({
+        verificationLevel,
+        verificationType: autoVerificationType,
+        onEmbeddedInquiryId: id => {
+          setInquiryId(id);
+          setIsLoading(false);
+        },
+      });
+
+      if (started.outcome === 'approved') {
+        router.push('/dashboard');
+        return;
+      }
+      if (started.outcome === 'redirected' || started.outcome === 'embedded') {
+        return;
       }
 
-      // Priority 1: If we have verification_url, redirect to Persona's hosted page (recommended flow)
-      if (kycResponse.verification_url) {
-        console.log('Redirecting to Persona hosted verification:', kycResponse.verification_url);
-        window.location.href = kycResponse.verification_url;
-        return; // Don't set loading to false, we're redirecting
-      }
-      
-      // Priority 2: If we have Persona inquiry ID, use embedded SDK
-      if (kycResponse.persona_inquiry_id) {
-        console.log('Setting Persona inquiry ID for embedded flow:', kycResponse.persona_inquiry_id);
-        setInquiryId(kycResponse.persona_inquiry_id);
-        setIsLoading(false);
-      } else {
-        // This should not happen, but handle it gracefully
-        console.error('Failed to get Persona inquiry ID or verification URL after starting KYC');
-        const errorMessage = 'Failed to initialize verification. Please try again.';
-        router.push(`/kyc-verification?error=${encodeURIComponent(errorMessage)}`);
-      }
+      setError(getKycErrorMessage(started.data));
+      setIsLoading(false);
     } catch (err) {
-      console.error('Failed to start KYC:', err);
-      const errorMessage = err.data?.detail || err.message || 'Failed to start verification. Please try again.';
-      setError(errorMessage);
+      if (isPersonaInquiryCreateDisabledError(err) && tryClientHostedPersonaFallback()) {
+        return;
+      }
+      if (!isPersonaInquiryCreateDisabledError(err)) {
+        console.error('Failed to start KYC:', err);
+      }
+      setError(getKycUserFacingError(err));
       setIsLoading(false);
     }
   };

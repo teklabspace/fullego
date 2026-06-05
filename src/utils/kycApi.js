@@ -5,6 +5,7 @@
 
 import { API_ENDPOINTS, API_BASE_URL, API_BASE_PATH } from '@/config/api';
 import { apiGet, apiPost, apiLogger, getDefaultHeaders } from '@/lib/api/client';
+import { isPersonaInquiryCreateDisabledError } from '@/utils/kycErrors';
 
 /**
  * Logger utility for API calls (aliased for consistency)
@@ -27,15 +28,15 @@ export const startKYC = async (verificationLevel = null, verificationType = null
       verificationType,
     });
     
-    const requestBody = {};
+    const requestBody = { use_hosted_flow: true };
     if (verificationLevel) {
       requestBody.verification_level = verificationLevel;
     }
     if (verificationType) {
       requestBody.verification_type = verificationType;
     }
-    
-    const response = await apiPost(API_ENDPOINTS.KYC.START, Object.keys(requestBody).length > 0 ? requestBody : undefined);
+
+    const response = await apiPost(API_ENDPOINTS.KYC.START, requestBody);
 
     logger.success('KYC verification started successfully', {
       status: response.status,
@@ -45,10 +46,9 @@ export const startKYC = async (verificationLevel = null, verificationType = null
 
     return response;
   } catch (error) {
-    logger.error('Failed to start KYC verification', {
-      error: error.message,
-      status: error.status,
-    });
+    if (!isPersonaInquiryCreateDisabledError(error)) {
+      logger.error('Failed to start KYC verification', error);
+    }
     throw error;
   }
 };
