@@ -1,7 +1,9 @@
 'use client';
 import Navbar from '@/components/dashboard/Navbar';
 import Sidebar from '@/components/dashboard/Sidebar';
+import SecureRoute from '@/components/auth/SecureRoute';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/hooks/useAuth';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -15,6 +17,7 @@ import { getConversations, getMessages, sendMessage } from '@/utils/chatApi';
 
 export default function SupportDashboardPage() {
   const { isDarkMode } = useTheme();
+  const { isAdmin, isAdvisor } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
   const [selectedItem, setSelectedItem] = useState(null);
@@ -340,6 +343,7 @@ export default function SupportDashboardPage() {
   }
 
   return (
+    <SecureRoute allowedRoles={['admin', 'advisor']}>
     <div
       className={`flex h-screen ${isDarkMode ? 'bg-[#1A1A1F]' : 'bg-gray-50'}`}
     >
@@ -1021,15 +1025,18 @@ export default function SupportDashboardPage() {
                         Quick Actions
                       </h4>
                       <div className='space-y-2'>
-                        <button
-                          className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            isDarkMode
-                              ? 'bg-white/10 hover:bg-white/20 text-white'
-                              : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
-                          }`}
-                        >
-                          Re-assign
-                        </button>
+                        {/* Re-assign is admin-only (assign:tickets permission) */}
+                        {isAdmin && (
+                          <button
+                            className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                              isDarkMode
+                                ? 'bg-white/10 hover:bg-white/20 text-white'
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
+                            }`}
+                          >
+                            Re-assign
+                          </button>
+                        )}
                         <button
                           className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                             isDarkMode
@@ -1257,6 +1264,7 @@ export default function SupportDashboardPage() {
         }
       `}</style>
     </div>
+    </SecureRoute>
   );
 }
 

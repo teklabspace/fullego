@@ -1,6 +1,5 @@
 'use client';
-import Navbar from '@/components/dashboard/Navbar';
-import Sidebar from '@/components/dashboard/Sidebar';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -33,7 +32,6 @@ export default function MarketplacePage() {
 
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [activeCategory, setActiveCategory] = useState('All');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // Filter states
@@ -417,25 +415,13 @@ export default function MarketplacePage() {
   const investmentFunds = getFilteredFunds();
 
   return (
-    <div
-      className={`flex h-screen ${isDarkMode ? 'bg-[#1A1A1F]' : 'bg-gray-50'}`}
-    >
-      {/* Sidebar */}
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+    <DashboardLayout>
+      <div>
+        {/* Hero Section - Only show for Browse tab */}
+        {activeTab === 'browse' && <HeroSection isDarkMode={isDarkMode} />}
 
-      {/* Main Content */}
-      <div className='flex-1 flex flex-col overflow-hidden lg:ml-64'>
-        {/* Navbar */}
-        <Navbar onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-
-        {/* Page Content */}
-        <main className='flex-1 overflow-y-auto'>
-          <div>
-            {/* Hero Section - Only show for Browse tab */}
-            {activeTab === 'browse' && <HeroSection isDarkMode={isDarkMode} />}
-
-            {/* Main Content */}
-            <div className='p-3 md:p-4'>
+        {/* Main Content */}
+        <div>
               {/* Main Tabs - Browse and Active Offers */}
               <div className='mb-6'>
                 <div
@@ -759,9 +745,7 @@ export default function MarketplacePage() {
               {activeTab === 'active-offers' && (
                 <ActiveOffersContent isDarkMode={isDarkMode} router={router} myOffers={myOffers} />
               )}
-            </div>
-          </div>
-        </main>
+        </div>
       </div>
 
       <style jsx global>{`
@@ -805,7 +789,7 @@ export default function MarketplacePage() {
           background: #c19d2f;
         }
       `}</style>
-    </div>
+    </DashboardLayout>
   );
 }
 

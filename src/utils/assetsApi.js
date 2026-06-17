@@ -435,13 +435,26 @@ export const updateAssetValuation = async (assetId, valuationData) => {
  */
 export const createValuation = async (assetId, valuationData) => {
   const transformedData = transformToSnake(valuationData);
-  const endpoint = `/assets/${assetId}/valuations`;
-  const response = await apiPost(endpoint, transformedData);
-  
+  const response = await apiPost(API_ENDPOINTS.ASSETS.CREATE_VALUATION(assetId), transformedData);
+
   if (response.data) {
     response.data = transformKeys(response.data);
   }
-  
+
+  return response;
+};
+
+/**
+ * 18b. Get Valuation History (list)
+ * GET /api/v1/assets/{asset_id}/valuations
+ */
+export const getValuations = async (assetId) => {
+  const response = await apiGet(API_ENDPOINTS.ASSETS.GET_VALUATIONS(assetId));
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
   return response;
 };
 
@@ -511,12 +524,48 @@ export const cancelSaleRequest = async (assetId, requestId) => {
 export const transferAssetOwnership = async (assetId, transferData) => {
   const transformedData = transformToSnake(transferData);
   const response = await apiPost(API_ENDPOINTS.ASSETS.TRANSFER(assetId), transformedData);
-  
+
   if (response.data) {
     response.data = transformKeys(response.data);
   }
-  
+
   return response;
+};
+
+/**
+ * 23b. Get Transfer History
+ * GET /api/v1/assets/{asset_id}/transfers
+ */
+export const getAssetTransfers = async (assetId) => {
+  const response = await apiGet(API_ENDPOINTS.ASSETS.GET_TRANSFERS(assetId));
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
+  return response;
+};
+
+/**
+ * 23c. Get Specific Transfer
+ * GET /api/v1/assets/{asset_id}/transfers/{transfer_id}
+ */
+export const getAssetTransfer = async (assetId, transferId) => {
+  const response = await apiGet(API_ENDPOINTS.ASSETS.GET_TRANSFER(assetId, transferId));
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
+  return response;
+};
+
+/**
+ * 23d. Cancel Pending Transfer
+ * DELETE /api/v1/assets/{asset_id}/transfers/{transfer_id}
+ */
+export const cancelAssetTransfer = async (assetId, transferId) => {
+  return await apiDelete(API_ENDPOINTS.ASSETS.CANCEL_TRANSFER(assetId, transferId));
 };
 
 /**
@@ -584,6 +633,20 @@ export const getAssetsSummary = async (categoryGroup = null) => {
 };
 
 /**
+ * 27b. Get Assets Summary Stats
+ * GET /api/v1/assets/summary/stats
+ */
+export const getAssetsSummaryStats = async () => {
+  const response = await apiGet(API_ENDPOINTS.ASSETS.SUMMARY_STATS);
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
+  return response;
+};
+
+/**
  * 28. Get Asset Value Trends
  * GET /api/v1/assets/value-trends
  */
@@ -600,6 +663,47 @@ export const getAssetValueTrends = async (params = {}) => {
   }
   
   return response;
+};
+
+// ============================================================================
+// OWNERSHIP APIs
+// ============================================================================
+
+/**
+ * Get Asset Ownership Records
+ * GET /api/v1/assets/{asset_id}/ownership
+ */
+export const getAssetOwnership = async (assetId) => {
+  const response = await apiGet(API_ENDPOINTS.ASSETS.GET_OWNERSHIP(assetId));
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
+  return response;
+};
+
+/**
+ * Add Joint Ownership
+ * POST /api/v1/assets/{asset_id}/ownership
+ */
+export const addAssetOwnership = async (assetId, ownershipData) => {
+  const transformedData = transformToSnake(ownershipData);
+  const response = await apiPost(API_ENDPOINTS.ASSETS.ADD_OWNERSHIP(assetId), transformedData);
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
+  return response;
+};
+
+/**
+ * Remove Joint Ownership
+ * DELETE /api/v1/assets/{asset_id}/ownership/{ownership_id}
+ */
+export const removeAssetOwnership = async (assetId, ownershipId) => {
+  return await apiDelete(API_ENDPOINTS.ASSETS.REMOVE_OWNERSHIP(assetId, ownershipId));
 };
 
 // ============================================================================

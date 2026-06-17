@@ -330,7 +330,7 @@ export default function AddAssetPage() {
           specifications: {
             // Include all category-specific fields
             ...formData,
-            // Remove non-specification fields
+            // Remove top-level fields that are stored separately
             asset_name: undefined,
             name: undefined,
             category: undefined,
@@ -349,18 +349,23 @@ export default function AddAssetPage() {
             photos: undefined,
             images: undefined,
             documents: undefined,
+            // Composite/phantom keys that are never individually filled
+            make_model_year: undefined,
+            image: undefined,
           },
         };
 
-        // Remove undefined values
+        // Remove undefined values from top-level
         Object.keys(assetData).forEach(key => {
           if (assetData[key] === undefined) {
             delete assetData[key];
           }
         });
+        // Remove undefined AND empty-string values from specifications
         if (assetData.specifications) {
           Object.keys(assetData.specifications).forEach(key => {
-            if (assetData.specifications[key] === undefined) {
+            const val = assetData.specifications[key];
+            if (val === undefined || val === null || val === '') {
               delete assetData.specifications[key];
             }
           });
@@ -485,6 +490,7 @@ export default function AddAssetPage() {
     const newFiles = validFiles.map(file => ({
       id: Date.now() + Math.random(),
       file,
+      previewUrl: URL.createObjectURL(file),
       name: file.name,
       size: (file.size / (1024 * 1024)).toFixed(2),
       progress: 0,
@@ -670,9 +676,13 @@ export default function AddAssetPage() {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
-            if (response.data?.id) {
-              resolve({ id: response.data.id, ...response.data });
+            console.log('📁 Upload response:', response);
+            const data = response.data || response;
+            const id = data.id || data.file_id || data.uuid;
+            if (id) {
+              resolve({ id, ...data });
             } else {
+              console.error('Upload response missing ID. Full response:', response);
               reject(new Error('Upload succeeded but no ID returned'));
             }
           } catch (err) {
@@ -708,7 +718,6 @@ export default function AddAssetPage() {
     // Cancel upload if in progress
     const promise = uploadPromises.get(fileId);
     if (promise) {
-      // Note: We can't actually cancel XMLHttpRequest easily, but we'll remove it from tracking
       setUploadPromises(prev => {
         const newMap = new Map(prev);
         newMap.delete(fileId);
@@ -717,7 +726,11 @@ export default function AddAssetPage() {
     }
 
     if (type === 'photo') {
-      setAssetPhotos(prev => prev.filter(file => file.id !== fileId));
+      setAssetPhotos(prev => {
+        const file = prev.find(f => f.id === fileId);
+        if (file?.previewUrl) URL.revokeObjectURL(file.previewUrl);
+        return prev.filter(f => f.id !== fileId);
+      });
     } else if (type === 'doc') {
       setSupportingDocs(prev => prev.filter(file => file.id !== fileId));
     }
@@ -1530,7 +1543,7 @@ export default function AddAssetPage() {
                         {/* Thumbnail */}
                         <div className='w-16 h-16 rounded-lg overflow-hidden bg-[#1a1a1d] flex-shrink-0 border border-[#FFFFFF14]'>
                           <img
-                            src={URL.createObjectURL(photo.file)}
+                            src={photo.previewUrl}
                             alt={photo.name}
                             className='w-full h-full object-cover'
                           />

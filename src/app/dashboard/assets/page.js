@@ -7,9 +7,10 @@ import {
 } from '@/config/assetConfig';
 import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getAssets,
+  deleteAsset,
   requestAssetSale,
   requestAssetAppraisal,
   formatCurrency,
@@ -35,89 +36,69 @@ export default function AssetsPage() {
   const [submittingAppraisal, setSubmittingAppraisal] = useState(false);
 
   // Fetch assets from API
-  useEffect(() => {
-    const fetchAssets = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const params = {
-          category: selectedCategory !== 'all' ? selectedCategory : undefined,
-          sortBy: 'created_at',
-          order: 'desc',
-        };
-        
-        const response = await getAssets(params);
-        
-        // Format assets for display
-        const formattedAssets = (response.data || []).map(asset => ({
-          ...asset,
-          // Format values for display
-          estimatedValue: asset.estimatedValue
-            ? formatCurrency(asset.estimatedValue, asset.currency)
-            : asset.estimatedValue,
-          currentValue: asset.currentValue
-            ? formatCurrency(asset.currentValue, asset.currency)
-            : asset.currentValue,
-          // Use primary image or first image
-          image: asset.image || (asset.images && asset.images[0]) || null,
-          // Map lastAppraisalDate to lastAppraisal
-          lastAppraisal: asset.lastAppraisalDate || asset.lastAppraisal,
-        }));
-        
-        setAssets(formattedAssets);
-      } catch (err) {
-        console.error('Error fetching assets:', err);
-        
-        // Extract user-friendly error message
-        let errorMessage = 'Failed to load assets';
-        
-        // Get error message from multiple possible locations
-        const rawMessage = err.message || err.data?.detail || err.data?.message || '';
-        
-        if (rawMessage) {
-          // Check if it's a backend SQLAlchemy error
-          if (rawMessage.includes('greenlet_spawn') || 
-              rawMessage.includes('await_only') || 
-              rawMessage.includes('IO attempted in an unexpected place')) {
-            errorMessage = 'Server error: Database connection issue. Please try again later.';
-          } else if (rawMessage.includes('Failed to fetch') || 
-                     rawMessage.includes('network') ||
-                     rawMessage.includes('ERR_FAILED')) {
-            errorMessage = 'Network error: Unable to connect to server. Please check your connection.';
-          } else if (err.status === 500) {
-            // Generic 500 error with technical details hidden
-            errorMessage = 'Server error: Please try again later or contact support.';
-          } else if (err.status === 400) {
-            errorMessage = 'Invalid request. Please check your input and try again.';
-          } else if (err.status === 401) {
-            // Redirect to login page instead of showing error message
-            router.replace('/login');
-            return;
-          } else if (err.status === 403) {
-            errorMessage = 'Access denied. You do not have permission to view assets.';
-          } else if (err.status === 404) {
-            errorMessage = 'Resource not found.';
-          } else {
-            // For other errors, show the message but sanitize SQLAlchemy errors
-            errorMessage = rawMessage.includes('sqlalchemy') || 
-                          rawMessage.includes('greenlet') ||
-                          rawMessage.includes('await_only')
-              ? 'Server error: Please try again later or contact support.'
-              : rawMessage;
-          }
+  const fetchAssets = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = {
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+        sortBy: 'created_at',
+        order: 'desc',
+      };
+
+      const response = await getAssets(params);
+
+      const formattedAssets = (response.data || []).map(asset => ({
+        ...asset,
+        estimatedValue: asset.estimatedValue
+          ? formatCurrency(asset.estimatedValue, asset.currency)
+          : asset.estimatedValue,
+        currentValue: asset.currentValue
+          ? formatCurrency(asset.currentValue, asset.currency)
+          : asset.currentValue,
+        image: asset.image || (asset.images && asset.images[0]) || null,
+        lastAppraisal: asset.lastAppraisalDate || asset.lastAppraisal,
+      }));
+
+      setAssets(formattedAssets);
+    } catch (err) {
+      console.error('Error fetching assets:', err);
+      let errorMessage = 'Failed to load assets';
+      const rawMessage = err.message || err.data?.detail || err.data?.message || '';
+      if (rawMessage) {
+        if (rawMessage.includes('greenlet_spawn') || rawMessage.includes('await_only') || rawMessage.includes('IO attempted in an unexpected place')) {
+          errorMessage = 'Server error: Database connection issue. Please try again later.';
+        } else if (rawMessage.includes('Failed to fetch') || rawMessage.includes('network') || rawMessage.includes('ERR_FAILED')) {
+          errorMessage = 'Network error: Unable to connect to server. Please check your connection.';
         } else if (err.status === 500) {
           errorMessage = 'Server error: Please try again later or contact support.';
+        } else if (err.status === 400) {
+          errorMessage = 'Invalid request. Please check your input and try again.';
+        } else if (err.status === 401) {
+          router.replace('/login');
+          return;
+        } else if (err.status === 403) {
+          errorMessage = 'Access denied. You do not have permission to view assets.';
+        } else if (err.status === 404) {
+          errorMessage = 'Resource not found.';
+        } else {
+          errorMessage = rawMessage.includes('sqlalchemy') || rawMessage.includes('greenlet') || rawMessage.includes('await_only')
+            ? 'Server error: Please try again later or contact support.'
+            : rawMessage;
         }
-        
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
+      } else if (err.status === 500) {
+        errorMessage = 'Server error: Please try again later or contact support.';
       }
-    };
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCategory, router]);
 
+  useEffect(() => {
     fetchAssets();
-  }, [selectedCategory]);
+  }, [fetchAssets]);
 
   // Get all categories for filtering
   const categories = [
@@ -131,7 +112,14 @@ export default function AssetsPage() {
       })),
   ];
 
-  const filteredAssets = assets; // Assets are already filtered by API
+  const normalizeCategory = s => s?.toLowerCase().replace(/[\s_-]+/g, '') || '';
+  const filteredAssets =
+    selectedCategory === 'all'
+      ? assets
+      : assets.filter(
+          asset =>
+            normalizeCategory(asset.category) === normalizeCategory(selectedCategory)
+        );
 
   const handleViewDetails = asset => {
     router.push(`/dashboard/assets/detail?id=${asset.id}`);
@@ -182,6 +170,10 @@ export default function AssetsPage() {
     } finally {
       setSubmittingAppraisal(false);
     }
+  };
+
+  const handleDeleteAsset = () => {
+    fetchAssets();
   };
 
   return (
@@ -353,6 +345,7 @@ export default function AssetsPage() {
               onViewDetails={() => handleViewDetails(asset)}
               onRequestSell={() => handleRequestSell(asset)}
               onRequestAppraisal={() => handleRequestAppraisal(asset)}
+              onDelete={handleDeleteAsset}
             />
           ))}
         </div>
@@ -394,7 +387,48 @@ function AssetCard({
   onViewDetails,
   onRequestSell,
   onRequestAppraisal,
+  onDelete,
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [menuOpen]);
+
+  const handleDelete = () => {
+    setMenuOpen(false);
+    setDeleteError('');
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      setDeleting(true);
+      setDeleteError('');
+      await deleteAsset(asset.id);
+      setShowDeleteModal(false);
+      onDelete();
+    } catch (err) {
+      const msg = err.message || '';
+      if (err.status === 409 || msg.toLowerCase().includes('listed') || msg.toLowerCase().includes('marketplace')) {
+        setDeleteError('Cannot delete: this asset has an active marketplace listing. Remove the listing first.');
+      } else {
+        setDeleteError(msg || 'Failed to delete asset. Please try again.');
+      }
+      setDeleting(false);
+    }
+  };
   // Get card fields for this asset's category
   const cardFields = getCardFieldsForCategory(asset.category);
   const categoryGroup = getCategoryGroup(asset.category);
@@ -558,12 +592,12 @@ function AssetCard({
 
   return (
     <div
-      className={`bg-transparent border rounded-2xl overflow-hidden hover:border-[#F1CB68]/50 transition-all group ${
+      className={`bg-transparent border rounded-2xl hover:border-[#F1CB68]/50 transition-all group relative ${
         isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-300'
       }`}
     >
       {/* Image */}
-      <div className='relative h-48 overflow-hidden'>
+      <div className='relative h-48 overflow-hidden rounded-t-2xl'>
         {asset.image ? (
           <img
             src={asset.image}
@@ -587,13 +621,94 @@ function AssetCard({
             </span>
           </div>
         )}
-        <button className='absolute top-3 right-3 w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-colors'>
-          <span
-            className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
-          >
-            ⋯
-          </span>
+      </div>
+
+      {/* 3-dot menu — outside image overflow-hidden so dropdown renders fully */}
+      <div ref={menuRef} className='absolute top-3 right-3 z-30'>
+        <button
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}
+          className='w-9 h-9 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center transition-all duration-200 shadow-lg hover:bg-black/85 hover:scale-105'
+        >
+          <svg width='15' height='15' viewBox='0 0 24 24' fill='white'>
+            <circle cx='5' cy='12' r='2.2' />
+            <circle cx='12' cy='12' r='2.2' />
+            <circle cx='19' cy='12' r='2.2' />
+          </svg>
         </button>
+
+        {menuOpen && (
+          <div
+            className='absolute right-0 top-11 min-w-[210px] rounded-2xl border z-50 overflow-hidden bg-[#0f0f12] border-[#ffffff18]'
+            style={{ boxShadow: '0 24px 64px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.06)' }}
+          >
+            {/* Header */}
+            <div className='px-4 pt-3 pb-2 border-b border-[#ffffff0d]'>
+              <p className='text-[10px] font-bold uppercase tracking-[0.15em] whitespace-nowrap text-gray-500'>
+                Asset Actions
+              </p>
+            </div>
+
+            <div className='py-1.5'>
+              <button
+                onClick={() => { setMenuOpen(false); onViewDetails(); }}
+                className='w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors text-left whitespace-nowrap text-gray-200 hover:bg-white/[0.07] hover:text-white'
+              >
+                <span className='w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-blue-500/20'>
+                  <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#60a5fa' strokeWidth='2.2'>
+                    <path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' />
+                    <circle cx='12' cy='12' r='3' />
+                  </svg>
+                </span>
+                View Details
+              </button>
+
+              <button
+                onClick={() => { setMenuOpen(false); onRequestSell(); }}
+                className='w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors text-left whitespace-nowrap text-gray-200 hover:bg-white/[0.07] hover:text-white'
+              >
+                <span className='w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-[#F1CB68]/20'>
+                  <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2.2'>
+                    <line x1='12' y1='1' x2='12' y2='23' />
+                    <path d='M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' />
+                  </svg>
+                </span>
+                Request to Sell
+              </button>
+
+              <button
+                onClick={() => { setMenuOpen(false); onRequestAppraisal(); }}
+                className='w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors text-left whitespace-nowrap text-gray-200 hover:bg-white/[0.07] hover:text-white'
+              >
+                <span className='w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-purple-500/20'>
+                  <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#c084fc' strokeWidth='2.2'>
+                    <circle cx='11' cy='11' r='8' />
+                    <line x1='21' y1='21' x2='16.65' y2='16.65' />
+                  </svg>
+                </span>
+                Request Appraisal
+              </button>
+            </div>
+
+            <div className='border-t mx-3 border-[#ffffff0f]' />
+
+            <div className='py-1.5'>
+              <button
+                onClick={handleDelete}
+                className='w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors text-left whitespace-nowrap text-red-400 hover:bg-red-500/10 hover:text-red-300'
+              >
+                <span className='w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-red-500/20'>
+                  <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#f87171' strokeWidth='2.2'>
+                    <polyline points='3 6 5 6 21 6' />
+                    <path d='M19 6l-1 14H6L5 6' />
+                    <path d='M10 11v6M14 11v6' />
+                    <path d='M9 6V4h6v2' />
+                  </svg>
+                </span>
+                Delete Asset
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -694,6 +809,68 @@ function AssetCard({
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className='fixed inset-0 z-200 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm'>
+          <div
+            className='w-full max-w-sm rounded-2xl border overflow-hidden bg-[#0f0f12] border-[#ffffff18]'
+            style={{ boxShadow: '0 24px 64px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.06)' }}
+          >
+            {/* Icon + title */}
+            <div className='flex flex-col items-center pt-8 pb-4 px-6 text-center'>
+              <div className='w-14 h-14 rounded-full bg-red-500/15 flex items-center justify-center mb-4'>
+                <svg width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='#f87171' strokeWidth='2'>
+                  <polyline points='3 6 5 6 21 6' />
+                  <path d='M19 6l-1 14H6L5 6' />
+                  <path d='M10 11v6M14 11v6' />
+                  <path d='M9 6V4h6v2' />
+                </svg>
+              </div>
+              <h3 className='text-lg font-bold text-white mb-1'>Delete Asset</h3>
+              <p className='text-sm text-gray-400 leading-relaxed'>
+                Are you sure you want to delete{' '}
+                <span className='text-white font-semibold'>"{asset.name}"</span>?
+                <br />
+                This removes all photos, documents and valuations permanently.
+              </p>
+            </div>
+
+            {/* Error message */}
+            {deleteError && (
+              <div className='mx-6 mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20'>
+                <p className='text-red-400 text-xs leading-relaxed'>{deleteError}</p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className='flex gap-3 px-6 pb-6'>
+              <button
+                onClick={() => { setShowDeleteModal(false); setDeleteError(''); }}
+                disabled={deleting}
+                className='flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors bg-white/8 hover:bg-white/12 text-gray-300 border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className='flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors bg-red-500 hover:bg-red-600 text-white disabled:opacity-70 disabled:cursor-not-allowed'
+              >
+                {deleting ? (
+                  <span className='flex items-center justify-center gap-2'>
+                    <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
+                      <circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' fill='none' />
+                      <path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z' />
+                    </svg>
+                    Deleting...
+                  </span>
+                ) : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,12 +4,36 @@
  */
 
 /**
+ * Production backend base URL
+ */
+const PRODUCTION_API_BASE_URL = 'https://akunuba-backend.onrender.com/';
+
+/**
+ * Local development backend base URL
+ */
+const LOCAL_API_BASE_URL = 'http://localhost:8000';
+
+/**
+ * Determine whether the app is running on localhost.
+ * Uses the browser hostname when available, otherwise falls back to NODE_ENV.
+ */
+const isLocalhost = () => {
+  if (typeof window !== 'undefined' && window.location) {
+    const { hostname } = window.location;
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+  }
+  return process.env.NODE_ENV === 'development';
+};
+
+/**
  * API Base URL
- * Can be overridden by environment variable NEXT_PUBLIC_API_BASE_URL
- * Defaults to production backend if no env variable is set
+ * Can be overridden by environment variable NEXT_PUBLIC_API_BASE_URL.
+ * On localhost it uses the local backend; in production it uses the
+ * production backend.
  */
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'https://akunuba-backend.onrender.com/';
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  (isLocalhost() ? LOCAL_API_BASE_URL : PRODUCTION_API_BASE_URL);
 /**
  * API Version
  */
@@ -68,19 +92,19 @@ export const API_ENDPOINTS = {
     PROFILE: '/users/me', // Use /me instead of /profile to avoid route conflict with /users/{user_id}
     UPDATE_PROFILE: '/users/me', // Updated to match API documentation
     // Notification Preferences
-    NOTIFICATIONS: '/users/notifications',
+    NOTIFICATIONS: '/users/me/notifications',
     // Privacy Preferences
-    PRIVACY: '/users/privacy',
+    PRIVACY: '/users/me/privacy',
     // Two-Factor Authentication
-    TWO_FACTOR_AUTH: '/users/two-factor-auth',
-    TWO_FACTOR_AUTH_STATUS: '/users/two-factor-auth/status',
-    TWO_FACTOR_AUTH_SETUP: '/users/two-factor-auth/setup',
-    TWO_FACTOR_AUTH_VERIFY: '/users/two-factor-auth/verify',
+    TWO_FACTOR_AUTH: '/users/me/two-factor-auth',
+    TWO_FACTOR_AUTH_STATUS: '/users/me/two-factor-auth/status',
+    TWO_FACTOR_AUTH_SETUP: '/users/me/two-factor-auth/setup',
+    TWO_FACTOR_AUTH_VERIFY: '/users/me/two-factor-auth/verify',
     // Password Management
-    CHANGE_PASSWORD: '/users/change-password',
+    CHANGE_PASSWORD: '/users/me/change-password',
     // Account Management
-    DEACTIVATE_ACCOUNT: '/users/deactivate',
-    DELETE_ACCOUNT: '/users/delete',
+    DEACTIVATE_ACCOUNT: '/users/me/deactivate',
+    DELETE_ACCOUNT: '/users/me/delete',
   },
   // Assets endpoints
   ASSETS: {
@@ -118,12 +142,24 @@ export const API_ENDPOINTS = {
     GET_REPORT: (id, reportId) => `/assets/${id}/reports/${reportId}`,
     // Analytics
     SUMMARY: '/assets/summary',
+    SUMMARY_STATS: '/assets/summary/stats',
     VALUE_TRENDS: '/assets/value-trends',
+    // Valuations (list)
+    GET_VALUATIONS: (id) => `/assets/${id}/valuations`,
+    CREATE_VALUATION: (id) => `/assets/${id}/valuations`,
+    // Ownership
+    GET_OWNERSHIP: (id) => `/assets/${id}/ownership`,
+    ADD_OWNERSHIP: (id) => `/assets/${id}/ownership`,
+    REMOVE_OWNERSHIP: (id, ownershipId) => `/assets/${id}/ownership/${ownershipId}`,
+    // Transfers (list/get/cancel)
+    GET_TRANSFERS: (id) => `/assets/${id}/transfers`,
+    GET_TRANSFER: (id, transferId) => `/assets/${id}/transfers/${transferId}`,
+    CANCEL_TRANSFER: (id, transferId) => `/assets/${id}/transfers/${transferId}`,
   },
   // Files endpoints
   FILES: {
     BASE: '/files',
-    UPLOAD: '/files/upload',
+    UPLOAD: '/assets/files/upload',
   },
   // Investment Management endpoints ⭐ INTEGRATED
   INVESTMENT: {
@@ -459,6 +495,25 @@ export const API_ENDPOINTS = {
     POLICIES: '/compliance/policies',
     GET_POLICY: (policyId) => `/compliance/policies/${policyId}`,
     CREATE_POLICY: '/compliance/policies',
+  },
+  // Admin endpoints
+  ADMIN: {
+    // Users
+    LIST_USERS: '/admin/users',
+    GET_USER: (id) => `/admin/users/${id}`,
+    UPDATE_USER_ROLE: (id) => `/admin/users/${id}/role`,
+    DEACTIVATE_USER: (id) => `/admin/users/${id}/deactivate`,
+    ACTIVATE_USER: (id) => `/admin/users/${id}/activate`,
+    // Subscriptions
+    LIST_SUBSCRIPTIONS: '/admin/subscriptions',
+    CANCEL_SUBSCRIPTION: (id) => `/admin/subscriptions/${id}/cancel`,
+    UPDATE_SUBSCRIPTION_PLAN: (id) => `/admin/subscriptions/${id}/plan`,
+    // Verifications (KYC/KYB)
+    LIST_VERIFICATIONS: '/admin/verifications',
+    APPROVE_KYC: (id) => `/admin/verifications/kyc/${id}/approve`,
+    REJECT_KYC: (id) => `/admin/verifications/kyc/${id}/reject`,
+    APPROVE_KYB: (id) => `/admin/verifications/kyb/${id}/approve`,
+    REJECT_KYB: (id) => `/admin/verifications/kyb/${id}/reject`,
   },
   // Notifications endpoints
   NOTIFICATIONS: {

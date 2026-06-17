@@ -4,6 +4,7 @@ import AssetDetailSkeleton from '@/components/skeletons/AssetDetailSkeleton';
 import { useTheme } from '@/context/ThemeContext';
 import
   {
+    deleteAsset,
     formatCurrency,
     formatDate,
     generateAssetReport,
@@ -72,6 +73,8 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     email: '',
     expiresIn: 7,
   });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Fetch asset data
   useEffect(() => {
@@ -421,6 +424,23 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     }
   };
 
+  const handleDeleteAsset = async () => {
+    try {
+      setDeleting(true);
+      await deleteAsset(asset.id);
+      setShowDeleteModal(false);
+      router.replace('/dashboard/assets');
+    } catch (err) {
+      console.error('Error deleting asset:', err);
+      let msg = err.message || 'Failed to delete asset';
+      if (err.status === 409 || msg.toLowerCase().includes('listed') || msg.toLowerCase().includes('marketplace')) {
+        msg = 'Cannot delete this asset while it has an active marketplace listing. Remove the listing first.';
+      }
+      alert(msg);
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -494,6 +514,16 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
             </div>
           </div>
           <div className='flex gap-3'>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className={`px-4 py-3 rounded-lg font-semibold transition-colors border ${
+                isDarkMode
+                  ? 'border-red-500/50 text-red-400 hover:bg-red-500/10'
+                  : 'border-red-300 text-red-600 hover:bg-red-50'
+              }`}
+            >
+              Delete
+            </button>
             <button
               onClick={() => setShowSellModal(true)}
               disabled={submittingSell}
@@ -1037,6 +1067,65 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
             </div>
           </div>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && (
+          <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm'>
+            <div className={`border rounded-2xl max-w-md w-full p-6 ${
+              isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-300'
+            }`}>
+              <div className='flex items-center gap-3 mb-4'>
+                <div className='w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0'>
+                  <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#EF4444' strokeWidth='2'>
+                    <polyline points='3 6 5 6 21 6' />
+                    <path d='M19 6l-1 14H6L5 6' />
+                    <path d='M10 11v6M14 11v6' />
+                    <path d='M9 6V4h6v2' />
+                  </svg>
+                </div>
+                <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Delete Asset
+                </h2>
+              </div>
+              <p className={`text-sm mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Are you sure you want to delete <strong>{asset.name}</strong>?
+              </p>
+              <p className={`text-sm mb-6 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                This will permanently remove the asset along with all its photos, documents, and valuations. This action cannot be undone.
+              </p>
+              <div className='flex gap-3'>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={deleting}
+                  className={`flex-1 py-2.5 rounded-lg font-semibold transition-colors border ${
+                    isDarkMode
+                      ? 'bg-white/5 hover:bg-white/10 text-white border-[#FFFFFF14]'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-900 border-gray-300'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAsset}
+                  disabled={deleting}
+                  className='flex-1 py-2.5 rounded-lg font-semibold transition-colors bg-red-500 hover:bg-red-600 text-white disabled:opacity-60 disabled:cursor-not-allowed'
+                >
+                  {deleting ? (
+                    <span className='flex items-center justify-center gap-2'>
+                      <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
+                        <circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' fill='none' />
+                        <path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z' />
+                      </svg>
+                      Deleting...
+                    </span>
+                  ) : (
+                    'Delete Asset'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Request to Sell Modal */}
         {showSellModal && (
