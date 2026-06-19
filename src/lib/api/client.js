@@ -203,10 +203,16 @@ export const apiRequest = async (endpoint, options = {}) => {
 
     return responseData;
   } catch (error) {
-    // Network or other exception
+    // Network or other exception (no backend response attached)
     if (!error.data) {
-      console.error('[API NETWORK ERROR]', method, endpoint, error.message, url);
+      // "Failed to fetch" / TypeError means the backend was unreachable (server down,
+      // CORS, offline) — not a code bug. Log as a warning so it doesn't surface as a
+      // red Console Error; callers handle the rejection and degrade gracefully.
+      const isNetworkError = error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(error.message || '');
+      const log = isNetworkError ? console.warn : console.error;
+      log('[API NETWORK ERROR]', method, endpoint, error.message, url);
       error.url = url;
+      error.isNetworkError = isNetworkError;
     }
     throw error;
   }

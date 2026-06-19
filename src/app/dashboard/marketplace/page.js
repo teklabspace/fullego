@@ -2,7 +2,7 @@
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
 import {
   listListings,
@@ -12,7 +12,19 @@ import {
   getMarketTrends,
   getWatchlist,
   removeFromWatchlist,
+  acceptOffer,
+  rejectOffer,
+  counterOffer,
+  withdrawOffer,
+  getEscrow,
+  fundEscrow,
+  releaseEscrow,
+  disputeEscrow,
+  refundEscrow,
+  createListing,
 } from '@/utils/marketplaceApi';
+import { getAssets } from '@/utils/assetsApi';
+import { toast } from 'react-toastify';
 
 export default function MarketplacePage() {
   const { isDarkMode } = useTheme();
@@ -33,6 +45,7 @@ export default function MarketplacePage() {
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [activeCategory, setActiveCategory] = useState('All');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isListModalOpen, setIsListModalOpen] = useState(false);
 
   // Filter states
   const [sortBy, setSortBy] = useState('price-low-high');
@@ -253,71 +266,73 @@ export default function MarketplacePage() {
     }
   }, [activeTab]);
 
-  // Fetch user's offers
-  useEffect(() => {
-    const fetchMyOffers = async () => {
-      try {
-        const offersRes = await getMyOffers();
-        
-        if (offersRes.data && Array.isArray(offersRes.data)) {
-          // Transform API data to match UI structure
-          const transformedOffers = offersRes.data.map(offer => ({
-            id: offer.id,
-            assetName: offer.listingTitle || offer.assetName || 'Unknown Asset',
-            assetThumbnail: offer.assetThumbnail || offer.thumbnail || 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400',
-            category: offer.assetType || offer.category || 'Other',
-            offerAmount: offer.offerAmount ? `$${offer.offerAmount.toLocaleString()}` : '$0',
-            offerAmountValue: offer.offerAmount || 0,
-            currency: offer.currency || 'USD',
-            offerStatus: offer.status === 'pending' ? 'Pending' : 
-                        offer.status === 'accepted' ? 'Accepted' :
-                        offer.status === 'rejected' ? 'Rejected' :
-                        offer.status === 'countered' ? 'Countered' :
-                        offer.status === 'expired' ? 'Expired' :
-                        offer.status === 'withdrawn' ? 'Withdrawn' : 'Pending',
-            role: offer.role || 'Buyer',
-            counterparty: offer.sellerName || offer.counterparty || 'Unknown',
-            counterpartyId: offer.sellerId || offer.counterpartyId || '',
-            dateUpdated: offer.updatedAt || offer.createdAt || new Date().toISOString(),
-            listingId: offer.listingId || offer.id,
-            message: offer.message || '',
-          }));
-          setMyOffers(transformedOffers);
-        } else {
-          setMyOffers([]);
-        }
-      } catch (err) {
-        // Check if this is a 422 error with UUID validation issue (backend routing problem)
-        // The error detail is an array with objects like: {loc: ['path', 'offer_id'], msg: '...', type: 'uuid_parsing'}
-        const is422UUIDError = err.status === 422 && (
-          err.message?.includes('valid UUID') ||
-          err.message?.includes('uuid_parsing') ||
-          (Array.isArray(err.data?.detail) && err.data.detail.some(d => 
-            (typeof d === 'object' && (d?.msg?.includes('valid UUID') || d?.type === 'uuid_parsing')) ||
-            (typeof d === 'string' && d.includes('valid UUID'))
-          )) ||
-          (typeof err.data?.detail === 'string' && err.data.detail.includes('valid UUID'))
-        );
+  // Fetch user's offers (exposed as a callback so offer/escrow actions can refresh)
+  const fetchMyOffers = useCallback(async () => {
+    try {
+      const offersRes = await getMyOffers();
 
-        // Handle 405, 400, or 422 UUID errors gracefully
-        // 422 UUID errors = backend routing issue (treating "my" as UUID parameter)
-        if (err.status === 405 || err.status === 400 || is422UUIDError || 
-            err.message?.includes('Method Not Allowed') || 
-            err.data?.detail?.includes('Method Not Allowed') ||
-            err.data?.detail?.includes('unsupported operand')) {
-          // Silently handle - endpoint has issues, backend routing problem, or not implemented yet
-          setMyOffers([]);
-        } else {
-          // Only log unexpected errors
-          console.error('Error fetching my offers:', err);
-        }
+      if (offersRes.data && Array.isArray(offersRes.data)) {
+        // Transform API data to match UI structure
+        const transformedOffers = offersRes.data.map(offer => ({
+          id: offer.id,
+          assetName: offer.listingTitle || offer.assetName || 'Unknown Asset',
+          assetThumbnail: offer.assetThumbnail || offer.thumbnail || 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400',
+          category: offer.assetType || offer.category || 'Other',
+          offerAmount: offer.offerAmount ? `$${offer.offerAmount.toLocaleString()}` : '$0',
+          offerAmountValue: offer.offerAmount || 0,
+          currency: offer.currency || 'USD',
+          offerStatus: offer.status === 'pending' ? 'Pending' :
+                      offer.status === 'accepted' ? 'Accepted' :
+                      offer.status === 'rejected' ? 'Rejected' :
+                      offer.status === 'countered' ? 'Countered' :
+                      offer.status === 'expired' ? 'Expired' :
+                      offer.status === 'withdrawn' ? 'Withdrawn' : 'Pending',
+          role: offer.role || 'Buyer',
+          counterparty: offer.sellerName || offer.counterparty || 'Unknown',
+          counterpartyId: offer.sellerId || offer.counterpartyId || '',
+          dateUpdated: offer.updatedAt || offer.createdAt || new Date().toISOString(),
+          listingId: offer.listingId || offer.id,
+          message: offer.message || '',
+          // Escrow is created when an offer is accepted
+          escrowId: offer.escrowId || offer.escrow?.id || null,
+        }));
+        setMyOffers(transformedOffers);
+      } else {
+        setMyOffers([]);
       }
-    };
+    } catch (err) {
+      // Check if this is a 422 error with UUID validation issue (backend routing problem)
+      // The error detail is an array with objects like: {loc: ['path', 'offer_id'], msg: '...', type: 'uuid_parsing'}
+      const is422UUIDError = err.status === 422 && (
+        err.message?.includes('valid UUID') ||
+        err.message?.includes('uuid_parsing') ||
+        (Array.isArray(err.data?.detail) && err.data.detail.some(d =>
+          (typeof d === 'object' && (d?.msg?.includes('valid UUID') || d?.type === 'uuid_parsing')) ||
+          (typeof d === 'string' && d.includes('valid UUID'))
+        )) ||
+        (typeof err.data?.detail === 'string' && err.data.detail.includes('valid UUID'))
+      );
 
+      // Handle 405, 400, or 422 UUID errors gracefully
+      // 422 UUID errors = backend routing issue (treating "my" as UUID parameter)
+      if (err.status === 405 || err.status === 400 || is422UUIDError ||
+          err.message?.includes('Method Not Allowed') ||
+          err.data?.detail?.includes('Method Not Allowed') ||
+          err.data?.detail?.includes('unsupported operand')) {
+        // Silently handle - endpoint has issues, backend routing problem, or not implemented yet
+        setMyOffers([]);
+      } else {
+        // Only log unexpected errors
+        console.error('Error fetching my offers:', err);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     if (activeTab === 'active-offers') {
       fetchMyOffers();
     }
-  }, [activeTab]);
+  }, [activeTab, fetchMyOffers]);
 
   const categories = [
     'All',
@@ -482,6 +497,12 @@ export default function MarketplacePage() {
                         }}
                       />
                     )}
+                  </button>
+                  <button
+                    onClick={() => setIsListModalOpen(true)}
+                    className='ml-auto my-1.5 px-4 py-1.5 bg-[#F1CB68] text-[#101014] text-sm font-semibold rounded-lg hover:bg-[#C49D2E] transition-all'
+                  >
+                    + List an Asset
                   </button>
                 </div>
               </div>
@@ -743,10 +764,24 @@ export default function MarketplacePage() {
 
               {/* Active Offers Tab Content */}
               {activeTab === 'active-offers' && (
-                <ActiveOffersContent isDarkMode={isDarkMode} router={router} myOffers={myOffers} />
+                <ActiveOffersContent isDarkMode={isDarkMode} router={router} myOffers={myOffers} onRefresh={fetchMyOffers} />
               )}
         </div>
       </div>
+
+      {/* List an Asset Modal */}
+      <CreateListingModal
+        isOpen={isListModalOpen}
+        onClose={() => setIsListModalOpen(false)}
+        isDarkMode={isDarkMode}
+        onCreated={() => {
+          setIsListModalOpen(false);
+          // Refresh browse listings
+          if (activeTab === 'browse') {
+            listListings({ statusFilter: 'active' }).catch(() => {});
+          }
+        }}
+      />
 
       <style jsx global>{`
         .scrollbar-hide {
@@ -794,9 +829,41 @@ export default function MarketplacePage() {
 }
 
 // Active Offers Content Component
-function ActiveOffersContent({ isDarkMode, router, myOffers = [] }) {
+function ActiveOffersContent({ isDarkMode, router, myOffers = [], onRefresh }) {
   const [activeFilter, setActiveFilter] = useState('My Offers'); // Default filter
   const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
+  const [actionLoading, setActionLoading] = useState({}); // { [offerId_action]: bool }
+  const [counterTarget, setCounterTarget] = useState(null); // offer being countered
+  const [escrowTarget, setEscrowTarget] = useState(null); // offer whose escrow is open
+
+  const refresh = () => { if (onRefresh) onRefresh(); };
+
+  const runAction = async (offer, action, fn, successMsg) => {
+    const key = `${offer.id}_${action}`;
+    setActionLoading(p => ({ ...p, [key]: true }));
+    try {
+      await fn();
+      toast.success(successMsg);
+      refresh();
+    } catch (err) {
+      toast.error(err?.data?.detail || err?.message || `Failed to ${action} offer`);
+    } finally {
+      setActionLoading(p => ({ ...p, [key]: false }));
+    }
+  };
+
+  const handleAccept = (offer) => runAction(offer, 'accept', () => acceptOffer(offer.id), 'Offer accepted — escrow created');
+  const handleReject = (offer) => runAction(offer, 'reject', () => rejectOffer(offer.id), 'Offer rejected');
+  const handleWithdraw = (offer) => runAction(offer, 'withdraw', () => withdrawOffer(offer.id), 'Offer withdrawn');
+
+  const offerActionHandlers = {
+    onAccept: handleAccept,
+    onReject: handleReject,
+    onWithdraw: handleWithdraw,
+    onCounter: (offer) => setCounterTarget(offer),
+    onViewEscrow: (offer) => setEscrowTarget(offer),
+    actionLoading,
+  };
 
   // Filter offers based on active filter
   const getFilteredOffers = () => {
@@ -975,6 +1042,7 @@ function ActiveOffersContent({ isDarkMode, router, myOffers = [] }) {
               getStatusColor={getStatusColor}
               getRoleColor={getRoleColor}
               router={router}
+              handlers={offerActionHandlers}
             />
           ))}
         </div>
@@ -1065,6 +1133,7 @@ function ActiveOffersContent({ isDarkMode, router, myOffers = [] }) {
                     getStatusColor={getStatusColor}
                     getRoleColor={getRoleColor}
                     router={router}
+                    handlers={offerActionHandlers}
                   />
                 ))}
               </tbody>
@@ -1102,6 +1171,26 @@ function ActiveOffersContent({ isDarkMode, router, myOffers = [] }) {
           </p>
         </div>
       )}
+
+      {/* Counter Offer Modal */}
+      {counterTarget && (
+        <CounterOfferModal
+          offer={counterTarget}
+          isDarkMode={isDarkMode}
+          onClose={() => setCounterTarget(null)}
+          onSubmitted={() => { setCounterTarget(null); refresh(); }}
+        />
+      )}
+
+      {/* Escrow Modal */}
+      {escrowTarget && (
+        <EscrowModal
+          offer={escrowTarget}
+          isDarkMode={isDarkMode}
+          onClose={() => setEscrowTarget(null)}
+          onChanged={() => { setEscrowTarget(null); refresh(); }}
+        />
+      )}
     </div>
   );
 }
@@ -1114,7 +1203,11 @@ function OfferCard({
   getStatusColor,
   getRoleColor,
   router,
+  handlers = {},
 }) {
+  const { onAccept, onReject, onWithdraw, onCounter, onViewEscrow, actionLoading = {} } = handlers;
+  const busy = (action) => !!actionLoading[`${offer.id}_${action}`];
+
   const getActions = () => {
     const actions = [];
     actions.push({
@@ -1125,38 +1218,42 @@ function OfferCard({
 
     if (offer.role === 'Buyer' && offer.offerStatus === 'Pending') {
       actions.push({
-        label: 'Withdraw',
-        onClick: () => console.log('Withdraw offer', offer.id),
+        label: busy('withdraw') ? 'Withdrawing…' : 'Withdraw',
+        onClick: () => onWithdraw?.(offer),
+        disabled: busy('withdraw'),
         primary: false,
         danger: true,
       });
     }
 
-    if (offer.role === 'Seller' && offer.offerStatus === 'Pending') {
+    if ((offer.role === 'Seller' || offer.role === 'Lister') && offer.offerStatus === 'Pending') {
       actions.push(
         {
-          label: 'Accept',
-          onClick: () => console.log('Accept offer', offer.id),
+          label: busy('accept') ? 'Accepting…' : 'Accept',
+          onClick: () => onAccept?.(offer),
+          disabled: busy('accept'),
           primary: true,
         },
         {
           label: 'Counter Offer',
-          onClick: () => console.log('Counter offer', offer.id),
+          onClick: () => onCounter?.(offer),
           primary: false,
         },
         {
-          label: 'Reject',
-          onClick: () => console.log('Reject offer', offer.id),
+          label: busy('reject') ? 'Rejecting…' : 'Reject',
+          onClick: () => onReject?.(offer),
+          disabled: busy('reject'),
           primary: false,
           danger: true,
         }
       );
     }
 
-    if (offer.offerStatus === 'Countered') {
+    // Once accepted, funds move through escrow
+    if (offer.offerStatus === 'Accepted') {
       actions.push({
-        label: 'View Counter',
-        onClick: () => console.log('View counter offer', offer.id),
+        label: 'Manage Escrow',
+        onClick: () => onViewEscrow?.(offer),
         primary: true,
       });
     }
@@ -1295,7 +1392,8 @@ function OfferCard({
           <button
             key={index}
             onClick={action.onClick}
-            className={`flex-1 min-w-[100px] px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
+            disabled={action.disabled}
+            className={`flex-1 min-w-[100px] px-3 py-1.5 text-xs rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
               action.primary
                 ? 'bg-[#F1CB68] text-white hover:bg-[#F1CB68]/80'
                 : action.danger
@@ -1321,7 +1419,11 @@ function OfferTableRow({
   getStatusColor,
   getRoleColor,
   router,
+  handlers = {},
 }) {
+  const { onAccept, onReject, onWithdraw, onCounter, onViewEscrow, actionLoading = {} } = handlers;
+  const busy = (action) => !!actionLoading[`${offer.id}_${action}`];
+
   const getActions = () => {
     const actions = [];
     actions.push({
@@ -1331,22 +1433,36 @@ function OfferTableRow({
 
     if (offer.role === 'Buyer' && offer.offerStatus === 'Pending') {
       actions.push({
-        label: 'Withdraw',
-        onClick: () => console.log('Withdraw offer', offer.id),
+        label: busy('withdraw') ? '…' : 'Withdraw',
+        onClick: () => onWithdraw?.(offer),
+        disabled: busy('withdraw'),
       });
     }
 
-    if (offer.role === 'Seller' && offer.offerStatus === 'Pending') {
+    if ((offer.role === 'Seller' || offer.role === 'Lister') && offer.offerStatus === 'Pending') {
       actions.push(
         {
-          label: 'Accept',
-          onClick: () => console.log('Accept offer', offer.id),
+          label: busy('accept') ? '…' : 'Accept',
+          onClick: () => onAccept?.(offer),
+          disabled: busy('accept'),
         },
         {
           label: 'Counter',
-          onClick: () => console.log('Counter offer', offer.id),
+          onClick: () => onCounter?.(offer),
+        },
+        {
+          label: busy('reject') ? '…' : 'Reject',
+          onClick: () => onReject?.(offer),
+          disabled: busy('reject'),
         }
       );
+    }
+
+    if (offer.offerStatus === 'Accepted') {
+      actions.push({
+        label: 'Escrow',
+        onClick: () => onViewEscrow?.(offer),
+      });
     }
 
     return actions;
@@ -1440,10 +1556,11 @@ function OfferTableRow({
             <button
               key={index}
               onClick={action.onClick}
-              className={`px-2 py-1 text-xs rounded transition-all ${
+              disabled={action.disabled}
+              className={`px-2 py-1 text-xs rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                 action.label === 'Accept'
                   ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
-                  : action.label === 'Withdraw'
+                  : action.label === 'Reject' || action.label === 'Withdraw'
                   ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
                   : isDarkMode
                   ? 'bg-white/5 text-white hover:bg-white/10'
@@ -1456,6 +1573,302 @@ function OfferTableRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+// ============================================================================
+// Counter Offer Modal — POST /marketplace/offers/{id}/counter
+// ============================================================================
+function CounterOfferModal({ offer, isDarkMode, onClose, onSubmitted }) {
+  const [amount, setAmount] = useState(String(offer.offerAmountValue || ''));
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    const value = parseFloat(String(amount).replace(/,/g, ''));
+    if (isNaN(value) || value <= 0) {
+      toast.error('Please enter a valid counter amount');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await counterOffer(offer.id, {
+        counterAmount: value,
+        currency: offer.currency || 'USD',
+        message: message || undefined,
+      });
+      toast.success('Counter offer sent');
+      onSubmitted?.();
+    } catch (err) {
+      toast.error(err?.data?.detail || err?.message || 'Failed to send counter offer');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const panel = isDarkMode ? 'bg-[#1C1C1E]' : 'bg-white';
+  const textMain = isDarkMode ? 'text-white' : 'text-gray-900';
+  const textMuted = isDarkMode ? 'text-gray-400' : 'text-gray-600';
+  const inputCls = `w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:border-[#F1CB68] ${
+    isDarkMode ? 'bg-[#2C2C2E] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+  }`;
+
+  return (
+    <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70' onClick={onClose}>
+      <div className={`w-full max-w-md rounded-2xl p-6 ${panel}`} onClick={(e) => e.stopPropagation()}>
+        <h3 className={`text-lg font-bold mb-1 ${textMain}`}>Counter Offer</h3>
+        <p className={`text-sm mb-4 ${textMuted}`}>Buyer offered {offer.offerAmount} for {offer.assetName}.</p>
+
+        <label className={`block text-sm font-medium mb-2 ${textMain}`}>Counter Amount ({offer.currency || 'USD'})</label>
+        <input type='text' value={amount} onChange={(e) => setAmount(e.target.value)} className={`${inputCls} mb-4`} />
+
+        <label className={`block text-sm font-medium mb-2 ${textMain}`}>Message</label>
+        <textarea rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder='Optional note to the buyer…' className={`${inputCls} resize-none mb-6`} />
+
+        <div className='flex gap-3'>
+          <button onClick={onClose} className={`flex-1 py-2.5 rounded-lg font-semibold text-sm border ${isDarkMode ? 'border-[#FFFFFF14] text-white hover:bg-white/10' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>Cancel</button>
+          <button onClick={handleSubmit} disabled={submitting} className='flex-1 py-2.5 rounded-lg font-semibold text-sm bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] disabled:opacity-60'>
+            {submitting ? 'Sending…' : 'Send Counter'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Escrow Modal — GET/POST /marketplace/escrow/{id}[/fund|release|dispute|refund]
+// ============================================================================
+function EscrowModal({ offer, isDarkMode, onClose, onChanged }) {
+  const [escrow, setEscrow] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [actionBusy, setActionBusy] = useState('');
+  const [disputeReason, setDisputeReason] = useState('');
+  const [showDispute, setShowDispute] = useState(false);
+
+  const escrowId = offer.escrowId;
+  const isBuyer = offer.role === 'Buyer';
+  const isSeller = offer.role === 'Seller' || offer.role === 'Lister';
+
+  const loadEscrow = useCallback(async () => {
+    if (!escrowId) { setLoading(false); return; }
+    try {
+      setLoading(true);
+      const res = await getEscrow(escrowId);
+      setEscrow(res?.data ?? res ?? null);
+    } catch (err) {
+      if (!(err?.status === 405 || err?.status === 400)) {
+        toast.error('Failed to load escrow');
+      }
+      setEscrow(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [escrowId]);
+
+  useEffect(() => { loadEscrow(); }, [loadEscrow]);
+
+  const run = async (action, fn, msg) => {
+    setActionBusy(action);
+    try {
+      await fn();
+      toast.success(msg);
+      await loadEscrow();
+      onChanged?.();
+    } catch (err) {
+      toast.error(err?.data?.detail || err?.message || `Failed to ${action}`);
+    } finally {
+      setActionBusy('');
+    }
+  };
+
+  const status = (escrow?.status || '').toLowerCase();
+  const panel = isDarkMode ? 'bg-[#1C1C1E]' : 'bg-white';
+  const textMain = isDarkMode ? 'text-white' : 'text-gray-900';
+  const textMuted = isDarkMode ? 'text-gray-400' : 'text-gray-600';
+
+  return (
+    <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70' onClick={onClose}>
+      <div className={`w-full max-w-md rounded-2xl p-6 ${panel}`} onClick={(e) => e.stopPropagation()}>
+        <div className='flex items-center justify-between mb-4'>
+          <h3 className={`text-lg font-bold ${textMain}`}>Escrow</h3>
+          <button onClick={onClose} className={textMuted}>✕</button>
+        </div>
+
+        {!escrowId ? (
+          <p className={`text-sm ${textMuted}`}>No escrow is associated with this offer yet.</p>
+        ) : loading ? (
+          <p className={`text-sm ${textMuted}`}>Loading escrow…</p>
+        ) : (
+          <>
+            <div className={`rounded-lg p-4 mb-4 ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+              <Row label='Escrow ID' value={escrowId} mono textMain={textMain} textMuted={textMuted} />
+              <Row label='Asset' value={offer.assetName} textMain={textMain} textMuted={textMuted} />
+              <Row label='Amount' value={escrow?.amount ? `$${Number(escrow.amount).toLocaleString()}` : offer.offerAmount} textMain={textMain} textMuted={textMuted} />
+              <Row label='Status' value={escrow?.status || 'unknown'} textMain={textMain} textMuted={textMuted} />
+            </div>
+
+            {showDispute && (
+              <div className='mb-4'>
+                <label className={`block text-sm font-medium mb-2 ${textMain}`}>Dispute Reason</label>
+                <textarea rows={3} value={disputeReason} onChange={(e) => setDisputeReason(e.target.value)} placeholder='Describe the problem…'
+                  className={`w-full px-3 py-2 rounded-lg text-sm border resize-none focus:outline-none focus:border-[#F1CB68] ${isDarkMode ? 'bg-[#2C2C2E] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
+              </div>
+            )}
+
+            <div className='flex flex-wrap gap-2'>
+              {/* Buyer funds the escrow */}
+              {isBuyer && status !== 'funded' && status !== 'released' && status !== 'refunded' && (
+                <button onClick={() => run('fund', () => fundEscrow(escrowId), 'Escrow funded')} disabled={!!actionBusy}
+                  className='flex-1 min-w-[120px] py-2 rounded-lg text-sm font-semibold bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] disabled:opacity-60'>
+                  {actionBusy === 'fund' ? 'Funding…' : 'Fund Escrow'}
+                </button>
+              )}
+              {/* Buyer releases funds to seller on receipt */}
+              {isBuyer && status === 'funded' && (
+                <button onClick={() => run('release', () => releaseEscrow(escrowId), 'Funds released to seller')} disabled={!!actionBusy}
+                  className='flex-1 min-w-[120px] py-2 rounded-lg text-sm font-semibold bg-green-500 text-white hover:bg-green-600 disabled:opacity-60'>
+                  {actionBusy === 'release' ? 'Releasing…' : 'Release Funds'}
+                </button>
+              )}
+              {/* Seller can refund the buyer */}
+              {isSeller && status === 'funded' && (
+                <button onClick={() => run('refund', () => refundEscrow(escrowId), 'Buyer refunded')} disabled={!!actionBusy}
+                  className='flex-1 min-w-[120px] py-2 rounded-lg text-sm font-semibold border border-red-400/30 text-red-400 hover:bg-red-400/10 disabled:opacity-60'>
+                  {actionBusy === 'refund' ? 'Refunding…' : 'Refund Buyer'}
+                </button>
+              )}
+              {/* Either party can raise a dispute while funds are held */}
+              {status === 'funded' && (
+                showDispute ? (
+                  <button
+                    onClick={() => {
+                      if (!disputeReason.trim()) { toast.error('Please enter a reason'); return; }
+                      run('dispute', () => disputeEscrow(escrowId, disputeReason.trim()), 'Dispute opened').then(() => setShowDispute(false));
+                    }}
+                    disabled={!!actionBusy}
+                    className='flex-1 min-w-[120px] py-2 rounded-lg text-sm font-semibold bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-60'>
+                    {actionBusy === 'dispute' ? 'Submitting…' : 'Submit Dispute'}
+                  </button>
+                ) : (
+                  <button onClick={() => setShowDispute(true)}
+                    className={`flex-1 min-w-[120px] py-2 rounded-lg text-sm font-semibold border ${isDarkMode ? 'border-[#FFFFFF14] text-white hover:bg-white/10' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>
+                    Raise Dispute
+                  </button>
+                )
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value, mono, textMain, textMuted }) {
+  return (
+    <div className='flex justify-between items-center py-1.5 gap-3'>
+      <span className={`text-xs ${textMuted}`}>{label}</span>
+      <span className={`text-xs font-medium ${mono ? 'font-mono' : ''} ${textMain} truncate max-w-[60%] text-right`}>{value}</span>
+    </div>
+  );
+}
+
+// ============================================================================
+// Create Listing Modal — POST /marketplace/listings (+ optional pay-fee / activate)
+// ============================================================================
+function CreateListingModal({ isOpen, onClose, isDarkMode, onCreated }) {
+  const [assets, setAssets] = useState([]);
+  const [assetId, setAssetId] = useState('');
+  const [title, setTitle] = useState('');
+  const [askingPrice, setAskingPrice] = useState('');
+  const [description, setDescription] = useState('');
+  const [loadingAssets, setLoadingAssets] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    (async () => {
+      try {
+        setLoadingAssets(true);
+        const res = await getAssets({ limit: 100 });
+        setAssets(Array.isArray(res?.data) ? res.data : []);
+      } catch {
+        setAssets([]);
+      } finally {
+        setLoadingAssets(false);
+      }
+    })();
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async () => {
+    const price = parseFloat(String(askingPrice).replace(/,/g, ''));
+    if (!title.trim()) { toast.error('Please enter a title'); return; }
+    if (isNaN(price) || price <= 0) { toast.error('Please enter a valid asking price'); return; }
+    setSubmitting(true);
+    try {
+      await createListing({
+        ...(assetId ? { assetId } : {}),
+        title: title.trim(),
+        askingPrice: price,
+        currency: 'USD',
+        description: description.trim() || undefined,
+      });
+      toast.success('Listing submitted for approval');
+      onCreated?.();
+      // reset
+      setAssetId(''); setTitle(''); setAskingPrice(''); setDescription('');
+    } catch (err) {
+      toast.error(err?.data?.detail || err?.message || 'Failed to create listing');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const panel = isDarkMode ? 'bg-[#1C1C1E]' : 'bg-white';
+  const textMain = isDarkMode ? 'text-white' : 'text-gray-900';
+  const textMuted = isDarkMode ? 'text-gray-400' : 'text-gray-600';
+  const inputCls = `w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:border-[#F1CB68] ${
+    isDarkMode ? 'bg-[#2C2C2E] border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+  }`;
+
+  return (
+    <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70' onClick={onClose}>
+      <div className={`w-full max-w-md rounded-2xl p-6 max-h-[90vh] overflow-y-auto ${panel}`} onClick={(e) => e.stopPropagation()}>
+        <h3 className={`text-lg font-bold mb-1 ${textMain}`}>List an Asset</h3>
+        <p className={`text-sm mb-4 ${textMuted}`}>Create a marketplace listing. It will be submitted for admin approval.</p>
+
+        <label className={`block text-sm font-medium mb-2 ${textMain}`}>Asset (optional)</label>
+        <select value={assetId} onChange={(e) => {
+          setAssetId(e.target.value);
+          const a = assets.find(x => x.id === e.target.value);
+          if (a && !title) setTitle(a.name || a.title || '');
+        }} className={`${inputCls} mb-4`}>
+          <option value=''>{loadingAssets ? 'Loading assets…' : 'Select one of your assets'}</option>
+          {assets.map(a => (
+            <option key={a.id} value={a.id}>{a.name || a.title || a.id}</option>
+          ))}
+        </select>
+
+        <label className={`block text-sm font-medium mb-2 ${textMain}`}>Title *</label>
+        <input type='text' value={title} onChange={(e) => setTitle(e.target.value)} placeholder='e.g. Downtown Office Suite' className={`${inputCls} mb-4`} />
+
+        <label className={`block text-sm font-medium mb-2 ${textMain}`}>Asking Price (USD) *</label>
+        <input type='text' value={askingPrice} onChange={(e) => setAskingPrice(e.target.value)} placeholder='100000' className={`${inputCls} mb-4`} />
+
+        <label className={`block text-sm font-medium mb-2 ${textMain}`}>Description</label>
+        <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder='Describe the asset…' className={`${inputCls} resize-none mb-6`} />
+
+        <div className='flex gap-3'>
+          <button onClick={onClose} className={`flex-1 py-2.5 rounded-lg font-semibold text-sm border ${isDarkMode ? 'border-[#FFFFFF14] text-white hover:bg-white/10' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>Cancel</button>
+          <button onClick={handleSubmit} disabled={submitting} className='flex-1 py-2.5 rounded-lg font-semibold text-sm bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] disabled:opacity-60'>
+            {submitting ? 'Submitting…' : 'Create Listing'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -3,19 +3,29 @@
 import Navbar from '@/components/dashboard/Navbar';
 import Sidebar from '@/components/dashboard/Sidebar';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  activateListing,
+  createOffer,
+  deleteListing,
+  getListing,
+  getListingOffers,
+  payListingFee,
+} from '@/utils/marketplaceApi';
 import { useParams, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { getListing, getListingOffers, createOffer } from '@/utils/marketplaceApi';
+import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 
 export default function InvestmentDetailClient() {
   const { isDarkMode } = useTheme();
+  const { user } = useAuth();
   const params = useParams();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
   const [offerAmount, setOfferAmount] = useState('1,100.00');
   const [offerMessage, setOfferMessage] = useState('');
+  const [ownerActionBusy, setOwnerActionBusy] = useState('');
   const router = useRouter();
 
   // Get ID from params
@@ -37,7 +47,7 @@ export default function InvestmentDetailClient() {
         setError(null);
 
         const listingRes = await getListing(investmentId);
-        
+
         if (listingRes.data) {
           setListing(listingRes.data);
         } else {
@@ -46,10 +56,13 @@ export default function InvestmentDetailClient() {
       } catch (err) {
         console.error('Error fetching listing details:', err);
         // Handle 405 or 400 errors gracefully
-        if (err.status === 405 || err.status === 400 || 
-            err.message?.includes('Method Not Allowed') || 
-            err.data?.detail?.includes('Method Not Allowed') ||
-            err.data?.detail?.includes('unsupported operand')) {
+        if (
+          err.status === 405 ||
+          err.status === 400 ||
+          err.message?.includes('Method Not Allowed') ||
+          err.data?.detail?.includes('Method Not Allowed') ||
+          err.data?.detail?.includes('unsupported operand')
+        ) {
           // Silently handle - endpoint has issues or not implemented yet
           setListing(null);
         } else {
@@ -70,7 +83,7 @@ export default function InvestmentDetailClient() {
 
       try {
         const offersRes = await getListingOffers(investmentId);
-        
+
         if (offersRes.data && Array.isArray(offersRes.data)) {
           setListingOffers(offersRes.data);
         } else {
@@ -79,10 +92,13 @@ export default function InvestmentDetailClient() {
       } catch (err) {
         console.error('Error fetching listing offers:', err);
         // Handle 405 or 400 errors gracefully
-        if (err.status === 405 || err.status === 400 || 
-            err.message?.includes('Method Not Allowed') || 
-            err.data?.detail?.includes('Method Not Allowed') ||
-            err.data?.detail?.includes('unsupported operand')) {
+        if (
+          err.status === 405 ||
+          err.status === 400 ||
+          err.message?.includes('Method Not Allowed') ||
+          err.data?.detail?.includes('Method Not Allowed') ||
+          err.data?.detail?.includes('unsupported operand')
+        ) {
           // Silently handle - endpoint has issues or not implemented yet
           setListingOffers([]);
         }
@@ -95,32 +111,97 @@ export default function InvestmentDetailClient() {
   }, [investmentId]);
 
   // Transform API data to match UI structure
-  const investment = listing ? {
-    name: listing.title || listing.assetName || 'Untitled Listing',
-    category: listing.assetType || listing.category || 'Other',
-    issuer: listing.issuer || listing.sellerName || 'Unknown',
-    status: listing.status === 'active' ? 'Open for Investment' : 
-            listing.status === 'pending_approval' ? 'Pending Approval' :
-            listing.status === 'approved' ? 'Approved' : 'Closed',
-    minimum: listing.askingPrice ? `$${listing.askingPrice.toLocaleString()}` : '$0',
-    expectedReturns: listing.expectedReturn || '0%',
-    duration: listing.duration || 'N/A',
-    riskLevel: listing.riskLevel || 'Medium',
-    slotsAvailable: listing.slotsAvailable || 'N/A',
-    description: listing.description || '',
-    currency: listing.currency || 'USD',
-    listingFee: listing.listingFee || 0,
-    createdAt: listing.createdAt || new Date().toISOString(),
-  } : {
-    name: 'Silver Heights Bond Fund',
-    category: 'Bonds',
-    issuer: 'Highrise Capital',
-    status: 'Open for Investment',
-    minimum: '$25,000',
-    expectedReturns: '7.2%',
-    duration: '24 months',
-    riskLevel: 'Medium',
-    slotsAvailable: '32/50',
+  const investment = listing
+    ? {
+        name: listing.title || listing.assetName || 'Untitled Listing',
+        category: listing.assetType || listing.category || 'Other',
+        issuer: listing.issuer || listing.sellerName || 'Unknown',
+        status:
+          listing.status === 'active'
+            ? 'Open for Investment'
+            : listing.status === 'pending_approval'
+              ? 'Pending Approval'
+              : listing.status === 'approved'
+                ? 'Approved'
+                : 'Closed',
+        minimum: listing.askingPrice
+          ? `$${listing.askingPrice.toLocaleString()}`
+          : '$0',
+        expectedReturns: listing.expectedReturn || '0%',
+        duration: listing.duration || 'N/A',
+        riskLevel: listing.riskLevel || 'Medium',
+        slotsAvailable: listing.slotsAvailable || 'N/A',
+        description: listing.description || '',
+        currency: listing.currency || 'USD',
+        listingFee: listing.listingFee || 0,
+        createdAt: listing.createdAt || new Date().toISOString(),
+      }
+    : {
+        name: 'Silver Heights Bond Fund',
+        category: 'Bonds',
+        issuer: 'Highrise Capital',
+        status: 'Open for Investment',
+        minimum: '$25,000',
+        expectedReturns: '7.2%',
+        duration: '24 months',
+        riskLevel: 'Medium',
+        slotsAvailable: '32/50',
+      };
+
+  // Owner controls: only the user who created the listing can manage its lifecycle
+  const listingStatus = (listing?.status || '').toLowerCase();
+  const ownerId =
+    listing?.ownerId || listing?.sellerId || listing?.userId || null;
+  const isOwner = !!listing && !!user?.id && !!ownerId && ownerId === user.id;
+  const feePaid = listing?.feePaid ?? listing?.listingFeePaid ?? false;
+
+  const runOwnerAction = async (
+    action,
+    fn,
+    successMsg,
+    { refetch = true } = {},
+  ) => {
+    setOwnerActionBusy(action);
+    try {
+      await fn();
+      toast.success(successMsg);
+      if (refetch && investmentId) {
+        const res = await getListing(investmentId);
+        if (res.data) setListing(res.data);
+      }
+    } catch (err) {
+      toast.error(
+        err?.data?.detail || err?.message || `Failed to ${action} listing`,
+      );
+    } finally {
+      setOwnerActionBusy('');
+    }
+  };
+
+  const handlePayFee = () =>
+    runOwnerAction(
+      'pay fee',
+      () => payListingFee(investmentId),
+      'Listing fee paid',
+    );
+  const handleActivate = () =>
+    runOwnerAction(
+      'activate',
+      () => activateListing(investmentId),
+      'Listing is now active',
+    );
+  const handleCancel = () => {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm('Cancel this listing? This cannot be undone.')
+    )
+      return;
+    runOwnerAction(
+      'cancel',
+      () => deleteListing(investmentId),
+      'Listing cancelled',
+      { refetch: false },
+    ).then(() => router.push('/dashboard/marketplace'));
   };
 
   return (
@@ -157,21 +238,60 @@ export default function InvestmentDetailClient() {
                 >
                   {investment.category}
                 </span>
-                <button
-                  onClick={() => setIsOfferModalOpen(true)}
-                  className='px-6 py-2 bg-[#F1CB68] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all flex items-center gap-2'
-                >
-                  Trade Now
-                  <svg
-                    width='16'
-                    height='16'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
+                {isOwner ? (
+                  <div className='flex flex-wrap items-center gap-2'>
+                    {listingStatus === 'approved' && !feePaid && (
+                      <button
+                        onClick={handlePayFee}
+                        disabled={!!ownerActionBusy}
+                        className='px-4 py-2 bg-[#F1CB68] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all disabled:opacity-60'
+                      >
+                        {ownerActionBusy === 'pay fee'
+                          ? 'Processing…'
+                          : 'Pay Listing Fee'}
+                      </button>
+                    )}
+                    {listingStatus === 'approved' && (
+                      <button
+                        onClick={handleActivate}
+                        disabled={!!ownerActionBusy}
+                        className='px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-all disabled:opacity-60'
+                      >
+                        {ownerActionBusy === 'activate'
+                          ? 'Activating…'
+                          : 'Activate Listing'}
+                      </button>
+                    )}
+                    {listingStatus !== 'sold' &&
+                      listingStatus !== 'cancelled' && (
+                        <button
+                          onClick={handleCancel}
+                          disabled={!!ownerActionBusy}
+                          className='px-4 py-2 font-semibold rounded-lg border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-all disabled:opacity-60'
+                        >
+                          {ownerActionBusy === 'cancel'
+                            ? 'Cancelling…'
+                            : 'Cancel Listing'}
+                        </button>
+                      )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsOfferModalOpen(true)}
+                    className='px-6 py-2 bg-[#F1CB68] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all flex items-center gap-2'
                   >
-                    <path d='M5 12h14M12 5l7 7-7 7' strokeWidth='2' />
-                  </svg>
-                </button>
+                    Trade Now
+                    <svg
+                      width='16'
+                      height='16'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                    >
+                      <path d='M5 12h14M12 5l7 7-7 7' strokeWidth='2' />
+                    </svg>
+                  </button>
+                )}
               </div>
 
               {/* Title */}
@@ -271,8 +391,8 @@ export default function InvestmentDetailClient() {
                             ? 'text-white'
                             : 'text-gray-900'
                           : isDarkMode
-                          ? 'text-gray-400 hover:text-white'
-                          : 'text-gray-600 hover:text-gray-900'
+                            ? 'text-gray-400 hover:text-white'
+                            : 'text-gray-600 hover:text-gray-900'
                       }`}
                     >
                       <span className='flex items-center gap-1.5 sm:gap-2'>
@@ -571,13 +691,15 @@ export default function InvestmentDetailClient() {
         onOfferCreated={() => {
           // Refresh offers after creating
           if (investmentId) {
-            getListingOffers(investmentId).then(res => {
-              if (res.data && Array.isArray(res.data)) {
-                setListingOffers(res.data);
-              }
-            }).catch(err => {
-              console.error('Error refreshing offers:', err);
-            });
+            getListingOffers(investmentId)
+              .then(res => {
+                if (res.data && Array.isArray(res.data)) {
+                  setListingOffers(res.data);
+                }
+              })
+              .catch(err => {
+                console.error('Error refreshing offers:', err);
+              });
           }
         }}
       />
@@ -612,8 +734,8 @@ function StatCard({ icon, label, value, isDarkMode, highlight = false }) {
           highlight
             ? 'text-[#F1CB68]'
             : isDarkMode
-            ? 'text-white'
-            : 'text-gray-900'
+              ? 'text-white'
+              : 'text-gray-900'
         }`}
       >
         {value}
@@ -672,9 +794,12 @@ function MakeOfferModal({
   if (!isOpen) return null;
 
   // Get listed price from investment data
-  const listedPrice = investment?.minimumValue || 
-    parseFloat(investment?.minimum?.replace(/[^0-9.]/g, '')) || 1250.0;
-  const returnRate = parseFloat(investment?.expectedReturns?.replace('%', '')) || 12.5;
+  const listedPrice =
+    investment?.minimumValue ||
+    parseFloat(investment?.minimum?.replace(/[^0-9.]/g, '')) ||
+    1250.0;
+  const returnRate =
+    parseFloat(investment?.expectedReturns?.replace('%', '')) || 12.5;
   const transactionFee = (
     parseFloat(offerAmount.replace(/,/g, '')) * 0.025
   ).toFixed(2);
@@ -724,7 +849,8 @@ function MakeOfferModal({
       }
     } catch (err) {
       console.error('Error creating offer:', err);
-      const errorMessage = err.data?.detail || err.message || 'Failed to submit offer';
+      const errorMessage =
+        err.data?.detail || err.message || 'Failed to submit offer';
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);

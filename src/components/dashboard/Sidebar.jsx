@@ -32,6 +32,22 @@ export default function Sidebar({ isOpen, onClose }) {
     const supportHref = (isAdmin || isAdvisor) ? '/dashboard/support-dashboard' : '/dashboard/support';
     const supportLabel = (isAdmin || isAdvisor) ? 'Support Dashboard' : 'Support Ticket';
 
+    // CRM Dashboard item — shared by advisor's "Reports & Documents" section and
+    // the admin (super admin) "Administration" section below.
+    const crmDashboardItem = {
+      id: 'crm-dashboard',
+      label: 'CRM Dashboard',
+      icon: 'BarChart',
+      href: '/dashboard/reports/crm',
+      hasSubmenu: true,
+      submenu: [
+        { id: 'crm-report', label: 'Report', href: '/dashboard/reports/crm' },
+        { id: 'crm-documents', label: 'Documents', href: '/dashboard/documents' },
+        { id: 'crm-support', label: supportLabel, href: supportHref },
+        { id: 'crm-concierge', label: 'Concierge Service', href: '/dashboard/concierge' },
+      ],
+    };
+
     const sections = [
       {
         title: 'Wealth Assets',
@@ -79,27 +95,15 @@ export default function Sidebar({ isOpen, onClose }) {
       },
     ];
 
-    // Analytics/CRM Dashboard: admin and advisor only (investors get 403)
-    if (isAdmin || isAdvisor) {
+    // Analytics/CRM Dashboard: advisors get their own "Reports & Documents" section.
+    // Admins (super admin) get the CRM tabs consolidated under "Administration" below,
+    // so they don't need this section. Investors get a simplified section (they'd 403).
+    if (isAdvisor) {
       sections.push({
         title: 'Reports & Documents',
-        items: [
-          {
-            id: 'crm-dashboard',
-            label: 'CRM Dashboard',
-            icon: 'BarChart',
-            href: '/dashboard/reports/crm',
-            hasSubmenu: true,
-            submenu: [
-              { id: 'crm-report', label: 'Report', href: '/dashboard/reports/crm' },
-              { id: 'crm-documents', label: 'Documents', href: '/dashboard/documents' },
-              { id: 'crm-support', label: supportLabel, href: supportHref },
-              { id: 'crm-concierge', label: 'Concierge Service', href: '/dashboard/concierge' },
-            ],
-          },
-        ],
+        items: [crmDashboardItem],
       });
-    } else {
+    } else if (!isAdmin) {
       // Investors: simplified section without analytics
       sections.push({
         title: 'Documents & Support',
@@ -119,7 +123,8 @@ export default function Sidebar({ isOpen, onClose }) {
       ],
     });
 
-    // Admin-only administration section
+    // Super admin (admin role): all important tabs under one "Administration" heading —
+    // admin tools plus the advisor/CRM tabs.
     if (isAdmin) {
       sections.push({
         title: 'Administration',
@@ -127,6 +132,8 @@ export default function Sidebar({ isOpen, onClose }) {
           { id: 'admin-users', label: 'Manage Users', icon: 'Grid', href: '/dashboard/admin/users' },
           { id: 'admin-subscriptions', label: 'Subscriptions', icon: 'BarChart', href: '/dashboard/admin/subscriptions' },
           { id: 'admin-verifications', label: 'Verifications', icon: 'Shield', href: '/dashboard/admin/verifications' },
+          { id: 'admin-disputes', label: 'Escrow Disputes', icon: 'Shield', href: '/dashboard/admin/disputes' },
+          crmDashboardItem,
         ],
       });
     }

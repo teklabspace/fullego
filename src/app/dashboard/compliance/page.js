@@ -59,7 +59,7 @@ export default function CompliancePage() {
           assignee: task.assignee?.name || 'Unassigned',
           assigneeId: task.assignee?.id,
           dueDate: formatDate(task.dueDate || task.due_date),
-          status: capitalizeFirst(task.status || 'pending'),
+          status: formatLabel(task.status || 'pending'),
           statusColor: getStatusColor(task.status || 'pending'),
           priority: task.priority || 'medium',
           description: task.description || '',
@@ -83,15 +83,22 @@ export default function CompliancePage() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const capitalizeFirst = (str) => {
+  // Map a lowercase snake_case enum (e.g. "in_progress") to a human label ("In Progress").
+  // Lowercases first so display stays consistent regardless of what the API returns.
+  const formatLabel = (str) => {
     if (!str) return '';
-    return str.charAt(0).toUpperCase() + str.slice(1).replace(/_/g, ' ');
+    return String(str)
+      .toLowerCase()
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
   const getStatusColor = (status) => {
     const statusLower = status?.toLowerCase();
     if (statusLower === 'overdue') return 'text-red-400';
     if (statusLower === 'pending') return 'text-[#F1CB68]';
+    if (statusLower === 'not_started') return 'text-gray-400';
     if (statusLower === 'completed') return 'text-green-400';
     return 'text-gray-400';
   };
@@ -161,9 +168,9 @@ export default function CompliancePage() {
         dueDate: taskData.dueDate 
           ? new Date(taskData.dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
           : 'N/A',
-        status: capitalizeFirst(taskData.status || 'pending'),
+        status: formatLabel(taskData.status || 'pending'),
         statusColor: getStatusColor(taskData.status),
-        priority: capitalizeFirst(taskData.priority || 'medium'),
+        priority: formatLabel(taskData.priority || 'medium'),
         description: taskData.description || 'No description available',
         category: taskData.category || '',
         relatedDocuments: taskData.relatedDocuments || [],
@@ -218,7 +225,7 @@ export default function CompliancePage() {
         assignee: task.assignee?.name || 'Unassigned',
         assigneeId: task.assignee?.id,
         dueDate: formatDate(task.dueDate || task.due_date),
-        status: capitalizeFirst(task.status || 'pending'),
+        status: formatLabel(task.status || 'pending'),
         statusColor: getStatusColor(task.status || 'pending'),
         priority: task.priority || 'medium',
         description: task.description || '',

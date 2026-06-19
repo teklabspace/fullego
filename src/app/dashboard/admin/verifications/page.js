@@ -117,6 +117,12 @@ export default function AdminVerificationsPage() {
 
   if (!mounted || !isAdmin) return null;
 
+  // Defensive: ensure each tab only shows its own type even if the backend
+  // ignores the `type` query param (All = both, KYC = kyc only, KYB = kyb only).
+  const visibleVerifications = typeTab
+    ? verifications.filter((v) => v.type === typeTab)
+    : verifications;
+
   const cardCls = `rounded-2xl border ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`;
   const textMain = isDarkMode ? 'text-white' : 'text-gray-900';
   const textMuted = isDarkMode ? 'text-gray-400' : 'text-gray-600';
@@ -199,12 +205,12 @@ export default function AdminVerificationsPage() {
                     ))}
                   </tr>
                 ))
-              ) : verifications.length === 0 ? (
+              ) : visibleVerifications.length === 0 ? (
                 <tr>
                   <td colSpan={7} className={`px-4 py-12 text-center text-sm ${textMuted}`}>No verifications found</td>
                 </tr>
               ) : (
-                verifications.map((item) => {
+                visibleVerifications.map((item) => {
                   const statusCfg = STATUS_CONFIG[item.status] || { label: item.status, cls: 'bg-gray-500/20 text-gray-400' };
                   const canAction = item.status === 'pending_review' || item.status === 'in_progress';
                   return (

@@ -15,6 +15,11 @@ const buildQuery = (params) => {
   return `?${new URLSearchParams(clean)}`;
 };
 
+// ── Dashboard ────────────────────────────────────────────────────────────────
+
+export const getAdminDashboard = (params = {}) =>
+  apiGet(`${API_ENDPOINTS.ADMIN.DASHBOARD}${buildQuery(params)}`);
+
 // ── Users ──────────────────────────────────────────────────────────────────
 
 export const listAdminUsers = (params = {}) =>
@@ -61,3 +66,23 @@ export const rejectVerification = (type, id, reason) =>
     : API_ENDPOINTS.ADMIN.REJECT_KYB(id),
     { reason }
   );
+
+// ── Marketplace Escrow Disputes ──────────────────────────────────────────────
+
+export const listDisputes = (params = {}) =>
+  apiGet(`${API_ENDPOINTS.ADMIN.LIST_DISPUTES}${buildQuery(params)}`);
+
+export const getDispute = (id) =>
+  apiGet(API_ENDPOINTS.ADMIN.GET_DISPUTE(id));
+
+/**
+ * Resolve a marketplace escrow dispute.
+ * @param {string} id - dispute id
+ * @param {'release'|'refund'} resolution - release funds to seller or refund the buyer
+ * @param {string} [notes] - admin resolution notes
+ */
+export const resolveDispute = (id, resolution, notes = '') =>
+  apiPost(API_ENDPOINTS.ADMIN.RESOLVE_DISPUTE(id), {
+    resolution,
+    ...(notes ? { notes } : {}),
+  });

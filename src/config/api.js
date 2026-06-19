@@ -498,6 +498,8 @@ export const API_ENDPOINTS = {
   },
   // Admin endpoints
   ADMIN: {
+    // Dashboard
+    DASHBOARD: '/admin/dashboard',
     // Users
     LIST_USERS: '/admin/users',
     GET_USER: (id) => `/admin/users/${id}`,
@@ -514,6 +516,10 @@ export const API_ENDPOINTS = {
     REJECT_KYC: (id) => `/admin/verifications/kyc/${id}/reject`,
     APPROVE_KYB: (id) => `/admin/verifications/kyb/${id}/approve`,
     REJECT_KYB: (id) => `/admin/verifications/kyb/${id}/reject`,
+    // Marketplace escrow disputes
+    LIST_DISPUTES: '/admin/disputes',
+    GET_DISPUTE: (id) => `/admin/disputes/${id}`,
+    RESOLVE_DISPUTE: (id) => `/admin/disputes/${id}/resolve`,
   },
   // Notifications endpoints
   NOTIFICATIONS: {
