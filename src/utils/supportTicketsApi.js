@@ -172,25 +172,39 @@ export const getTicketDocuments = async (ticketId) => {
 };
 
 /**
- * Add Comment to Ticket
- * POST /api/v1/support/tickets/{ticket_id}/comments
+ * Add Reply to Ticket (BUG-09)
+ * POST /api/v1/support/tickets/{ticket_id}/replies
+ *
+ * `/replies` is the canonical route. The old `/comments` route only exists as
+ * an undocumented alias on the backend and may be removed, so we target
+ * `/replies` directly. Request body is unchanged: { message, is_internal }.
  */
-export const addTicketComment = async (ticketId, commentData) => {
-  const transformedData = transformToSnake(commentData);
-  const endpoint = API_ENDPOINTS.SUPPORT.TICKET_COMMENTS(ticketId);
+export const addTicketReply = async (ticketId, replyData) => {
+  const transformedData = transformToSnake(replyData);
+  const endpoint = API_ENDPOINTS.SUPPORT.TICKET_REPLIES(ticketId);
   const response = await apiPost(endpoint, transformedData);
   return transformKeys(response);
 };
 
 /**
- * Get Ticket Comments
- * GET /api/v1/support/tickets/{ticket_id}/comments
+ * Get Ticket Replies (BUG-09)
+ * GET /api/v1/support/tickets/{ticket_id}/replies
  */
-export const getTicketComments = async (ticketId) => {
-  const endpoint = API_ENDPOINTS.SUPPORT.TICKET_COMMENTS(ticketId);
+export const getTicketReplies = async (ticketId) => {
+  const endpoint = API_ENDPOINTS.SUPPORT.TICKET_REPLIES(ticketId);
   const response = await apiGet(endpoint);
   return transformKeys(response);
 };
+
+/**
+ * @deprecated Use addTicketReply — points at the canonical /replies route.
+ */
+export const addTicketComment = addTicketReply;
+
+/**
+ * @deprecated Use getTicketReplies — points at the canonical /replies route.
+ */
+export const getTicketComments = getTicketReplies;
 
 /**
  * Get Ticket History

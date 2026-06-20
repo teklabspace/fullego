@@ -138,6 +138,8 @@ export const API_ENDPOINTS = {
     // Asset Actions
     TRANSFER: (id) => `/assets/${id}/transfer`,
     SHARE: (id) => `/assets/${id}/share`,
+    // Public resolve of a shared asset link (BUG-02) — no auth required.
+    GET_SHARED: (id) => `/assets/${id}/shared`,
     GENERATE_REPORT: (id) => `/assets/${id}/reports`,
     GET_REPORT: (id, reportId) => `/assets/${id}/reports/${reportId}`,
     // Analytics
@@ -399,6 +401,9 @@ export const API_ENDPOINTS = {
     UPDATE_TICKET: (id) => `/support/tickets/${id}`,
     ASSIGN_TICKET: (id) => `/support/tickets/${id}/assign`,
     TICKET_DOCUMENTS: (id) => `/support/tickets/${id}/documents`,
+    // Canonical route for ticket conversation entries (BUG-09).
+    TICKET_REPLIES: (id) => `/support/tickets/${id}/replies`,
+    // Deprecated alias kept only for backward compatibility; backend may remove it.
     TICKET_COMMENTS: (id) => `/support/tickets/${id}/comments`,
     TICKET_HISTORY: (id) => `/support/tickets/${id}/history`,
     STATISTICS: '/support/statistics',

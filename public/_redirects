@@ -1,3 +1,9 @@
+# Shared asset links (BUG-02): asset IDs are unbounded, so static export only
+# emits a placeholder shell at /assets/__/shared. Rewrite (200, not redirect)
+# any /assets/{id}/shared request to that shell; the client reads the real id
+# from the URL. Query string (?code=) is preserved automatically.
+/assets/*/shared /assets/__/shared 200
+
 # Optional: old bookmarks with trailing slash → canonical paths (no trailing slash).
 /auth/google/callback/ /auth/google/callback 308
 /signup/ /signup 308

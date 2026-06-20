@@ -153,6 +153,78 @@ export default function ReferralPage() {
     }
   };
 
+  const handleSocialShare = (platform) => {
+    if (!referralLink) {
+      toast.error('No referral link available to share yet');
+      return;
+    }
+
+    const url = encodeURIComponent(referralLink);
+    const message = encodeURIComponent(
+      'Join me on Akunuba and let’s earn rewards together!'
+    );
+
+    const shareUrls = {
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
+      twitter: `https://twitter.com/intent/tweet?url=${url}&text=${message}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${url}`,
+    };
+
+    if (platform === 'more') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        navigator
+          .share({
+            title: 'Akunuba Referral',
+            text: 'Join me on Akunuba and let’s earn rewards together!',
+            url: referralLink,
+          })
+          .catch(() => {});
+      } else {
+        handleCopyLink();
+      }
+      return;
+    }
+
+    const shareUrl = shareUrls[platform];
+    if (shareUrl && typeof window !== 'undefined') {
+      window.open(shareUrl, '_blank', 'noopener,noreferrer,width=600,height=600');
+    }
+  };
+
+  const handleExport = () => {
+    if (!referrals.length) {
+      toast.error('No referrals to export');
+      return;
+    }
+
+    const escapeCsv = (value) => {
+      const str = String(value ?? '');
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+
+    const header = ['Name', 'Email', 'Joined Date', 'Status'];
+    const rows = referrals.map((ref) => [
+      ref.name,
+      ref.email,
+      ref.joinedDate ? formatDate(ref.joinedDate) : '',
+      ref.status,
+    ]);
+
+    const csv = [header, ...rows]
+      .map((row) => row.map(escapeCsv).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'referrals.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+    toast.success('Referrals exported');
+  };
+
   const getStatusBadge = status => {
     if (status === 'active') {
       return (
@@ -428,7 +500,9 @@ export default function ReferralPage() {
               </label>
               <div className='flex items-center gap-3 flex-wrap'>
                 <button
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all hover:opacity-90 cursor-pointer ${
+                  onClick={() => handleSocialShare('facebook')}
+                  disabled={!referralLink}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                     isDarkMode
                       ? 'border-white/10 bg-white/5 hover:bg-white/10'
                       : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
@@ -449,7 +523,9 @@ export default function ReferralPage() {
                   </span>
                 </button>
                 <button
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all hover:opacity-90 cursor-pointer ${
+                  onClick={() => handleSocialShare('twitter')}
+                  disabled={!referralLink}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                     isDarkMode
                       ? 'border-white/10 bg-white/5 hover:bg-white/10'
                       : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
@@ -470,7 +546,9 @@ export default function ReferralPage() {
                   </span>
                 </button>
                 <button
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all hover:opacity-90 cursor-pointer ${
+                  onClick={() => handleSocialShare('linkedin')}
+                  disabled={!referralLink}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                     isDarkMode
                       ? 'border-white/10 bg-white/5 hover:bg-white/10'
                       : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
@@ -491,7 +569,9 @@ export default function ReferralPage() {
                   </span>
                 </button>
                 <button
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all hover:opacity-90 cursor-pointer ${
+                  onClick={() => handleSocialShare('more')}
+                  disabled={!referralLink}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                     isDarkMode
                       ? 'border-white/10 bg-white/5 hover:bg-white/10'
                       : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
@@ -556,7 +636,9 @@ export default function ReferralPage() {
                 <option value='cancelled'>Cancelled</option>
               </select>
               <button
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 cursor-pointer ${
+                onClick={handleExport}
+                disabled={!referrals.length}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                   isDarkMode
                     ? 'bg-white/5 border border-white/10 text-white hover:bg-white/10'
                     : 'bg-gray-100 border border-gray-200 text-gray-900 hover:bg-gray-200'

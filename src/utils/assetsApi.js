@@ -569,6 +569,32 @@ export const cancelAssetTransfer = async (assetId, transferId) => {
 };
 
 /**
+ * 23e. Resolve a Shared Asset Link (BUG-02)
+ * GET /api/v1/assets/{asset_id}/shared?code={accessCode}
+ *
+ * Public endpoint — no authentication required. Used by the public
+ * /assets/{asset_id}/shared page to render a read-only asset view.
+ *
+ * Errors surface via the thrown error's `status`:
+ *   404 - invalid or inactive share code
+ *   410 - share link has expired
+ *
+ * Returns the raw response: { data: { asset, permissions, expires_at } }
+ * with the nested asset transformed to camelCase.
+ */
+export const getSharedAsset = async (assetId, accessCode) => {
+  const query = accessCode ? `?code=${encodeURIComponent(accessCode)}` : '';
+  const endpoint = `${API_ENDPOINTS.ASSETS.GET_SHARED(assetId)}${query}`;
+  const response = await apiGet(endpoint);
+
+  if (response?.data) {
+    response.data = transformKeys(response.data);
+  }
+
+  return response;
+};
+
+/**
  * 24. Share Asset Details
  * POST /api/v1/assets/{asset_id}/share
  */

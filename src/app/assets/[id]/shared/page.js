@@ -1,0 +1,340 @@
+'use client';
+
+import { useTheme } from '@/context/ThemeContext';
+import { formatCurrency, getSharedAsset } from '@/utils/assetsApi';
+import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+/**
+ * Public, read-only view of an asset shared via a share link (BUG-02).
+ *
+ * URL shape: /assets/{asset_id}/shared?code={accessCode}
+ * Backend  : GET /api/v1/assets/{asset_id}/shared?code={accessCode}  (no auth)
+ *
+ * States handled:
+ *   - loading
+ *   - missing code in the URL
+ *   - 404 -> invalid / inactive share link
+ *   - 410 -> share link expired
+ *   - other errors
+ *   - success -> render asset details (view permission only)
+ */
+export default function SharedAssetPage() {
+  const { isDarkMode } = useTheme();
+  const params = useParams();
+
+  const [status, setStatus] = useState('loading'); // loading | missing-code | invalid | expired | error | ready
+  const [asset, setAsset] = useState(null);
+  const [permissions, setPermissions] = useState([]);
+  const [expiresAt, setExpiresAt] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  useEffect(() => {
+    // Resolve the asset id from the route params, falling back to the pathname
+    // (the route is served from a placeholder shell on the static host, so the
+    // real id lives in the browser URL).
+    let assetId = params?.id && params.id !== '__' ? params.id : null;
+    let accessCode = null;
+
+    if (typeof window !== 'undefined') {
+      if (!assetId) {
+        const segments = window.location.pathname.split('/').filter(Boolean);
+        const assetsIndex = segments.indexOf('assets');
+        if (assetsIndex !== -1 && segments[assetsIndex + 1]) {
+          assetId = segments[assetsIndex + 1];
+        }
+      }
+      accessCode = new URLSearchParams(window.location.search).get('code');
+    }
+
+    if (!assetId || assetId === '__') {
+      setStatus('error');
+      setErrorMessage('No asset was specified in this link.');
+      return;
+    }
+
+    if (!accessCode) {
+      setStatus('missing-code');
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        setStatus('loading');
+        const response = await getSharedAsset(assetId, accessCode);
+        if (cancelled) return;
+
+        const data = response?.data || response || {};
+        setAsset(data.asset || null);
+        setPermissions(Array.isArray(data.permissions) ? data.permissions : []);
+        setExpiresAt(data.expiresAt ?? data.expires_at ?? null);
+        setStatus(data.asset ? 'ready' : 'invalid');
+      } catch (err) {
+        if (cancelled) return;
+        if (err?.status === 410) {
+          setStatus('expired');
+        } else if (err?.status === 404) {
+          setStatus('invalid');
+        } else {
+          setStatus('error');
+          setErrorMessage(
+            err?.message || 'We were unable to load this shared asset.'
+          );
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [params?.id]);
+
+  const pageBg = isDarkMode ? 'bg-[#101014] text-white' : 'bg-gray-50 text-gray-900';
+  const cardBg = isDarkMode
+    ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
+    : 'bg-white border-gray-200';
+  const subtext = isDarkMode ? 'text-gray-400' : 'text-gray-600';
+
+  const formattedExpiry = expiresAt
+    ? new Date(expiresAt).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : null;
+
+  return (
+    <div className={`min-h-screen ${pageBg}`}>
+      <div className='max-w-5xl mx-auto px-4 py-8 sm:py-12'>
+        {/* Brand header */}
+        <div className='flex items-center justify-between mb-8'>
+          <span className='text-xl font-bold tracking-tight'>Akunuba</span>
+          <span
+            className={`text-xs px-3 py-1 rounded-full ${
+              isDarkMode ? 'bg-white/5 text-gray-300' : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            Shared asset
+          </span>
+        </div>
+
+        {status === 'loading' && <SharedStateCard cardBg={cardBg} subtext={subtext} title='Loading shared asset…' message='Please wait while we retrieve the asset details.' spinner />}
+
+        {status === 'missing-code' && (
+          <SharedStateCard
+            cardBg={cardBg}
+            subtext={subtext}
+            title='This link is incomplete'
+            message='The share link is missing its access code. Please use the full link exactly as it was sent to you.'
+          />
+        )}
+
+        {status === 'invalid' && (
+          <SharedStateCard
+            cardBg={cardBg}
+            subtext={subtext}
+            title='This link is no longer valid'
+            message='Your file couldn’t be accessed. The share link may be invalid or it may have been deactivated by the owner.'
+          />
+        )}
+
+        {status === 'expired' && (
+          <SharedStateCard
+            cardBg={cardBg}
+            subtext={subtext}
+            title='This link has expired'
+            message='This share link is no longer active. Please ask the owner to send you a new link.'
+          />
+        )}
+
+        {status === 'error' && (
+          <SharedStateCard
+            cardBg={cardBg}
+            subtext={subtext}
+            title='Something went wrong'
+            message={errorMessage}
+          />
+        )}
+
+        {status === 'ready' && asset && (
+          <SharedAssetView
+            asset={asset}
+            permissions={permissions}
+            formattedExpiry={formattedExpiry}
+            currentImageIndex={currentImageIndex}
+            setCurrentImageIndex={setCurrentImageIndex}
+            isDarkMode={isDarkMode}
+            cardBg={cardBg}
+            subtext={subtext}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SharedStateCard({ cardBg, subtext, title, message, spinner }) {
+  return (
+    <div className={`border rounded-2xl p-8 sm:p-12 text-center ${cardBg}`}>
+      {spinner ? (
+        <svg className='animate-spin h-8 w-8 mx-auto mb-4 text-[#F1CB68]' viewBox='0 0 24 24'>
+          <circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' fill='none' />
+          <path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z' />
+        </svg>
+      ) : (
+        <div className='w-12 h-12 rounded-full bg-[#F1CB68]/10 flex items-center justify-center mx-auto mb-4'>
+          <svg width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
+            <circle cx='12' cy='12' r='10' />
+            <line x1='12' y1='8' x2='12' y2='13' />
+            <line x1='12' y1='16' x2='12.01' y2='16' />
+          </svg>
+        </div>
+      )}
+      <h1 className='text-xl sm:text-2xl font-bold mb-2'>{title}</h1>
+      {message && <p className={`text-sm sm:text-base ${subtext}`}>{message}</p>}
+    </div>
+  );
+}
+
+function SharedAssetView({
+  asset,
+  permissions,
+  formattedExpiry,
+  currentImageIndex,
+  setCurrentImageIndex,
+  isDarkMode,
+  cardBg,
+  subtext,
+}) {
+  const images =
+    asset.images && asset.images.length > 0
+      ? asset.images
+      : asset.image
+      ? [asset.image]
+      : [];
+
+  const safeIndex = Math.min(currentImageIndex, Math.max(images.length - 1, 0));
+
+  const currentValue =
+    typeof asset.currentValue === 'number'
+      ? formatCurrency(asset.currentValue, asset.currency)
+      : asset.currentValueFormatted || asset.currentValue;
+
+  const estimatedValue =
+    typeof asset.estimatedValue === 'number'
+      ? formatCurrency(asset.estimatedValue, asset.currency)
+      : asset.estimatedValueFormatted || asset.estimatedValue;
+
+  const specs = asset.specifications || {};
+  const detailRows = [
+    { label: 'Category', value: asset.category },
+    { label: 'Status', value: asset.status },
+    { label: 'Property Type', value: specs.propertyType || specs.property_type },
+    { label: 'Location', value: specs.address || asset.location },
+    { label: 'Year Built', value: specs.yearBuilt || specs.year_built },
+    { label: 'Size', value: specs.size },
+  ].filter((row) => row.value !== undefined && row.value !== null && row.value !== '');
+
+  return (
+    <div className='space-y-6'>
+      {/* Expiry / view-only banner */}
+      <div
+        className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl px-4 py-3 text-sm ${
+          isDarkMode ? 'bg-white/5 text-gray-300' : 'bg-[#F1CB68]/10 text-gray-700'
+        }`}
+      >
+        <span>
+          {permissions.includes('view') || permissions.length === 0
+            ? 'You have view-only access to this asset.'
+            : `Permissions: ${permissions.join(', ')}`}
+        </span>
+        {formattedExpiry && <span className='font-medium'>Link expires {formattedExpiry}</span>}
+      </div>
+
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+        {/* Images + description */}
+        <div className='lg:col-span-2 space-y-6'>
+          <div className={`border rounded-2xl overflow-hidden ${cardBg}`}>
+            <div className='relative aspect-video bg-black'>
+              {images.length > 0 ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={images[safeIndex]} alt={asset.name} className='w-full h-full object-cover' />
+              ) : (
+                <div className='w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900'>
+                  <span className='text-4xl text-gray-600'>📦</span>
+                </div>
+              )}
+              {images.length > 1 && (
+                <div className='absolute bottom-4 right-4 px-3 py-1.5 bg-black/50 backdrop-blur-sm rounded-lg text-sm text-white'>
+                  {safeIndex + 1}/{images.length}
+                </div>
+              )}
+            </div>
+            {images.length > 1 && (
+              <div className='p-4 flex gap-3 overflow-x-auto'>
+                {images.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentImageIndex(index)}
+                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                      safeIndex === index ? 'border-[#F1CB68]' : 'border-transparent hover:border-[#FFFFFF14]'
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={image} alt={`View ${index + 1}`} className='w-full h-full object-cover' />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {asset.description && (
+            <div className={`border rounded-2xl p-6 ${cardBg}`}>
+              <h2 className='text-lg font-semibold mb-3'>Description</h2>
+              <p className={`text-sm leading-relaxed ${subtext}`}>{asset.description}</p>
+            </div>
+          )}
+
+          {detailRows.length > 0 && (
+            <div className={`border rounded-2xl p-6 ${cardBg}`}>
+              <h2 className='text-lg font-semibold mb-4'>Details</h2>
+              <div className='grid grid-cols-2 gap-y-4 gap-x-6'>
+                {detailRows.map((row) => (
+                  <div key={row.label}>
+                    <p className={`text-xs mb-1 ${subtext}`}>{row.label}</p>
+                    <p className='font-medium capitalize'>{String(row.value)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Summary */}
+        <div className='space-y-6'>
+          <div className={`border rounded-2xl p-6 ${cardBg}`}>
+            <h1 className='text-2xl font-bold mb-2'>{asset.name || 'Asset'}</h1>
+            {asset.category && <p className={`text-sm mb-4 capitalize ${subtext}`}>{asset.category}</p>}
+            {currentValue != null && currentValue !== '' && (
+              <div className='mb-4'>
+                <p className={`text-xs mb-1 ${subtext}`}>Current Value</p>
+                <p className='text-3xl font-bold'>{currentValue}</p>
+              </div>
+            )}
+            {estimatedValue != null && estimatedValue !== '' && (
+              <div>
+                <p className={`text-xs mb-1 ${subtext}`}>Estimated Value</p>
+                <p className='text-lg font-semibold'>{estimatedValue}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

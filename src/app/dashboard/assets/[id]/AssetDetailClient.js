@@ -280,8 +280,24 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
       setShowSellModal(false);
       setSellFormData({ targetPrice: '', saleNote: '' });
     } catch (err) {
-      console.error('Error submitting sell request:', err);
-      alert(err.message || 'Failed to submit sell request');
+      // BUG-03: surface the backend error detail and a timestamp so it can be
+      // matched against the server logs if the request still fails.
+      const timestamp = new Date().toISOString();
+      let errorMessage = 'Failed to submit sell request';
+      if (err.data) {
+        if (typeof err.data.detail === 'string') errorMessage = err.data.detail;
+        else if (err.data.message) errorMessage = err.data.message;
+        else if (err.data.error) errorMessage = err.data.error;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      console.error('Error submitting sell request:', {
+        timestamp,
+        assetId: asset.id,
+        status: err.status,
+        error: err,
+      });
+      alert(`${errorMessage}\n\nIf this keeps happening, please report this time to support: ${timestamp}`);
     } finally {
       setSubmittingSell(false);
     }
@@ -375,9 +391,13 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
         expiresIn: shareData.expiresIn || undefined,
         permissions: ['view'],
       });
-      if (response.data?.shareLink) {
-        // Copy to clipboard
-        await navigator.clipboard.writeText(response.data.shareLink);
+      // Backend now returns an absolute share URL (BUG-02). Accept the common
+      // field names so we copy a usable link rather than a broken relative path.
+      const data = response.data || {};
+      const shareLink =
+        data.shareLink || data.shareUrl || data.url || data.link || '';
+      if (shareLink) {
+        await navigator.clipboard.writeText(shareLink);
         alert('Share link copied to clipboard!');
       } else {
         alert('Asset shared successfully!');

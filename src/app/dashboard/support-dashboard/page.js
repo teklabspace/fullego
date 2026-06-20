@@ -10,8 +10,8 @@ import { toast } from 'react-toastify';
 import {
   listTickets,
   getTicket,
-  getTicketComments,
-  addTicketComment,
+  getTicketReplies,
+  addTicketReply,
 } from '@/utils/supportTicketsApi';
 import { getConversations, getMessages, sendMessage } from '@/utils/chatApi';
 
@@ -148,15 +148,15 @@ export default function SupportDashboardPage() {
 
   const fetchTicketComments = async (ticketId) => {
     try {
-      const response = await getTicketComments(ticketId);
-      const comments = response.data || response || [];
-      
-      // Transform comments to messages format
-      const transformedMessages = comments.map((comment) => ({
-        id: comment.id,
-        sender: comment.isAdmin || comment.is_admin ? 'admin' : 'user',
-        message: comment.message || comment.content || '',
-        timestamp: comment.createdAt ? formatTime(comment.createdAt) : formatTime(comment.created_at),
+      const response = await getTicketReplies(ticketId);
+      const replies = response.data || response || [];
+
+      // Transform replies to messages format
+      const transformedMessages = replies.map((reply) => ({
+        id: reply.id,
+        sender: reply.isAdmin || reply.is_admin ? 'admin' : 'user',
+        message: reply.message || reply.content || '',
+        timestamp: reply.createdAt ? formatTime(reply.createdAt) : formatTime(reply.created_at),
       }));
       
       setMessages(prev => ({
@@ -238,7 +238,7 @@ export default function SupportDashboardPage() {
 
     try {
       if (selectedItem.type === 'ticket') {
-        await addTicketComment(selectedItem.id, { message: content });
+        await addTicketReply(selectedItem.id, { message: content });
 
         const newMessage = {
           id: Date.now().toString(),

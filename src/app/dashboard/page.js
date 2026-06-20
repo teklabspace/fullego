@@ -11,7 +11,8 @@ import
     getPortfolioPerformance,
     getPortfolioSummary,
   } from '@/utils/portfolioApi';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import
   {
@@ -38,8 +39,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
       try {
         setLoading(true);
         setIsLoadingProfile(true);
@@ -135,14 +135,15 @@ export default function DashboardPage() {
       } finally {
         setLoading(false);
       }
-    };
-
-    fetchAllData();
   }, []);
 
+  useEffect(() => {
+    fetchAllData();
+  }, [fetchAllData]);
+
   return (
-    <DashboardContent 
-      userProfile={userProfile} 
+    <DashboardContent
+      userProfile={userProfile}
       isLoadingProfile={isLoadingProfile}
       portfolioSummary={portfolioSummary}
       portfolioPerformance={portfolioPerformance}
@@ -150,12 +151,13 @@ export default function DashboardPage() {
       accountData={accountData}
       bankAccounts={bankAccounts}
       loading={loading}
+      onRefresh={fetchAllData}
     />
   );
 }
 
-function DashboardContent({ 
-  userProfile, 
+function DashboardContent({
+  userProfile,
   isLoadingProfile,
   portfolioSummary,
   portfolioPerformance,
@@ -163,8 +165,10 @@ function DashboardContent({
   accountData,
   bankAccounts,
   loading,
+  onRefresh,
 }) {
   const { isDarkMode } = useTheme();
+  const router = useRouter();
 
   return (
     <DashboardLayout>
@@ -188,10 +192,16 @@ function DashboardContent({
         
         {/* Navigation Icons */}
         <div className='flex items-center gap-4'>
-          <button className={`p-2 rounded-lg transition-colors ${
-            isDarkMode ? 'hover:bg-[#2A2A2D]' : 'hover:bg-gray-100'
-          }`}>
-            <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke={isDarkMode ? '#666666' : '#9CA3AF'} strokeWidth='2'>
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            title='Refresh'
+            aria-label='Refresh dashboard'
+            className={`p-2 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
+              isDarkMode ? 'hover:bg-[#2A2A2D]' : 'hover:bg-gray-100'
+            }`}
+          >
+            <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke={isDarkMode ? '#666666' : '#9CA3AF'} strokeWidth='2' className={loading ? 'animate-spin' : ''}>
               <path d='M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2' />
             </svg>
           </button>
@@ -212,9 +222,14 @@ function DashboardContent({
               <line x1='12' y1='2' x2='12' y2='15' />
             </svg>
           </button>
-          <button className={`p-2 rounded-lg transition-colors ${
-            isDarkMode ? 'hover:bg-[#2A2A2D]' : 'hover:bg-gray-100'
-          }`}>
+          <button
+            onClick={() => router.push('/dashboard/settings')}
+            title='Settings'
+            aria-label='Open settings'
+            className={`p-2 rounded-lg transition-colors ${
+              isDarkMode ? 'hover:bg-[#2A2A2D]' : 'hover:bg-gray-100'
+            }`}
+          >
             <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke={isDarkMode ? '#666666' : '#9CA3AF'} strokeWidth='2'>
               <circle cx='12' cy='12' r='3' />
               <path d='M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24' />
