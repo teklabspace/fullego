@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import DocumentPreviewModal from '@/components/documents/DocumentPreviewModal';
 import FileUploadModal from '@/components/documents/FileUploadModal';
 import ShareDocumentModal from '@/components/documents/ShareDocumentModal';
@@ -127,6 +126,137 @@ const getDocumentIcon = type => {
   return iconMap[type] || iconMap.PDF;
 };
 
+// Format a byte count into a human-readable size (B, KB, MB, GB, TB, PB).
+// Accepts a raw number of bytes, a numeric string, or an already-formatted
+// string like "5 GB" (passed through unchanged).
+const formatBytes = (value, fallback = '0 B') => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return fallback;
+    if (/[a-zA-Z]/.test(trimmed)) return trimmed; // already has a unit
+    value = Number(trimmed);
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return fallback;
+  if (value === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(value) / Math.log(1024)));
+  const num = i === 0 ? value : parseFloat((value / 1024 ** i).toFixed(2));
+  return `${num} ${units[i]}`;
+};
+
+// Build the three stat cards from a statistics object (whether it came from the
+// /documents/statistics endpoint or was computed client-side).
+const buildStatsCards = (statistics) => [
+  {
+    title: 'Total Documents Stored',
+    value: statistics.totalDocuments?.toString() || '0',
+    subtitle: 'Documents',
+    icon: '/icons/document-file.svg',
+  },
+  {
+    title: 'Storage Used',
+    value: formatBytes(statistics.storageUsed, '0 B'),
+    subtitle: `of ${formatBytes(statistics.storageLimit, '5 GB')}`,
+    icon: '/icons/storage-grid.svg',
+  },
+  {
+    title: 'Last Uploaded',
+    value: statistics.lastUploaded ? new Date(statistics.lastUploaded).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A',
+    subtitle: statistics.lastUploaded ? new Date(statistics.lastUploaded).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+    icon: '/icons/upload-cloud.svg',
+  },
+];
+
+// BUG-10: GET /documents/statistics is shadowed by GET /documents/{document_id}
+// on the backend, so it returns 422 (uuid_parsing on "statistics"). Until the
+// backend route ordering is fixed, derive the same stats client-side from the
+// documents list we already fetched so the page still renders useful values.
+const computeStatisticsFromDocuments = (docs) => {
+  const totalBytes = docs.reduce((sum, d) => sum + (d.size || d.fileSize || 0), 0);
+  const lastUploadedMs = docs.reduce((latest, d) => {
+    const raw = d.uploadedDate || d.createdAt;
+    const t = raw ? new Date(raw).getTime() : 0;
+    return Number.isFinite(t) && t > latest ? t : latest;
+  }, 0);
+
+  return {
+    // Raw bytes — buildStatsCards() runs this through formatBytes() so the
+    // endpoint path and this fallback render identically (B/KB/MB/GB/TB).
+    totalDocuments: docs.length,
+    storageUsed: totalBytes,
+    storageLimit: '5 GB',
+    lastUploaded: lastUploadedMs ? new Date(lastUploadedMs).toISOString() : null,
+  };
+};
+
+// Theme-aware shimmer block used by the loading skeletons below.
+const SkeletonBlock = ({ isDarkMode, className = '' }) => (
+  <div
+    className={`animate-pulse rounded ${isDarkMode ? 'bg-white/10' : 'bg-black/10'} ${className}`}
+  />
+);
+
+// Skeleton mirror of a stats card — same wrapper styling as the real cards so
+// the layout doesn't shift when data arrives.
+const StatCardSkeleton = ({ isDarkMode }) => (
+  <div
+    className='relative rounded-2xl p-6 border'
+    style={
+      isDarkMode
+        ? {
+            background:
+              'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(10px)',
+          }
+        : {
+            background: 'transparent',
+            border: '1px solid rgba(0, 0, 0, 0.1)',
+          }
+    }
+  >
+    <div className='flex justify-between items-start mb-4'>
+      <div className='flex-1'>
+        <SkeletonBlock isDarkMode={isDarkMode} className='h-4 w-32 mb-3' />
+        <SkeletonBlock isDarkMode={isDarkMode} className='h-8 w-24 mb-2' />
+        <SkeletonBlock isDarkMode={isDarkMode} className='h-3 w-20' />
+      </div>
+      <SkeletonBlock isDarkMode={isDarkMode} className='h-8 w-8 rounded-lg ml-4' />
+    </div>
+  </div>
+);
+
+// Skeleton mirror of a document table row (Name / Type / Date / Actions).
+const DocumentRowSkeleton = ({ isDarkMode }) => (
+  <tr
+    style={{
+      borderBottom: isDarkMode
+        ? '1px solid rgba(255, 255, 255, 0.05)'
+        : '1px solid rgba(0, 0, 0, 0.05)',
+    }}
+  >
+    <td className='px-6 py-4'>
+      <div className='flex items-center gap-3'>
+        <SkeletonBlock isDarkMode={isDarkMode} className='h-6 w-6' />
+        <SkeletonBlock isDarkMode={isDarkMode} className='h-4 w-40 md:w-56' />
+      </div>
+    </td>
+    <td className='px-6 py-4'>
+      <SkeletonBlock isDarkMode={isDarkMode} className='h-4 w-12' />
+    </td>
+    <td className='px-6 py-4'>
+      <SkeletonBlock isDarkMode={isDarkMode} className='h-4 w-28' />
+    </td>
+    <td className='px-6 py-4'>
+      <div className='flex items-center justify-end gap-3'>
+        <SkeletonBlock isDarkMode={isDarkMode} className='h-8 w-8 rounded-full' />
+        <SkeletonBlock isDarkMode={isDarkMode} className='h-8 w-8 rounded-full' />
+        <SkeletonBlock isDarkMode={isDarkMode} className='h-8 w-8 rounded-full' />
+      </div>
+    </td>
+  </tr>
+);
+
 export default function DocumentsPage() {
   const { isDarkMode } = useTheme();
   const [activeTab, setActiveTab] = useState('Identity');
@@ -137,6 +267,8 @@ export default function DocumentsPage() {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareLink, setShareLink] = useState('');
+  const [shareLinkLoading, setShareLinkLoading] = useState(false);
   const [currentFile, setCurrentFile] = useState(null);
   const [currentTags, setCurrentTags] = useState([]);
   const filterMenuRef = useRef(null);
@@ -186,6 +318,7 @@ export default function DocumentsPage() {
     },
   ]);
   const [loading, setLoading] = useState(true);
+  const [viewingId, setViewingId] = useState(null); // doc id whose preview is loading
 
   // Fetch documents and statistics on mount
   useEffect(() => {
@@ -197,41 +330,49 @@ export default function DocumentsPage() {
           getDocumentStatistics(),
         ]);
 
+        let rawDocs = [];
         if (documentsResponse.status === 'fulfilled') {
-          const docs = documentsResponse.value.data || documentsResponse.value || [];
-          setDocuments(docs.map(doc => ({
-            id: doc.id,
-            name: doc.name || doc.fileName,
-            type: doc.type || doc.fileType?.toUpperCase() || 'PDF',
-            uploadedDate: doc.uploadedDate || doc.createdAt ? new Date(doc.uploadedDate || doc.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
-            uploadedDateValue: doc.uploadedDate || doc.createdAt ? new Date(doc.uploadedDate || doc.createdAt) : new Date(),
-            category: doc.category || 'Identity',
-            size: doc.size || doc.fileSize ? (doc.size || doc.fileSize) / (1024 * 1024) : 0, // Convert bytes to MB
-          })));
+          rawDocs = documentsResponse.value.data || documentsResponse.value || [];
+          setDocuments(rawDocs.map(doc => {
+            // Backend document objects vary in field naming (see AssetDetailClient).
+            // Normalise so the UI always has id/name/type/date/size — otherwise the
+            // name shows "Untitled", the date is blank, and actions fire with an
+            // undefined id (which is why the buttons appeared to do nothing).
+            const name =
+              doc.name || doc.fileName || doc.file_name || doc.filename ||
+              doc.originalName || doc.originalFilename || doc.title || 'Untitled document';
+            const rawDate =
+              doc.uploadedDate || doc.uploadedAt || doc.uploaded_at ||
+              doc.createdAt || doc.created_at || doc.date;
+            const dateObj = rawDate ? new Date(rawDate) : null;
+            const validDate = dateObj && !Number.isNaN(dateObj.getTime()) ? dateObj : null;
+            const extType = name.includes('.') ? name.split('.').pop().toUpperCase() : '';
+            const rawSize = doc.size || doc.fileSize || doc.file_size || doc.sizeBytes || doc.size_bytes || 0;
+            return {
+              id: doc.id || doc._id || doc.documentId,
+              name,
+              type: (extType || doc.type || doc.fileType || doc.documentType || doc.document_type || 'PDF').toString().toUpperCase(),
+              uploadedDate: validDate
+                ? validDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : '',
+              uploadedDateValue: validDate || new Date(0),
+              category: doc.category || 'Identity',
+              size: rawSize ? rawSize / (1024 * 1024) : 0, // MB, used for sorting
+              sizeBytes: rawSize, // raw bytes, used by the preview modal's formatter
+              url: doc.url || doc.fileUrl || doc.downloadUrl || doc.download_url || doc.path || '',
+            };
+          }));
         }
 
         if (statsResponse.status === 'fulfilled') {
           const statistics = statsResponse.value.data || statsResponse.value;
-          setStats([
-            {
-              title: 'Total Documents Stored',
-              value: statistics.totalDocuments?.toString() || '0',
-              subtitle: 'Documents',
-              icon: '/icons/document-file.svg',
-            },
-            {
-              title: 'Storage Used',
-              value: statistics.storageUsed || '0GB',
-              subtitle: `of ${statistics.storageLimit || '5GB'}`,
-              icon: '/icons/storage-grid.svg',
-            },
-            {
-              title: 'Last Uploaded',
-              value: statistics.lastUploaded ? new Date(statistics.lastUploaded).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A',
-              subtitle: statistics.lastUploaded ? new Date(statistics.lastUploaded).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
-              icon: '/icons/upload-cloud.svg',
-            },
-          ]);
+          setStats(buildStatsCards(statistics));
+        } else {
+          // BUG-10: the statistics endpoint 422s because it's shadowed by the
+          // dynamic /documents/{document_id} route on the backend. Compute the
+          // stats from the documents we already loaded so the page still renders.
+          console.warn('Document statistics endpoint failed; computing from documents list', statsResponse.reason);
+          setStats(buildStatsCards(computeStatisticsFromDocuments(rawDocs)));
         }
       } catch (error) {
         console.error('Failed to fetch documents:', error);
@@ -247,7 +388,7 @@ export default function DocumentsPage() {
   // Filter and sort documents
   const filteredDocuments = documents
     .filter(doc => {
-      const matchesSearch = doc.name
+      const matchesSearch = (doc.name || '')
         .toLowerCase()
         .includes(searchQuery.toLowerCase());
       // Show all documents when Identity tab is active, otherwise filter by category
@@ -272,29 +413,85 @@ export default function DocumentsPage() {
     setShowFilterMenu(false);
   };
 
-  const handleView = doc => {
-    console.log('View document:', doc);
+  const handleView = async doc => {
+    // Open the preview modal for an already-uploaded document. handlePreview
+    // fetches a preview URL when the doc has an id, and falls back to the doc's
+    // own url if that fails. (Previously this only console.logged — hence the
+    // "View does nothing" report.) viewingId drives the per-row spinner while
+    // the preview URL is being fetched.
+    setViewingId(doc.id);
+    try {
+      // Pass size in BYTES (the modal's formatFileSize expects bytes; doc.size
+      // is MB for sorting). Otherwise it renders "191.08 undefined".
+      await handlePreview({ ...doc, size: doc.sizeBytes, previewUrl: doc.url }, []);
+    } finally {
+      setViewingId(null);
+    }
+  };
+
+  // Save a blob to disk via a temporary anchor — this is what makes the browser
+  // actually download the file instead of navigating to / viewing it.
+  const saveBlob = (blob, filename) => {
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename || 'document';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(blobUrl);
+  };
+
+  // Resolve something downloadable for a doc: either the file payload itself, or
+  // a URL. Tries the backend /download endpoint first, then a preview/file URL
+  // (Supabase-backed) so downloads still work if /download is broken (400).
+  const resolveDownloadable = async (doc) => {
+    try {
+      const response = await downloadDocument(doc.id);
+      if (response instanceof Blob) return { blob: response };
+      const url = response?.url || response?.downloadUrl || response?.fileUrl || response?.signedUrl;
+      if (url) return { url };
+      if (response) return { blob: new Blob([response], { type: 'application/octet-stream' }) };
+    } catch (error) {
+      console.warn('Download endpoint failed, trying preview URL:', error?.message || error);
+    }
+    try {
+      const preview = await getDocumentPreview(doc.id);
+      const url = preview?.previewUrl || preview?.url || preview?.downloadUrl || doc.url;
+      if (url) return { url };
+    } catch {
+      /* fall through */
+    }
+    return null;
   };
 
   const handleDownload = async (doc) => {
     try {
-      const response = await downloadDocument(doc.id);
-      // Handle file download
-      if (response.url) {
-        window.open(response.url, '_blank');
+      const resolved = await resolveDownloadable(doc);
+      if (!resolved) throw new Error('No downloadable file is available for this document.');
+
+      if (resolved.blob) {
+        saveBlob(resolved.blob, doc.name);
       } else {
-        // Create blob URL if response is blob
-        const blob = new Blob([response], { type: 'application/octet-stream' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = doc.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        // Fetch the remote (Supabase) file and save it as a blob so the browser
+        // downloads it. If CORS/network blocks the fetch, fall back to an anchor
+        // with the download attribute pointed straight at the URL.
+        try {
+          const res = await fetch(resolved.url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          saveBlob(await res.blob(), doc.name);
+        } catch {
+          const a = document.createElement('a');
+          a.href = resolved.url;
+          a.download = doc.name || 'document';
+          a.target = '_blank';
+          a.rel = 'noopener';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
       }
-      toast.success('Document download started!');
+      toast.success('Download started!');
     } catch (error) {
       console.error('Failed to download document:', error);
       const errorMsg = error.data?.detail || error.message || 'Failed to download document. Please try again.';
@@ -302,26 +499,45 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleShare = async (doc) => {
+  // Open the share popup for a document and resolve a public link to show in it.
+  // Prefers the backend share link; falls back to the file's preview/public URL
+  // (Supabase) so there's always a "view anywhere" link to copy.
+  const openShareModal = async (doc) => {
+    if (!doc) return;
+    setCurrentFile(doc);
+    setShareLink('');
+    setShareLinkLoading(true);
+    setIsShareModalOpen(true);
     try {
-      const shareData = {
-        generateLink: true,
-        permissions: 'view',
-      };
-      const response = await shareDocument(doc.id, shareData);
-      // Handle share response (show modal with link, etc.)
-      if (response.shareableLink) {
-        toast.success('Document shared successfully!');
-        // Could show modal with shareable link
-      } else {
-        toast.success('Document shared with selected users!');
+      try {
+        const response = await shareDocument(doc.id, { generateLink: true, permissions: 'view' });
+        const link =
+          response?.shareableLink || response?.shareLink || response?.url ||
+          response?.publicUrl || response?.signedUrl;
+        if (link) {
+          setShareLink(link);
+          return;
+        }
+      } catch (error) {
+        console.warn('Share endpoint failed, falling back to file URL:', error?.message || error);
       }
-    } catch (error) {
-      console.error('Failed to share document:', error);
-      const errorMsg = error.data?.detail || error.message || 'Failed to share document. Please try again.';
-      toast.error(errorMsg);
+      try {
+        const preview = await getDocumentPreview(doc.id);
+        const url = preview?.previewUrl || preview?.url || preview?.downloadUrl || doc.url;
+        if (url) {
+          setShareLink(url);
+          return;
+        }
+      } catch {
+        /* fall through */
+      }
+      toast.error('Could not generate a public link for this file.');
+    } finally {
+      setShareLinkLoading(false);
     }
   };
+
+  const handleShare = (doc) => openShareModal(doc);
 
   const handleDelete = async (id) => {
     if (confirm('Are you sure you want to delete this document?')) {
@@ -400,18 +616,44 @@ export default function DocumentsPage() {
     setCurrentTags([]);
   };
 
-  const handleShareDocument = file => {
-    setIsShareModalOpen(true);
-  };
+  const handleShareDocument = file => openShareModal(file);
 
   const handleCloseShare = () => {
     setIsShareModalOpen(false);
+    setShareLink('');
     setCurrentFile(null);
     setCurrentTags([]);
   };
 
+  // Apply the share settings from the modal: invite people (when any) with their
+  // chosen permissions, otherwise just confirm the public-link settings.
+  const handleShareSubmit = async (settings) => {
+    const docId = currentFile?.id;
+    try {
+      if (docId && settings?.invitedUsers?.length) {
+        await shareDocument(docId, {
+          emails: settings.invitedUsers.map(u => u.email),
+          permissions: settings.invitedUsers.map(u => ({ email: u.email, permission: u.permission })),
+          viewOnly: settings.viewOnly,
+          restrictDownload: settings.restrictDownload,
+          requireSignIn: settings.requireSignIn,
+          generateLink: true,
+        });
+        const n = settings.invitedUsers.length;
+        toast.success(`Shared with ${n} ${n === 1 ? 'person' : 'people'}.`);
+      } else {
+        toast.success('Share settings applied.');
+      }
+    } catch (error) {
+      console.error('Failed to share document:', error);
+      toast.error(error.data?.detail || error.message || 'Failed to share document. Please try again.');
+    } finally {
+      handleCloseShare();
+    }
+  };
+
   return (
-    <DashboardLayout>
+    <>
       {/* Header */}
       <div className='mb-8'>
         <h1
@@ -428,7 +670,11 @@ export default function DocumentsPage() {
 
       {/* Stats Cards */}
       <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-8'>
-        {stats.map((stat, index) => (
+        {loading
+          ? Array.from({ length: 3 }).map((_, index) => (
+              <StatCardSkeleton key={index} isDarkMode={isDarkMode} />
+            ))
+          : stats.map((stat, index) => (
           <div
             key={index}
             className='relative rounded-2xl p-6 border'
@@ -754,7 +1000,11 @@ export default function DocumentsPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredDocuments.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 5 }).map((_, index) => (
+                  <DocumentRowSkeleton key={index} isDarkMode={isDarkMode} />
+                ))
+              ) : filteredDocuments.length === 0 ? (
                 <tr>
                   <td
                     colSpan='4'
@@ -812,15 +1062,20 @@ export default function DocumentsPage() {
                       <div className='flex items-center justify-end gap-3'>
                         <button
                           onClick={() => handleView(doc)}
-                          className='p-2 rounded-full transition-all hover:bg-white/10 cursor-pointer'
+                          disabled={viewingId === doc.id}
+                          className='p-2 rounded-full transition-all hover:bg-white/10 cursor-pointer disabled:cursor-wait'
                           title='View'
                         >
-                          <Image
-                            src='/icons/Eye.svg'
-                            alt='View'
-                            width={16}
-                            height={16}
-                          />
+                          {viewingId === doc.id ? (
+                            <span className='inline-block h-4 w-4 animate-spin rounded-full border-2 border-[#F1CB68] border-t-transparent' />
+                          ) : (
+                            <Image
+                              src='/icons/Eye.svg'
+                              alt='View'
+                              width={16}
+                              height={16}
+                            />
+                          )}
                         </button>
                         <button
                           onClick={() => handleDownload(doc)}
@@ -898,8 +1153,10 @@ export default function DocumentsPage() {
         isOpen={isShareModalOpen}
         setIsOpen={setIsShareModalOpen}
         file={currentFile}
-        onShare={handleCloseShare}
+        shareLink={shareLink}
+        loading={shareLinkLoading}
+        onShare={handleShareSubmit}
       />
-    </DashboardLayout>
+    </>
   );
 }

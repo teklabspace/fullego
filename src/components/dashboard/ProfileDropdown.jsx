@@ -31,8 +31,17 @@ export default function ProfileDropdown() {
         setUserProfile(profile);
         console.log('User profile loaded in Navbar:', profile);
       } catch (error) {
-        console.error('Failed to fetch user profile in Navbar:', error);
-        // Don't show error toast here - it's just for display
+        // A 401 here means the stored access token is invalid/expired — the
+        // session is effectively over. Clear the stale tokens and send the user
+        // to login instead of silently swallowing an invalid-credentials error.
+        if (error.status === 401) {
+          clearTokens();
+          router.replace('/login');
+          return;
+        }
+        // Any other failure is display-only; warn (not error) so it doesn't
+        // surface as a red dev overlay. No toast — this is just for the avatar.
+        console.warn('Failed to fetch user profile in Navbar:', error?.message || error);
       } finally {
         setIsLoadingProfile(false);
       }

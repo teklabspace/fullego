@@ -12,6 +12,20 @@ export default function Sidebar({ isOpen, onClose }) {
   const { isDarkMode } = useTheme();
   const { isAdmin, isAdvisor } = useAuth();
 
+  // Optimistic navigation highlight: when a link is clicked we mark its href as
+  // pending so the tab lights up *immediately*, instead of waiting for the route
+  // to finish loading (which in dev can take a couple seconds while the route
+  // compiles). Cleared once the real pathname catches up.
+  const [pendingPath, setPendingPath] = useState(null);
+  useEffect(() => {
+    setPendingPath(null);
+  }, [pathname]);
+
+  const handleNavClick = (href) => {
+    setPendingPath(href);
+    onClose();
+  };
+
   const handleLogout = (e) => {
     e.preventDefault();
     clearTokens();
@@ -200,6 +214,8 @@ export default function Sidebar({ isOpen, onClose }) {
   };
 
   const getCurrentPath = () => {
+    // A pending (just-clicked) path wins so the highlight is instant.
+    if (pendingPath) return pendingPath.replace(/\/$/, '') || '/';
     let currentPath = pathname;
     if (typeof window !== 'undefined' && (!currentPath || currentPath === window.location.pathname)) {
       currentPath = window.location.pathname;
@@ -258,7 +274,7 @@ export default function Sidebar({ isOpen, onClose }) {
             <div>
               <Link
                 href='/dashboard'
-                onClick={onClose}
+                onClick={() => handleNavClick('/dashboard')}
                 className={`
                   flex items-center gap-3 px-4 py-3 rounded-[24px] w-[222px] h-[48px]
                   transition-all duration-200
@@ -300,6 +316,7 @@ export default function Sidebar({ isOpen, onClose }) {
                             <Link
                               href={item.href}
                               onClick={() => {
+                                setPendingPath(item.href);
                                 onClose();
                                 if (openSubmenu !== item.id) setOpenSubmenu(item.id);
                               }}
@@ -349,7 +366,7 @@ export default function Sidebar({ isOpen, onClose }) {
                                 <Link
                                   key={subItem.id}
                                   href={subItem.href}
-                                  onClick={onClose}
+                                  onClick={() => handleNavClick(subItem.href)}
                                   className={`
                                     flex items-center px-4 py-2 text-sm rounded-[24px] w-[190px] h-[40px] transition-colors
                                     ${isActive(subItem.href)
@@ -384,7 +401,7 @@ export default function Sidebar({ isOpen, onClose }) {
                       ) : (
                         <Link
                           href={item.href}
-                          onClick={onClose}
+                          onClick={() => handleNavClick(item.href)}
                           className={`
                             flex items-center gap-3 px-4 py-2.5 rounded-[24px] w-[222px] h-[48px]
                             transition-all duration-200

@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useTheme } from '@/context/ThemeContext';
@@ -131,7 +130,7 @@ export default function NotificationsPage() {
     activeTab === 'all' ? notifications : notifications.filter(n => !n.isRead);
 
   return (
-    <DashboardLayout>
+    <>
       <div className='min-h-screen'>
         {/* Header */}
         <div className='mb-8'>
@@ -325,7 +324,7 @@ export default function NotificationsPage() {
           )}
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 

@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import GlassCard from '@/components/ui/GlassCard';
 
 export default function InvestmentsPage() {
@@ -11,7 +10,7 @@ export default function InvestmentsPage() {
   ];
 
   return (
-    <DashboardLayout>
+    <>
       <div className='mb-8'>
         <h1 className='text-2xl md:text-3xl font-bold text-white mb-2'>
           Investments
@@ -44,7 +43,7 @@ export default function InvestmentsPage() {
           </GlassCard>
         ))}
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 

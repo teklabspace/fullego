@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { useState, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
@@ -225,7 +224,7 @@ export default function CRMDashboardPage() {
   };
 
   return (
-    <DashboardLayout>
+    <>
       <div>
         {/* Header */}
         <div className='mb-8'>
@@ -1273,7 +1272,7 @@ export default function CRMDashboardPage() {
           display: none;
         }
       `}</style>
-    </DashboardLayout>
+    </>
   );
 }
 

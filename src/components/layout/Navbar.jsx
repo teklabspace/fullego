@@ -30,6 +30,11 @@ const Navbar = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
 
+  // Highlight the clicked nav item immediately (the Link handles navigation).
+  const handleNavClick = (id) => {
+    setActiveSection(id);
+  };
+
   // Helper function to get current normalized pathname (always reads fresh)
   const getCurrentPath = useCallback(() => {
     // Always read from the latest pathname or window.location

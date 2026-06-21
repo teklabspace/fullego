@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import {
   allCategories,
   getCardFieldsForCategory,
@@ -177,7 +176,7 @@ export default function AssetsPage() {
   };
 
   return (
-    <DashboardLayout>
+    <>
       {/* Hero Section */}
       <div
         className='relative mb-8 rounded-2xl overflow-hidden border border-[#FFFFFF14]'
@@ -376,7 +375,7 @@ export default function AssetsPage() {
           submitting={submittingAppraisal}
         />
       )}
-    </DashboardLayout>
+    </>
   );
 }
 
@@ -1100,14 +1099,14 @@ function SellModal({
           </button>
           <button
             onClick={onSubmit}
-            disabled={submittingSell}
+            disabled={submitting}
             className={`flex-1 py-2.5 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base ${
-              submittingSell
+              submitting
                 ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                 : 'bg-[#F1CB68] hover:bg-[#BF9B30] text-[#101014]'
             }`}
           >
-            {submittingSell ? (
+            {submitting ? (
               <span className='flex items-center justify-center gap-2'>
                 <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
                   <circle

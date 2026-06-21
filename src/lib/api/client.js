@@ -60,6 +60,64 @@ export const getDefaultHeaders = (additionalHeaders = {}) => {
   return headers;
 };
 
+// ─── Access-token auto-refresh ────────────────────────────────────────────────
+// The access token in localStorage is short-lived; when it expires the backend
+// returns 401. Rather than surfacing that as a failure, we transparently exchange
+// the refresh token for a new access token and retry the original request once.
+// This is what makes a short access-token TTL viable (smaller stolen-token window)
+// without hurting UX. Implemented inline here — importing authApi would create a
+// circular dependency (authApi imports this module).
+
+// Endpoints that must never trigger a refresh attempt (avoids loops / nonsense).
+const NO_REFRESH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/refresh'];
+
+const readStoredToken = (key) =>
+  typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+
+const clearStoredTokens = () => {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user_info');
+};
+
+// Single-flight guard: if many requests 401 at once, only one refresh call goes
+// out; the rest await the same promise.
+let inFlightRefresh = null;
+
+const refreshAccessToken = () => {
+  const refresh_token = readStoredToken('refresh_token');
+  if (!refresh_token) return Promise.resolve(false);
+
+  if (!inFlightRefresh) {
+    const baseUrl = API_BASE_URL.replace(/\/$/, '');
+    const basePath = API_BASE_PATH.replace(/^\//, '');
+    const url = `${baseUrl}/${basePath}/auth/refresh`;
+    inFlightRefresh = fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token }),
+    })
+      .then(async (res) => {
+        if (!res.ok) return false;
+        const data = await res.json().catch(() => null);
+        if (data?.access_token) {
+          localStorage.setItem('access_token', data.access_token);
+          if (data.refresh_token) {
+            localStorage.setItem('refresh_token', data.refresh_token);
+          }
+          return true;
+        }
+        return false;
+      })
+      .catch(() => false)
+      .finally(() => {
+        inFlightRefresh = null;
+      });
+  }
+  return inFlightRefresh;
+};
+
 /**
  * Generic API request handler with logging and error handling
  * @param {string} endpoint - API endpoint path
@@ -127,6 +185,25 @@ export const apiRequest = async (endpoint, options = {}) => {
     if (response.ok) {
       console.log('[API RESPONSE]', method, endpoint, response.status, responseData);
     } else {
+      // Expired/invalid access token → try a one-time silent refresh + retry.
+      const eligibleForRefresh =
+        response.status === 401 &&
+        !options._retry &&
+        !NO_REFRESH_ENDPOINTS.some((p) => endpoint.includes(p)) &&
+        !!readStoredToken('refresh_token');
+      if (eligibleForRefresh) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          // Re-issue the original request; getDefaultHeaders() picks up the new
+          // token. `_retry` guards against an infinite loop if it 401s again.
+          return apiRequest(endpoint, { ...options, _retry: true });
+        }
+        // Refresh failed → the session is truly over. Clear the dead tokens so we
+        // stop sending a stale Bearer; route guards / 401 handlers (SecureRoute,
+        // ProfileDropdown) take the user to /login.
+        clearStoredTokens();
+      }
+
       // Check if 422 is a UUID validation error (backend routing issue)
       // Error format: {detail: [{loc: ['path', 'offer_id'], msg: '...', type: 'uuid_parsing'}]}
       const is422UUIDError = response.status === 422 && responseData && (

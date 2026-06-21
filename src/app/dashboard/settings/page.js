@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -93,7 +92,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <DashboardLayout>
+    <>
       <div className='mb-6'>
         <h1
           className={`text-2xl md:text-3xl font-bold mb-2 ${
@@ -144,7 +143,7 @@ export default function SettingsPage() {
       )}
       {activeTab === 'linked' && <LinkedAccounts isDarkMode={isDarkMode} />}
       {activeTab === 'payment' && <PaymentBilling isDarkMode={isDarkMode} />}
-    </DashboardLayout>
+    </>
   );
 }
 

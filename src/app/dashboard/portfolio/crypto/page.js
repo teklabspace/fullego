@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
@@ -125,16 +124,16 @@ export default function CryptoPortfolioPage() {
   // Show skeleton while loading
   if (loading) {
     return (
-      <DashboardLayout>
+      <>
         <CryptoPortfolioSkeleton isDarkMode={isDarkMode} />
-      </DashboardLayout>
+      </>
     );
   }
 
   // Show error state
   if (error && !cryptoSummary) {
     return (
-      <DashboardLayout>
+      <>
         <div className={`p-6 rounded-lg border text-center ${
           isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
         }`}>
@@ -169,12 +168,12 @@ export default function CryptoPortfolioPage() {
             Retry
           </button>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <div className=''>
         {/* Header */}
         <div className='mb-6 rounded-2xl'>
@@ -1011,7 +1010,7 @@ export default function CryptoPortfolioPage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 

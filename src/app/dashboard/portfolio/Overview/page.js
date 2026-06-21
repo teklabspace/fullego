@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
@@ -249,16 +248,16 @@ export default function PortfolioOverviewPage() {
   // Show skeleton while loading
   if (loading) {
     return (
-      <DashboardLayout>
+      <>
         <PortfolioOverviewSkeleton isDarkMode={isDarkMode} />
-      </DashboardLayout>
+      </>
     );
   }
 
   // Show error state
   if (error && !portfolioSummary) {
     return (
-      <DashboardLayout>
+      <>
         <div className={`p-6 rounded-lg border text-center ${
           isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
         }`}>
@@ -293,12 +292,12 @@ export default function PortfolioOverviewPage() {
             Retry
           </button>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <div className=''>
         {/* Header */}
         <div className='mb-6'>
@@ -1300,7 +1299,7 @@ export default function PortfolioOverviewPage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 

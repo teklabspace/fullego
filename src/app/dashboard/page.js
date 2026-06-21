@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { getAccountStats, getMyAccount } from '@/utils/accountsApi';
 import { getUserProfile } from '@/utils/authApi';
@@ -171,7 +170,7 @@ function DashboardContent({
   const router = useRouter();
 
   return (
-    <DashboardLayout>
+    <>
       {/* Header Section */}
       <div className={`mb-8 flex items-center justify-between ${
         isDarkMode ? '' : ''
@@ -294,7 +293,7 @@ function DashboardContent({
         portfolioSummary={portfolioSummary}
         loading={loading}
       />
-    </DashboardLayout>
+    </>
   );
 }
 

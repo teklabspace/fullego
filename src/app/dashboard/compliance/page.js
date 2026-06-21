@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
@@ -241,7 +240,7 @@ export default function CompliancePage() {
   // Show loading state with skeletons
   if (loading) {
     return (
-      <DashboardLayout>
+      <>
         <div className='space-y-6 animate-pulse'>
           {/* Header skeleton */}
           <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6'>
@@ -298,12 +297,12 @@ export default function CompliancePage() {
             </div>
           </div>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <div className='space-y-6'>
         {/* Header Section */}
         <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6'>
@@ -703,6 +702,6 @@ export default function CompliancePage() {
           </motion.div>
         )}
       </AnimatePresence>
-    </DashboardLayout>
+    </>
   );
 }

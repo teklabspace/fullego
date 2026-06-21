@@ -65,14 +65,11 @@ export default function SecureRoute({ children, allowedRoles }) {
   }, [router, pathname, JSON.stringify(allowedRoles)]);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#0B0D12] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading...</p>
-        </div>
-      </div>
-    );
+    // The auth check is synchronous (reads localStorage), so don't paint a
+    // full-screen loader here — it would be a generic placeholder that doesn't
+    // match the target page. Render nothing for the brief check; each page shows
+    // its own matching skeleton once it mounts.
+    return null;
   }
 
   if (!isAuthorized) {

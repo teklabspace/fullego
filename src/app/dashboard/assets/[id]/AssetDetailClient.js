@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import AssetDetailSkeleton from '@/components/skeletons/AssetDetailSkeleton';
 import { useTheme } from '@/context/ThemeContext';
 import
@@ -463,15 +462,15 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
 
   if (loading) {
     return (
-      <DashboardLayout>
+      <>
         <AssetDetailSkeleton isDarkMode={isDarkMode} />
-      </DashboardLayout>
+      </>
     );
   }
 
   if (error || !asset) {
     return (
-      <DashboardLayout>
+      <>
         <div className={`p-6 rounded-lg border ${
           isDarkMode ? 'bg-red-900/20 border-red-500/50 text-red-400' : 'bg-red-50 border-red-300 text-red-700'
         }`}>
@@ -484,12 +483,12 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
             Back to Assets
           </button>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <div className='pb-20'>
         {/* Breadcrumb */}
         <div className='mb-6 flex items-center gap-2 text-sm'>
@@ -1906,7 +1905,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
           </div>
         )}
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 

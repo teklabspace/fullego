@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { addToWatchlist, removeFromWatchlist, getInvestmentGoals } from '@/utils/investmentApi';
 import { searchAssets } from '@/utils/portfolioApi';
@@ -158,7 +157,7 @@ export default function GoalsTrackerPage() {
   // Show loading state
   if (loading) {
     return (
-      <DashboardLayout>
+      <>
         <div className='flex items-center justify-center min-h-[400px]'>
           <div className='text-center'>
             <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
@@ -167,14 +166,14 @@ export default function GoalsTrackerPage() {
             </p>
           </div>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   // Show error state only for critical errors (not 405 or 400 - endpoint issues)
   if (error && !error.includes('Method Not Allowed') && !error.includes('unsupported operand') && !investmentGoals.length) {
     return (
-      <DashboardLayout>
+      <>
         <div className={`p-6 rounded-lg border text-center ${
           isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
         }`}>
@@ -195,7 +194,7 @@ export default function GoalsTrackerPage() {
             Retry
           </button>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
@@ -203,7 +202,7 @@ export default function GoalsTrackerPage() {
   const displayMarketplaceAssets = marketplaceAssets.length > 0 ? marketplaceAssets : [];
 
   return (
-    <DashboardLayout>
+    <>
       <div>
         {/* Header */}
         <div className='mb-8'>
@@ -303,7 +302,7 @@ export default function GoalsTrackerPage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 

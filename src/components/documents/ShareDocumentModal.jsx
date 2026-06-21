@@ -4,25 +4,17 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import Modal from '../ui/Modal';
 
-const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
+const ShareDocumentModal = ({ isOpen, setIsOpen, file, shareLink = '', loading = false, onShare }) => {
   const { isDarkMode } = useTheme();
-  const [activeTab, setActiveTab] = useState('invite');
+  // Default to the public-link tab so the shareable link is front and center.
+  const [activeTab, setActiveTab] = useState('link');
   const [viewOnly, setViewOnly] = useState(true);
   const [restrictDownload, setRestrictDownload] = useState(false);
   const [requireSignIn, setRequireSignIn] = useState(false);
-  const [shareLink] = useState('https://akunuba.com/share/abc123');
   const [copied, setCopied] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState(null);
-  const [invitedUsers, setInvitedUsers] = useState([
-    { id: 1, email: 'johndoe@example.com', permission: 'view', initials: 'JD' },
-    {
-      id: 2,
-      email: 'annastone@example.com',
-      permission: 'view',
-      initials: 'AS',
-    },
-  ]);
+  const [invitedUsers, setInvitedUsers] = useState([]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -40,6 +32,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
   }, [openDropdownId]);
 
   const handleCopyLink = () => {
+    if (!shareLink) return;
     navigator.clipboard.writeText(shareLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -90,15 +83,8 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
   };
 
   const handleShare = () => {
-    console.log('Share settings:', {
-      viewOnly,
-      restrictDownload,
-      requireSignIn,
-      shareLink,
-      invitedUsers,
-    });
     if (onShare) {
-      onShare();
+      onShare({ invitedUsers, viewOnly, restrictDownload, requireSignIn, shareLink });
     }
     setIsOpen(false);
   };
@@ -106,8 +92,8 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
   return (
     <Modal isOpen={isOpen} setIsOpen={setIsOpen} maxWidth='max-w-xl'>
       {/* Header */}
-      <div className='p-6 pb-0'>
-        <div className='flex items-center gap-3 mb-6'>
+      <div className='p-4 sm:p-6 pb-0 shrink-0'>
+        <div className='flex items-center gap-3 mb-4 sm:mb-6'>
           <Image
             src='/icons/Shear.svg'
             alt='Share'
@@ -115,7 +101,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
             height={24}
             style={{ filter: isDarkMode ? 'brightness(0) invert(1)' : 'none' }}
           />
-          <h2 className={`text-2xl font-bold ${
+          <h2 className={`text-xl sm:text-2xl font-bold ${
             isDarkMode ? 'text-white' : 'text-gray-900'
           }`}>Share Document</h2>
         </div>
@@ -194,7 +180,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
       </div>
 
       {/* Content */}
-      <div className='px-6 pb-6'>
+      <div className='px-4 sm:px-6 pb-6 overflow-y-auto flex-1 modal-transparent-scrollbar'>
         {activeTab === 'link' ? (
           <div>
             {/* Permission Options */}
@@ -328,15 +314,16 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
               />
               <input
                 type='text'
-                value={shareLink}
+                value={loading ? 'Generating public link…' : shareLink || 'No link available'}
                 readOnly
-                className={`flex-1 bg-transparent text-sm outline-none ${
+                className={`flex-1 min-w-0 truncate bg-transparent text-sm outline-none ${
                   isDarkMode ? 'text-gray-400' : 'text-gray-600'
                 }`}
               />
               <button
                 onClick={handleCopyLink}
-                className='flex items-center gap-2 text-[#F1CB68] text-sm font-medium cursor-pointer hover:text-[#E5C158] transition-colors'
+                disabled={loading || !shareLink}
+                className='flex items-center gap-2 shrink-0 text-[#F1CB68] text-sm font-medium cursor-pointer hover:text-[#E5C158] transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
               >
                 <Image
                   src='/icons/file-text.svg'
@@ -704,7 +691,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, onShare }) => {
 
       {/* Footer */}
       <div
-        className='flex justify-end gap-3 px-6 py-4'
+        className='flex justify-end gap-3 px-4 sm:px-6 py-4 shrink-0'
         style={{
           borderTop: isDarkMode
             ? '1px solid rgba(255, 255, 255, 0.1)'

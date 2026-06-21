@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import {
   allCategories,
   getCategoriesByGroup,
@@ -948,7 +947,7 @@ export default function AddAssetPage() {
   };
 
   return (
-    <DashboardLayout>
+    <>
       <div className='min-h-screen pb-20'>
         {/* Header */}
         <div className='mb-8'>
@@ -1939,6 +1938,6 @@ export default function AddAssetPage() {
           </div>
         )}
       </div>
-    </DashboardLayout>
+    </>
   );
 }

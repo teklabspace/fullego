@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { useState } from 'react';
 import { addToWatchlist, removeFromWatchlist } from '@/utils/investmentApi';
@@ -95,7 +94,7 @@ export default function CryptoMarketplacePage() {
   ];
 
   return (
-    <DashboardLayout>
+    <>
       <div>
         {/* Header Stats */}
         <div className='grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 mb-8'>
@@ -289,7 +288,7 @@ export default function CryptoMarketplacePage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 

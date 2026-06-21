@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
@@ -262,7 +261,7 @@ export default function ReferralPage() {
   };
 
   return (
-    <DashboardLayout>
+    <>
       <div className='min-h-screen'>
         {/* Header */}
         <div className='mb-8'>
@@ -922,6 +921,6 @@ export default function ReferralPage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }

@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -430,7 +429,7 @@ export default function MarketplacePage() {
   const investmentFunds = getFilteredFunds();
 
   return (
-    <DashboardLayout>
+    <>
       <div>
         {/* Hero Section - Only show for Browse tab */}
         {activeTab === 'browse' && <HeroSection isDarkMode={isDarkMode} />}
@@ -824,7 +823,7 @@ export default function MarketplacePage() {
           background: #c19d2f;
         }
       `}</style>
-    </DashboardLayout>
+    </>
   );
 }
 

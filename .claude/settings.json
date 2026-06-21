@@ -6,5 +6,19 @@
     "allow": [
       "Bash(npx eslint *)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-destructive-commands.cjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }

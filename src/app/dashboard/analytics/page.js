@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import GlassCard from '@/components/ui/GlassCard';
 import { useTheme } from '@/context/ThemeContext';
 import {
@@ -167,7 +166,7 @@ export default function AnalyticsPage() {
     portfolioAnalytics?.largestHolding ?? portfolioAnalytics?.topHolding;
 
   return (
-    <DashboardLayout>
+    <>
       <div className='mb-8'>
         <h1
           className={`text-2xl md:text-3xl font-bold mb-2 ${
@@ -318,7 +317,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </GlassCard>
-    </DashboardLayout>
+    </>
   );
 }
 

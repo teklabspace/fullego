@@ -1,11 +1,11 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import Image from 'next/image';
 import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { getKYCStatus, getKYCRejectionReason, resubmitKYC, submitKYC, KYC_STATUS } from '@/utils/kycApi';
 import {
+  getKycErrorMessage,
   getKycUserFacingError,
   handleKycStartResponse,
   isPersonaInquiryCreateDisabledError,
@@ -272,7 +272,7 @@ export default function KYCPage() {
   };
 
   return (
-    <DashboardLayout>
+    <>
       <div className='min-h-screen'>
         <div className='mb-8'>
           <h1 className='text-3xl font-bold text-white'>KYC Verification</h1>
@@ -400,6 +400,6 @@ export default function KYCPage() {
           )}
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }

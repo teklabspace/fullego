@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import GlassCard from '@/components/ui/GlassCard';
 import { useTheme } from '@/context/ThemeContext';
 import { useState, useEffect } from 'react';
@@ -198,7 +197,7 @@ export default function TransactionsPage() {
   };
 
   return (
-    <DashboardLayout>
+    <>
       <div className='mb-8'>
         <h1
           className={`text-2xl md:text-3xl font-bold mb-2 ${
@@ -429,6 +428,6 @@ export default function TransactionsPage() {
           </table>
         </div>
       </GlassCard>
-    </DashboardLayout>
+    </>
   );
 }

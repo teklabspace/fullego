@@ -95,7 +95,14 @@ export const listDocuments = async (params = {}) => {
   const endpoint = `${API_ENDPOINTS.DOCUMENTS.LIST}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
 
-  if (response.data) {
+  // The backend returns a raw array (snake_case: file_name, file_size,
+  // document_type, created_at). A top-level array has no `.data`, so the old
+  // check skipped transformKeys entirely and snake_case leaked to the UI.
+  // Normalise to { data: [...camelCase] } so callers get a consistent shape.
+  if (Array.isArray(response)) {
+    return { data: transformKeys(response) };
+  }
+  if (response && response.data) {
     response.data = transformKeys(response.data);
   }
 

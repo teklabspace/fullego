@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
@@ -71,7 +70,7 @@ export default function ApproveListingsPage() {
   const textMuted = isDarkMode ? 'text-gray-400' : 'text-gray-600';
 
   return (
-    <DashboardLayout>
+    <>
       <div className="mb-6">
         <h1 className={`text-2xl font-bold mb-1 ${textMain}`}>Approve Listings</h1>
         <p className={`text-sm ${textMuted}`}>Review and approve marketplace listings awaiting approval</p>
@@ -151,6 +150,6 @@ export default function ApproveListingsPage() {
           </table>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }

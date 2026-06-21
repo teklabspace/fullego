@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
@@ -201,16 +200,16 @@ export default function TradeEnginePage() {
   // Show skeleton while loading
   if (loading && !recentTrades.length) {
     return (
-      <DashboardLayout>
+      <>
         <TradeEngineSkeleton isDarkMode={isDarkMode} />
-      </DashboardLayout>
+      </>
     );
   }
 
   // Show error state
   if (error && !recentTrades.length) {
     return (
-      <DashboardLayout>
+      <>
         <div className={`p-6 rounded-lg border text-center ${
           isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
         }`}>
@@ -245,12 +244,12 @@ export default function TradeEnginePage() {
             Retry
           </button>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <div className=''>
         {/* Header */}
         <div className='mb-6'>
@@ -341,6 +340,6 @@ export default function TradeEnginePage() {
           />
         )}
       </div>
-    </DashboardLayout>
+    </>
   );
 }

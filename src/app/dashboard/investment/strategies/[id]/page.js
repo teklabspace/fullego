@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { getStrategyDetails, saveStrategy } from '@/utils/investmentApi';
 import Link from 'next/link';
@@ -100,7 +99,7 @@ export default function StrategyDetailsPage() {
   // Show loading state
   if (loading) {
     return (
-      <DashboardLayout>
+      <>
         <div className='flex items-center justify-center min-h-[400px]'>
           <div className='text-center'>
             <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
@@ -109,14 +108,14 @@ export default function StrategyDetailsPage() {
             </p>
           </div>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   // Show error state only for critical errors (not 405 or 400 - endpoint issues)
   if (error && !error.includes('Method Not Allowed') && !error.includes('unsupported operand') && !strategy) {
     return (
-      <DashboardLayout>
+      <>
         <div className={`p-6 rounded-lg border text-center ${
           isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
         }`}>
@@ -137,14 +136,14 @@ export default function StrategyDetailsPage() {
             Go Back
           </button>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   // Show not found state
   if (!strategy) {
     return (
-      <DashboardLayout>
+      <>
         <div className='text-center py-12'>
           <h2
             className={`text-2xl font-bold mb-4 ${
@@ -160,14 +159,14 @@ export default function StrategyDetailsPage() {
             Back to Strategies
           </Link>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
 
 
   return (
-    <DashboardLayout>
+    <>
       <div>
         {/* Back Button */}
         <button
@@ -516,7 +515,7 @@ export default function StrategyDetailsPage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 

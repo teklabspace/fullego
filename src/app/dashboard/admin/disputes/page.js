@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
@@ -91,7 +90,7 @@ export default function AdminDisputesPage() {
   }`;
 
   return (
-    <DashboardLayout>
+    <>
       <div className="mb-6">
         <h1 className={`text-2xl font-bold mb-1 ${textMain}`}>Escrow Disputes</h1>
         <p className={`text-sm ${textMuted}`}>Review and resolve marketplace escrow disputes</p>
@@ -247,6 +246,6 @@ export default function AdminDisputesPage() {
           </div>
         </div>
       )}
-    </DashboardLayout>
+    </>
   );
 }

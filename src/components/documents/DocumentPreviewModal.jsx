@@ -16,18 +16,21 @@ const DocumentPreviewModal = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(5);
 
-  // Create object URL for the uploaded file
+  // Resolve a previewable URL. A freshly-picked file from disk is a Blob/File,
+  // so we make an object URL. An already-uploaded document is a plain object —
+  // use its preview/remote URL instead (createObjectURL would throw on it).
   const fileUrl = useMemo(() => {
-    if (file) {
+    if (!file) return null;
+    if (typeof Blob !== 'undefined' && file instanceof Blob) {
       return URL.createObjectURL(file);
     }
-    return null;
+    return file.previewUrl || file.url || null;
   }, [file]);
 
-  // Cleanup function to revoke the object URL
+  // Only revoke URLs we actually created (blob:), never remote URLs.
   useEffect(() => {
     return () => {
-      if (fileUrl) {
+      if (fileUrl && fileUrl.startsWith('blob:')) {
         URL.revokeObjectURL(fileUrl);
       }
     };
@@ -36,8 +39,10 @@ const DocumentPreviewModal = ({
   const formatFileSize = bytes => {
     if (!bytes) return '0 Bytes';
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    // Clamp index to a valid range so a sub-1 value can never yield sizes[-1]
+    // (which rendered as "undefined").
+    const i = Math.min(sizes.length - 1, Math.max(0, Math.floor(Math.log(bytes) / Math.log(k))));
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   };
 
@@ -50,6 +55,12 @@ const DocumentPreviewModal = ({
       xls: 'XLS Document',
       xlsx: 'XLSX Document',
       csv: 'CSV Document',
+      png: 'PNG Image',
+      jpg: 'JPEG Image',
+      jpeg: 'JPEG Image',
+      gif: 'GIF Image',
+      webp: 'WEBP Image',
+      svg: 'SVG Image',
     };
     return typeMap[ext] || 'Document';
   };
@@ -85,6 +96,9 @@ const DocumentPreviewModal = ({
   };
 
   const isPDF = getFileExtension(file?.name) === 'pdf';
+  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'avif'].includes(
+    getFileExtension(file?.name)
+  );
 
   return (
     <Modal isOpen={isOpen} setIsOpen={setIsOpen} maxWidth='max-w-full'>
@@ -274,6 +288,26 @@ const DocumentPreviewModal = ({
                     filter: 'invert(0.9) hue-rotate(180deg)',
                   }}
                   title='PDF Preview'
+                />
+              </div>
+            ) : isImage && fileUrl ? (
+              <div
+                style={{
+                  transform: `scale(${zoom / 100})`,
+                  transformOrigin: 'top center',
+                  transition: 'transform 0.3s ease',
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={fileUrl}
+                  alt={file?.name || 'Document preview'}
+                  className='rounded-2xl'
+                  style={{
+                    maxHeight: '70vh',
+                    maxWidth: '100%',
+                    border: '1px solid rgba(241, 203, 104, 0.3)',
+                  }}
                 />
               </div>
             ) : (

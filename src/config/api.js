@@ -388,6 +388,10 @@ export const API_ENDPOINTS = {
     DOWNLOAD: (id) => `/documents/${id}/download`,
     DELETE: (id) => `/documents/${id}`,
     SHARE: (id) => `/documents/${id}/share`,
+    // BUG-10: backend currently 422s here because this static path is shadowed by
+    // the dynamic GET /documents/{document_id} route (it parses "statistics" as a
+    // UUID). Needs a backend route-ordering fix; the Documents page computes stats
+    // client-side as a fallback until then.
     STATISTICS: '/documents/statistics',
     PREVIEW: (id) => `/documents/${id}/preview`,
   },

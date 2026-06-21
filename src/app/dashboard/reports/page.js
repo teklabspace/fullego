@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ScheduleView from '@/components/reports/ScheduleView';
 import TasksView from '@/components/reports/TasksView';
 import { useTheme } from '@/context/ThemeContext';
@@ -10,7 +9,7 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState('tasks');
 
   return (
-    <DashboardLayout>
+    <>
       <div>
         {/* Header */}
         <div className='mb-8'>
@@ -108,6 +107,6 @@ export default function ReportsPage() {
           display: none;
         }
       `}</style>
-    </DashboardLayout>
+    </>
   );
 }

@@ -1,5 +1,4 @@
 'use client';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
@@ -347,7 +346,7 @@ export default function EntityStructurePage() {
   // Show loading state with skeleton
   if (loading) {
     return (
-      <DashboardLayout>
+      <>
         <div className='space-y-6'>
           {/* Header Skeleton */}
           <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6'>
@@ -393,25 +392,25 @@ export default function EntityStructurePage() {
             </div>
           </div>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   // Show message if no entities
   if (!selectedEntity && entities.length === 0) {
     return (
-      <DashboardLayout>
+      <>
         <div className='flex items-center justify-center h-64'>
           <div className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
             No entities found. Please create an entity first.
           </div>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <div className='space-y-6'>
         {/* Header Section */}
         <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6'>
@@ -1134,6 +1133,6 @@ export default function EntityStructurePage() {
           )}
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
