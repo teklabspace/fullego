@@ -70,16 +70,17 @@ const transformToSnake = (obj) => {
  */
 export const createBankLinkToken = async () => {
   const endpoint = API_ENDPOINTS.BANKING.LINK_TOKEN;
-  
+
   // Use apiPost with null/undefined to avoid sending empty JSON object
   // apiPost will handle this and not stringify undefined
   const response = await apiPost(endpoint, undefined);
 
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-
-  return response;
+  // The token arrives as a top-level { link_token: "..." } (the documented shape)
+  // or nested under { data: { link_token } }. Transform the WHOLE response so every
+  // snake_case key becomes camelCase (link_token -> linkToken). Previously only
+  // response.data was transformed, so a top-level link_token was never normalised
+  // and the caller threw "Failed to get link token from server".
+  return transformKeys(response);
 };
 
 /**

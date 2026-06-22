@@ -15,6 +15,8 @@ import {
   formatCurrency,
 } from '@/utils/assetsApi';
 import AssetCardSkeleton from '@/components/skeletons/AssetCardSkeleton';
+import { LuClock, LuZap, LuCheck } from 'react-icons/lu';
+import { FaUserTie, FaRobot } from 'react-icons/fa';
 
 export default function AssetsPage() {
   const { isDarkMode } = useTheme();
@@ -1263,12 +1265,12 @@ function AppraisalModal({
                 `}
               >
                 <div className='flex items-start justify-between mb-2 sm:mb-3'>
-                  <div className='w-10 h-10 sm:w-12 sm:h-12 bg-[#F1CB68]/20 rounded-lg flex items-center justify-center shrink-0'>
-                    <span className='text-xl sm:text-2xl'>👨‍💼</span>
+                  <div className='w-11 h-11 sm:w-12 sm:h-12 bg-gradient-to-br from-[#F1CB68] to-[#BF9B30] rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-[#F1CB68]/20 ring-1 ring-white/10'>
+                    <FaUserTie className='text-xl sm:text-2xl text-[#101014]' />
                   </div>
                   {selectedType === 'Concierge' && (
                     <div className='w-5 h-5 sm:w-6 sm:h-6 bg-[#F1CB68] rounded-full flex items-center justify-center shrink-0'>
-                      <span className='text-white text-xs sm:text-sm'>✓</span>
+                      <LuCheck className='text-[#101014] text-xs sm:text-sm' strokeWidth={3} />
                     </div>
                   )}
                 </div>
@@ -1288,7 +1290,9 @@ function AppraisalModal({
                   recommendations.
                 </p>
                 <div className='flex items-center gap-2 text-xs flex-wrap'>
-                  <span className='text-[#F1CB68]'>⏱ 3-5 business days</span>
+                  <span className='inline-flex items-center gap-1 text-[#F1CB68] font-medium'>
+                    <LuClock className='shrink-0' /> 3-5 business days
+                  </span>
                   <span
                     className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}
                   >
@@ -1317,12 +1321,12 @@ function AppraisalModal({
                 `}
               >
                 <div className='flex items-start justify-between mb-2 sm:mb-3'>
-                  <div className='w-10 h-10 sm:w-12 sm:h-12 bg-[#F1CB68]/20 rounded-lg flex items-center justify-center shrink-0'>
-                    <span className='text-xl sm:text-2xl'>🤖</span>
+                  <div className='w-11 h-11 sm:w-12 sm:h-12 bg-gradient-to-br from-[#34D399] to-[#059669] rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-[#10B981]/20 ring-1 ring-white/10'>
+                    <FaRobot className='text-xl sm:text-2xl text-white' />
                   </div>
                   {selectedType === 'API' && (
                     <div className='w-5 h-5 sm:w-6 sm:h-6 bg-[#F1CB68] rounded-full flex items-center justify-center shrink-0'>
-                      <span className='text-white text-xs sm:text-sm'>✓</span>
+                      <LuCheck className='text-[#101014] text-xs sm:text-sm' strokeWidth={3} />
                     </div>
                   )}
                 </div>
@@ -1342,7 +1346,9 @@ function AppraisalModal({
                   sales.
                 </p>
                 <div className='flex items-center gap-2 text-xs flex-wrap'>
-                  <span className='text-[#10B981]'>⚡ Instant</span>
+                  <span className='inline-flex items-center gap-1 text-[#10B981] font-medium'>
+                    <LuZap className='shrink-0 fill-current' /> Instant
+                  </span>
                   <span
                     className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}
                   >

@@ -12,8 +12,11 @@ import {
   getTicket,
   getTicketReplies,
   addTicketReply,
+  assignTicket,
+  updateTicket,
 } from '@/utils/supportTicketsApi';
 import { getConversations, getMessages, sendMessage } from '@/utils/chatApi';
+import AssignmentModal from '@/components/dashboard/AssignmentModal';
 
 export default function SupportDashboardPage() {
   const { isDarkMode } = useTheme();
@@ -32,6 +35,8 @@ export default function SupportDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState([]);
   const [conversations, setConversations] = useState([]);
+  const [reassignModalOpen, setReassignModalOpen] = useState(false);
+  const [escalating, setEscalating] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -280,6 +285,54 @@ export default function SupportDashboardPage() {
     } catch (error) {
       console.error('Failed to send message:', error);
       toast.error('Failed to send message. Please try again.');
+    }
+  };
+
+  // Re-assign the selected ticket to a chosen CRM user (admin only).
+  const handleReassign = () => {
+    if (!selectedItem) return;
+    if (selectedItem.type !== 'ticket') {
+      toast.info('Re-assign is only available for support tickets.');
+      return;
+    }
+    setReassignModalOpen(true);
+  };
+
+  const handleAssignTicket = async assignmentData => {
+    if (!selectedItem || selectedItem.type !== 'ticket') return;
+    try {
+      await assignTicket(selectedItem.id, {
+        userId: assignmentData.userId,
+        userName: assignmentData.userName,
+        internalNote: assignmentData.internalNote || undefined,
+      });
+      toast.success(`Ticket re-assigned to ${assignmentData.userName}.`);
+      fetchTickets();
+    } catch (error) {
+      console.error('Failed to re-assign ticket:', error);
+      const msg = error.data?.detail || error.message || 'Failed to re-assign ticket.';
+      toast.error(typeof msg === 'string' ? msg : 'Failed to re-assign ticket.');
+    }
+  };
+
+  // Escalate the selected ticket by raising its priority to high.
+  const handleEscalate = async () => {
+    if (!selectedItem) return;
+    if (selectedItem.type !== 'ticket') {
+      toast.info('Escalation is only available for support tickets.');
+      return;
+    }
+    try {
+      setEscalating(true);
+      await updateTicket(selectedItem.id, { priority: 'high' });
+      toast.success('Ticket escalated. Priority raised to high.');
+      fetchTickets();
+    } catch (error) {
+      console.error('Failed to escalate ticket:', error);
+      const msg = error.data?.detail || error.message || 'Failed to escalate ticket.';
+      toast.error(typeof msg === 'string' ? msg : 'Failed to escalate ticket.');
+    } finally {
+      setEscalating(false);
     }
   };
 
@@ -1028,7 +1081,8 @@ export default function SupportDashboardPage() {
                         {/* Re-assign is admin-only (assign:tickets permission) */}
                         {isAdmin && (
                           <button
-                            className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            onClick={handleReassign}
+                            className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                               isDarkMode
                                 ? 'bg-white/10 hover:bg-white/20 text-white'
                                 : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
@@ -1038,13 +1092,15 @@ export default function SupportDashboardPage() {
                           </button>
                         )}
                         <button
-                          className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          onClick={handleEscalate}
+                          disabled={escalating}
+                          className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                             isDarkMode
                               ? 'bg-white/10 hover:bg-white/20 text-white'
                               : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
                           }`}
                         >
-                          Escalate
+                          {escalating ? 'Escalating…' : 'Escalate'}
                         </button>
                         <button
                           className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -1247,6 +1303,15 @@ export default function SupportDashboardPage() {
           )}
         </main>
       </div>
+
+      {/* Re-assign Ticket Modal */}
+      <AssignmentModal
+        isOpen={reassignModalOpen}
+        setIsOpen={setReassignModalOpen}
+        onAssign={handleAssignTicket}
+        title='Re-assign Ticket'
+        itemName='ticket'
+      />
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {

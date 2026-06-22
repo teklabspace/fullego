@@ -99,7 +99,11 @@ export default function LinkedAccounts({ isDarkMode }) {
         }
       }
       const tokenResponse = await createBankLinkToken();
-      const linkToken = tokenResponse.data?.linkToken || tokenResponse.linkToken || tokenResponse.data?.link_token;
+      const linkToken =
+        tokenResponse?.linkToken ||
+        tokenResponse?.data?.linkToken ||
+        tokenResponse?.link_token ||
+        tokenResponse?.data?.link_token;
       if (!linkToken) throw new Error('Failed to get link token from server');
       alert(`Link token received: ${linkToken.substring(0, 20)}...\n\nTo complete the integration, you need to:\n1. Install: npm install react-plaid-link\n2. Use usePlaidLink hook with this token\n3. On success, call linkBankAccount({ public_token })`);
     } catch (err) {
