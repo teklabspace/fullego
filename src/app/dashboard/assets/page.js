@@ -12,9 +12,21 @@ import {
   deleteAsset,
   requestAssetSale,
   requestAssetAppraisal,
+  runAiAppraisal,
   formatCurrency,
 } from '@/utils/assetsApi';
 import AssetCardSkeleton from '@/components/skeletons/AssetCardSkeleton';
+import { LuClock, LuZap, LuCheck } from 'react-icons/lu';
+import { FaUserTie, FaRobot } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+
+// Pull the human-readable message the API sent (FastAPI `detail`), falling back
+// to the thrown Error message and finally a provided default — so toasts show
+// exactly what the server said.
+const apiErrorMessage = (err, fallback) => {
+  const detail = err?.data?.detail ?? err?.data?.message ?? err?.message;
+  return typeof detail === 'string' && detail ? detail : fallback;
+};
 
 export default function AssetsPage() {
   const { isDarkMode } = useTheme();
@@ -143,12 +155,12 @@ export default function AssetsPage() {
         targetPrice: sellFormData.targetPrice ? parseFloat(sellFormData.targetPrice.replace(/[^0-9.-]+/g, '')) : undefined,
         saleNote: sellFormData.saleNote || undefined,
       });
-      alert('Sell request submitted successfully!');
+      toast.success('Sell request submitted successfully!');
       setShowSellModal(false);
       setSellFormData({ saleNote: '', targetPrice: '' });
     } catch (err) {
       console.error('Error submitting sell request:', err);
-      alert(err.message || 'Failed to submit sell request');
+      toast.error(apiErrorMessage(err, 'Failed to submit sell request'));
     } finally {
       setSubmittingSell(false);
     }
@@ -157,15 +169,44 @@ export default function AssetsPage() {
   const handleSubmitAppraisal = async () => {
     try {
       setSubmittingAppraisal(true);
-      await requestAssetAppraisal(selectedAsset.id, {
-        appraisalType: appraisalType,
-      });
-      alert(`${appraisalType} appraisal request submitted successfully!`);
+
+      // Automated (AI) appraisal: a single synchronous call that returns the
+      // estimate inline. Concierge: a normal request handled later by staff.
+      if (appraisalType === 'API') {
+        const response = await runAiAppraisal(selectedAsset.id);
+        const result = response.aiResult;
+        if (result) {
+          toast.success(
+            `AI estimate: ${formatCurrency(result.estimatedValue, result.currency)}`
+          );
+          if (result.disclaimer) {
+            toast.info(result.disclaimer);
+          }
+        } else {
+          toast.success('Automated appraisal completed.');
+        }
+        // Backend updated the asset's estimated value — refresh the list.
+        fetchAssets();
+      } else {
+        await requestAssetAppraisal(selectedAsset.id, {
+          appraisalType: appraisalType,
+        });
+        toast.success('Concierge appraisal request submitted successfully!');
+      }
+
       setShowAppraisalModal(false);
       setAppraisalType(null);
     } catch (err) {
       console.error('Error submitting appraisal request:', err);
-      alert(err.message || 'Failed to submit appraisal request');
+      if (err.status === 403) {
+        // Monthly AI limit reached — surface the backend's upgrade message.
+        toast.info(apiErrorMessage(err, 'You have reached your monthly AI appraisal limit. Upgrade for more.'));
+      } else if (err.status === 503) {
+        // AI not configured / temporarily unavailable — show the server's reason.
+        toast.error(apiErrorMessage(err, 'The AI service is temporarily unavailable. Please try again.'));
+      } else {
+        toast.error(apiErrorMessage(err, 'Failed to submit appraisal request'));
+      }
     } finally {
       setSubmittingAppraisal(false);
     }
@@ -1263,12 +1304,12 @@ function AppraisalModal({
                 `}
               >
                 <div className='flex items-start justify-between mb-2 sm:mb-3'>
-                  <div className='w-10 h-10 sm:w-12 sm:h-12 bg-[#F1CB68]/20 rounded-lg flex items-center justify-center shrink-0'>
-                    <span className='text-xl sm:text-2xl'>👨‍💼</span>
+                  <div className='w-11 h-11 sm:w-12 sm:h-12 bg-gradient-to-br from-[#F1CB68] to-[#BF9B30] rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-[#F1CB68]/20 ring-1 ring-white/10'>
+                    <FaUserTie className='text-xl sm:text-2xl text-[#101014]' />
                   </div>
                   {selectedType === 'Concierge' && (
                     <div className='w-5 h-5 sm:w-6 sm:h-6 bg-[#F1CB68] rounded-full flex items-center justify-center shrink-0'>
-                      <span className='text-white text-xs sm:text-sm'>✓</span>
+                      <LuCheck className='text-[#101014] text-xs sm:text-sm' strokeWidth={3} />
                     </div>
                   )}
                 </div>
@@ -1288,7 +1329,9 @@ function AppraisalModal({
                   recommendations.
                 </p>
                 <div className='flex items-center gap-2 text-xs flex-wrap'>
-                  <span className='text-[#F1CB68]'>⏱ 3-5 business days</span>
+                  <span className='inline-flex items-center gap-1 text-[#F1CB68] font-medium'>
+                    <LuClock className='shrink-0' /> 3-5 business days
+                  </span>
                   <span
                     className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}
                   >
@@ -1317,12 +1360,12 @@ function AppraisalModal({
                 `}
               >
                 <div className='flex items-start justify-between mb-2 sm:mb-3'>
-                  <div className='w-10 h-10 sm:w-12 sm:h-12 bg-[#F1CB68]/20 rounded-lg flex items-center justify-center shrink-0'>
-                    <span className='text-xl sm:text-2xl'>🤖</span>
+                  <div className='w-11 h-11 sm:w-12 sm:h-12 bg-gradient-to-br from-[#34D399] to-[#059669] rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-[#10B981]/20 ring-1 ring-white/10'>
+                    <FaRobot className='text-xl sm:text-2xl text-white' />
                   </div>
                   {selectedType === 'API' && (
                     <div className='w-5 h-5 sm:w-6 sm:h-6 bg-[#F1CB68] rounded-full flex items-center justify-center shrink-0'>
-                      <span className='text-white text-xs sm:text-sm'>✓</span>
+                      <LuCheck className='text-[#101014] text-xs sm:text-sm' strokeWidth={3} />
                     </div>
                   )}
                 </div>
@@ -1342,7 +1385,9 @@ function AppraisalModal({
                   sales.
                 </p>
                 <div className='flex items-center gap-2 text-xs flex-wrap'>
-                  <span className='text-[#10B981]'>⚡ Instant</span>
+                  <span className='inline-flex items-center gap-1 text-[#10B981] font-medium'>
+                    <LuZap className='shrink-0 fill-current' /> Instant
+                  </span>
                   <span
                     className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}
                   >

@@ -387,6 +387,89 @@ export const requestAssetAppraisal = async (assetId, appraisalData) => {
 };
 
 /**
+ * 14b. Run AI (Automated) Appraisal — instant, synchronous valuation
+ * POST /api/v1/assets/{asset_id}/appraisals  with { appraisal_type: "API" }
+ *
+ * Unlike the Concierge flow, this returns the full AI result in the same
+ * response (no polling). The rich fields live on `ai_result`; `data` is the
+ * persisted appraisal record. Both are transformed to camelCase.
+ *
+ * The caller should handle the documented status codes via the thrown error's
+ * `status`:
+ *   403 - monthly AI limit reached (error.data.detail has the upgrade message)
+ *   503 - AI temporarily unavailable / not configured (transient, offer retry)
+ *
+ * Returns: { data, aiResult } where aiResult = {
+ *   estimatedValue, valueRangeLow, valueRangeHigh, currency,
+ *   confidence, reasoning, disclaimer, model
+ * }
+ */
+export const runAiAppraisal = async (assetId) => {
+  const response = await apiPost(API_ENDPOINTS.ASSETS.REQUEST_APPRAISAL(assetId), {
+    appraisal_type: 'API',
+  });
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+  // The AI payload arrives under snake_case `ai_result`; expose it as camelCase
+  // `aiResult` so the UI can read estimatedValue / valueRangeLow / etc.
+  if (response.ai_result) {
+    response.aiResult = transformKeys(response.ai_result);
+  }
+
+  return response;
+};
+
+/**
+ * 14c. Run AI Asset Review — advisory accept/reject decision
+ * POST /api/v1/assets/{asset_id}/ai-review  (no body)
+ *
+ * Returns: { data: { id, assetId, decision, reason, flags, model, createdAt } }
+ * `decision` ∈ not_reviewed | approved | rejected | needs_review.
+ * Same 403 / 503 error semantics as runAiAppraisal.
+ */
+export const runAiReview = async (assetId) => {
+  const response = await apiPost(API_ENDPOINTS.ASSETS.AI_REVIEW(assetId), null);
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
+  return response;
+};
+
+/**
+ * 14d. Get the latest AI Asset Review (or null if never run)
+ * GET /api/v1/assets/{asset_id}/ai-review
+ */
+export const getAiReview = async (assetId) => {
+  const response = await apiGet(API_ENDPOINTS.ASSETS.AI_REVIEW(assetId));
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
+  return response;
+};
+
+/**
+ * 14e. Get current-month AI usage & quotas
+ * GET /api/v1/assets/ai/usage
+ *
+ * Returns (camelCase): {
+ *   plan, period,
+ *   aiAppraisals: { limit, used, remaining },
+ *   aiReviews:    { limit, used, remaining }
+ * }
+ * `limit: null` / `remaining: null` means unlimited (annual plan / admin).
+ */
+export const getAiUsage = async () => {
+  const response = await apiGet(API_ENDPOINTS.ASSETS.AI_USAGE);
+  return transformKeys(response);
+};
+
+/**
  * 15. Get Asset Appraisals
  * GET /api/v1/assets/{asset_id}/appraisals
  */

@@ -198,49 +198,19 @@ export default function InvestmentOverviewPage() {
     return 'ethereum';
   };
 
-  // Show loading state
-  if (loading) {
-    return (
-      <>
-        <div className='flex items-center justify-center min-h-[400px]'>
-          <div className='text-center'>
-            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
-            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-              Loading investment data...
-            </p>
-          </div>
-        </div>
-      </>
-    );
-  }
+  // Skeleton block helper for loading regions
+  const skeletonBlock = (extra = '') =>
+    `${isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'} animate-pulse rounded ${extra}`;
 
-  // Show error state only for critical errors (not 405 or 400 - endpoint issues)
-  if (error && !error.includes('Method Not Allowed') && !error.includes('unsupported operand') && !assetCards.length && !activities.length && !cryptoPrices.length && !traderProfile) {
-    return (
-      <>
-        <div className={`p-6 rounded-lg border text-center ${
-          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
-        }`}>
-          <p className={`font-semibold mb-2 text-lg ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}>
-            Error loading investment data
-          </p>
-          <p className={`text-sm mb-4 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            {error}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
-          >
-            Retry
-          </button>
-        </div>
-      </>
-    );
-  }
+  // Whether the critical error region should render inline (kept inside the shell)
+  const showInlineError =
+    error &&
+    !error.includes('Method Not Allowed') &&
+    !error.includes('unsupported operand') &&
+    !assetCards.length &&
+    !activities.length &&
+    !cryptoPrices.length &&
+    !traderProfile;
 
   return (
     <>
@@ -263,8 +233,47 @@ export default function InvestmentOverviewPage() {
             </p>
           </div>
 
+          {/* Inline error message (keeps header + shell visible) */}
+          {!loading && showInlineError && (
+            <div className={`p-6 rounded-lg border text-center mb-8 ${
+              isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+            }`}>
+              <p className={`font-semibold mb-2 text-lg ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
+                Error loading investment data
+              </p>
+              <p className={`text-sm mb-4 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                {error}
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {/* Investment Analytics Summary */}
           <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mt-4'>
+            {loading ? (
+              [0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`rounded-2xl border p-4 ${
+                    isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+                  }`}
+                >
+                  <div className={skeletonBlock('h-3 w-24 mb-3')} />
+                  <div className={skeletonBlock('h-6 w-20 mb-2')} />
+                  <div className={skeletonBlock('h-3 w-28')} />
+                </div>
+              ))
+            ) : (
+              <>
             <AnalyticsMetricCard
               label='Total Return'
               value={
@@ -305,11 +314,30 @@ export default function InvestmentOverviewPage() {
               helper='Worst peak-to-trough'
               isDarkMode={isDarkMode}
             />
+              </>
+            )}
           </div>
 
           {/* Asset Summary Cards */}
           <div className='grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8'>
-            {assetCards.length > 0 ? (
+            {loading ? (
+              <>
+                {[0, 1].map((i) => (
+                  <div
+                    key={i}
+                    className={`rounded-2xl p-6 border ${
+                      isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+                    }`}
+                  >
+                    <div className={skeletonBlock('h-10 w-32 mb-4')} />
+                    <div className={skeletonBlock('h-3 w-24 mb-2')} />
+                    <div className={skeletonBlock('h-3 w-20 mb-2')} />
+                    <div className={skeletonBlock('h-3 w-16')} />
+                  </div>
+                ))}
+                <NewAssetCard isDarkMode={isDarkMode} />
+              </>
+            ) : assetCards.length > 0 ? (
               assetCards.slice(0, 2).map((asset, index) => (
                 <AssetCard
                   key={asset.id || asset.symbol || index}
@@ -431,7 +459,22 @@ export default function InvestmentOverviewPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {activities.length > 0 ? (
+                    {loading ? (
+                      [0, 1, 2, 3].map((i) => (
+                        <tr
+                          key={i}
+                          className={`border-b ${
+                            isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                          }`}
+                        >
+                          {[0, 1, 2, 3, 4].map((c) => (
+                            <td key={c} className='px-6 py-4'>
+                              <div className={skeletonBlock('h-4 w-24')} />
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : activities.length > 0 ? (
                       activities.map((activity, index) => {
                         const assetIcon = getAssetIcon(activity.asset || activity.symbol);
                         return (
@@ -574,7 +617,22 @@ export default function InvestmentOverviewPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {cryptoPrices.length > 0 ? (
+                  {loading ? (
+                    [0, 1, 2, 3].map((i) => (
+                      <tr
+                        key={i}
+                        className={`border-b ${
+                          isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                        }`}
+                      >
+                        {[0, 1, 2, 3].map((c) => (
+                          <td key={c} className='px-6 py-4'>
+                            <div className={skeletonBlock('h-4 w-24')} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : cryptoPrices.length > 0 ? (
                     cryptoPrices.map((crypto, index) => {
                       const cryptoIcon = getAssetIcon(crypto.symbol || crypto.name);
                       const changePercentage = crypto.changePercentage || crypto.change || 0;
@@ -673,7 +731,23 @@ export default function InvestmentOverviewPage() {
 
         {/* Trader Profile Sidebar */}
         <div className='w-full lg:w-80 shrink-0'>
-          {traderProfile ? (
+          {loading ? (
+            <div className={`rounded-2xl border p-6 ${
+              isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+            }`}>
+              <div className={skeletonBlock('h-5 w-32 mb-6')} />
+              <div className='flex items-center gap-3 mb-6'>
+                <div className={skeletonBlock('w-12 h-12 rounded-full')} />
+                <div className='flex-1'>
+                  <div className={skeletonBlock('h-4 w-24 mb-2')} />
+                  <div className={skeletonBlock('h-3 w-20')} />
+                </div>
+              </div>
+              <div className={skeletonBlock('h-3 w-full mb-3')} />
+              <div className={skeletonBlock('h-3 w-full mb-3')} />
+              <div className={skeletonBlock('h-10 w-full mt-6')} />
+            </div>
+          ) : traderProfile ? (
             <TraderProfileSidebar
               profile={traderProfile}
               isDarkMode={isDarkMode}
@@ -701,7 +775,22 @@ export default function InvestmentOverviewPage() {
         >
           Investment Recommendations
         </h2>
-        {recommendations.length > 0 ? (
+        {loading ? (
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className={`rounded-xl border p-4 ${
+                  isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+                }`}
+              >
+                <div className={skeletonBlock('h-4 w-28 mb-2')} />
+                <div className={skeletonBlock('h-3 w-20 mb-3')} />
+                <div className={skeletonBlock('h-3 w-full')} />
+              </div>
+            ))}
+          </div>
+        ) : recommendations.length > 0 ? (
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
             {recommendations.slice(0, 6).map((rec) => (
               <div

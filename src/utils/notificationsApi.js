@@ -74,17 +74,28 @@ export const getNotifications = async (params = {}) => {
   
   const endpoint = `${API_ENDPOINTS.NOTIFICATIONS.LIST}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
-  // Handle both array and object responses
-  if (Array.isArray(response)) {
-    return { data: response.map(transformKeys) };
-  }
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+
+  // Backend shape varies between deployments: a bare array, { data: [...] },
+  // { notifications: [...] }, or a paginated { items/results: [...] }. Normalise
+  // every shape to { data: [...] } so the UI never silently shows an empty list
+  // (the previous code returned the raw object for unknown shapes, which the
+  // dropdown then read as []).
+  const list = Array.isArray(response)
+    ? response
+    : response?.data ||
+      response?.notifications ||
+      response?.items ||
+      response?.results ||
+      [];
+
+  const normalized = (Array.isArray(list) ? list : []).map((item) => {
+    const n = transformKeys(item);
+    // Unify the read flag — backend may send is_read / isRead / read.
+    n.read = n.read ?? n.isRead ?? false;
+    return n;
+  });
+
+  return { data: normalized };
 };
 
 /**
@@ -114,12 +125,21 @@ export const getUnreadNotifications = async () => {
 export const getUnreadCount = async () => {
   const endpoint = API_ENDPOINTS.NOTIFICATIONS.UNREAD_COUNT;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+
+  // Count may come back as a bare number, { count }, { unread_count }, or nested
+  // under data. Transform the WHOLE response so snake_case (unread_count) becomes
+  // camelCase, then resolve the first numeric value. Previously a top-level
+  // unread_count was never normalised, so the badge always read 0.
+  const t = transformKeys(response);
+  const count =
+    (typeof t === 'number' ? t : undefined) ??
+    t?.count ??
+    t?.unreadCount ??
+    t?.data?.count ??
+    t?.data?.unreadCount ??
+    0;
+
+  return { count: typeof count === 'number' ? count : 0, data: t?.data };
 };
 
 /**

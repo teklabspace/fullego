@@ -7,16 +7,58 @@ import
     formatCurrency,
     formatDate,
     generateAssetReport,
+    getAiReview,
+    getAiUsage,
     getAsset,
     getAssetDocuments,
     getAssetValueHistory,
     requestAssetAppraisal,
     requestAssetSale,
+    runAiAppraisal,
+    runAiReview,
     shareAssetDetails,
     transferAssetOwnership,
   } from '@/utils/assetsApi';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
+
+// Pull the human-readable message the API sent (FastAPI `detail`), falling back
+// to the thrown Error message and finally a provided default. Used so AI toasts
+// show exactly what the server said (e.g. "AI dependency is not installed...").
+const apiErrorMessage = (err, fallback) => {
+  const detail = err?.data?.detail ?? err?.data?.message ?? err?.message;
+  return typeof detail === 'string' && detail ? detail : fallback;
+};
+
+// Display metadata for an AI review verdict (guide §4). Tailwind classes are
+// split dark/light so they survive the JIT (no dynamic class names).
+const AI_DECISION_META = {
+  approved: {
+    label: 'Approved',
+    icon: '✓',
+    darkClass: 'bg-green-500/10 text-green-400',
+    lightClass: 'bg-green-50 text-green-700',
+  },
+  rejected: {
+    label: 'Rejected',
+    icon: '✕',
+    darkClass: 'bg-red-500/10 text-red-400',
+    lightClass: 'bg-red-50 text-red-600',
+  },
+  needs_review: {
+    label: 'Needs Review',
+    icon: '⚠',
+    darkClass: 'bg-[#F1CB68]/10 text-[#F1CB68]',
+    lightClass: 'bg-yellow-50 text-yellow-700',
+  },
+  not_reviewed: {
+    label: 'Not Reviewed',
+    icon: '–',
+    darkClass: 'bg-[#2A2A2D] text-gray-400',
+    lightClass: 'bg-gray-100 text-gray-500',
+  },
+};
 
 export default function AssetDetailClient({ assetId: propAssetId }) {
   const router = useRouter();
@@ -74,6 +116,16 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // AI Appraisal (instant, synchronous AI valuation)
+  const [aiUsage, setAiUsage] = useState(null);        // { plan, aiAppraisals: { limit, used, remaining }, ... }
+  const [aiResult, setAiResult] = useState(null);      // { estimatedValue, valueRangeLow, ... }
+  const [runningAiAppraisal, setRunningAiAppraisal] = useState(false);
+  const [showAiReasoning, setShowAiReasoning] = useState(false);
+
+  // AI Asset Review (advisory accept/reject)
+  const [aiReview, setAiReview] = useState(null);      // { decision, reason, flags, model, createdAt }
+  const [runningAiReview, setRunningAiReview] = useState(false);
 
   // Fetch asset data
   useEffect(() => {
@@ -253,6 +305,131 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     }
   }, [assetId]);
 
+  // Fetch the current-month AI quota so we can show "X left" and disable the
+  // button once it's exhausted (guide §5). Best-effort: a failure here just
+  // leaves the button enabled — the POST itself still enforces the limit (403).
+  useEffect(() => {
+    let cancelled = false;
+    getAiUsage()
+      .then(usage => {
+        if (!cancelled) setAiUsage(usage);
+      })
+      .catch(err => {
+        console.warn('Could not load AI usage quota:', err?.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load the latest AI review for this asset so we can show the current verdict
+  // on page load without making the user re-run it. `data: null` means none yet.
+  useEffect(() => {
+    if (!assetId) return;
+    let cancelled = false;
+    getAiReview(assetId)
+      .then(res => {
+        if (!cancelled && res?.data) setAiReview(res.data);
+      })
+      .catch(err => {
+        console.warn('Could not load latest AI review:', err?.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assetId]);
+
+  // Remaining AI appraisals for this month. null => unlimited (annual/admin).
+  const aiAppraisalsRemaining = aiUsage?.aiAppraisals?.remaining ?? null;
+  const aiLimitReached =
+    aiAppraisalsRemaining !== null && aiAppraisalsRemaining <= 0;
+
+  // Remaining AI reviews for this month. null => unlimited.
+  const aiReviewsRemaining = aiUsage?.aiReviews?.remaining ?? null;
+  const aiReviewLimitReached =
+    aiReviewsRemaining !== null && aiReviewsRemaining <= 0;
+
+  const handleRunAiAppraisal = async () => {
+    if (runningAiAppraisal) return;
+    try {
+      setRunningAiAppraisal(true); // inline "Estimating…" state only — no page spinner
+      const response = await runAiAppraisal(asset.id);
+      const result = response.aiResult;
+      if (!result) {
+        toast.error('AI appraisal did not return a result. Please try again.');
+        return;
+      }
+      setAiResult(result);
+      setShowAiReasoning(false);
+      toast.success('AI estimate ready.');
+
+      // Reflect the updated quota without an extra round-trip.
+      setAiUsage(prev => {
+        if (!prev?.aiAppraisals || prev.aiAppraisals.remaining === null) return prev;
+        const used = (prev.aiAppraisals.used ?? 0) + 1;
+        const remaining = Math.max(0, (prev.aiAppraisals.remaining ?? 1) - 1);
+        return { ...prev, aiAppraisals: { ...prev.aiAppraisals, used, remaining } };
+      });
+
+      // The backend also updated the asset's estimated value + valuation type,
+      // so keep the displayed "Last Appraisal" in sync for this session.
+      setAsset(prev => (prev ? { ...prev, lastAppraisal: 'Just now' } : prev));
+    } catch (err) {
+      if (err.status === 403) {
+        // Monthly limit hit — surface the backend message and re-sync quota so
+        // the button disables.
+        toast.info(apiErrorMessage(err, 'You have reached your monthly AI appraisal limit. Upgrade for more.'));
+        getAiUsage().then(setAiUsage).catch(() => {});
+      } else if (err.status === 503) {
+        // AI not configured / temporarily unavailable — show the server's reason.
+        toast.error(apiErrorMessage(err, 'The AI service is temporarily unavailable. Please try again.'));
+      } else {
+        console.error('Error running AI appraisal:', err);
+        toast.error(apiErrorMessage(err, 'Failed to run AI appraisal.'));
+      }
+    } finally {
+      setRunningAiAppraisal(false);
+    }
+  };
+
+  const handleRunAiReview = async () => {
+    if (runningAiReview) return;
+    try {
+      setRunningAiReview(true); // inline state only
+      const response = await runAiReview(asset.id);
+      const review = response.data;
+      if (!review) {
+        toast.error('AI review did not return a result. Please try again.');
+        return;
+      }
+      setAiReview(review);
+      toast.success('AI review complete.');
+
+      // Reflect updated quota + the new verdict chip on the asset.
+      setAiUsage(prev => {
+        if (!prev?.aiReviews || prev.aiReviews.remaining === null) return prev;
+        const used = (prev.aiReviews.used ?? 0) + 1;
+        const remaining = Math.max(0, (prev.aiReviews.remaining ?? 1) - 1);
+        return { ...prev, aiReviews: { ...prev.aiReviews, used, remaining } };
+      });
+      setAsset(prev =>
+        prev ? { ...prev, aiReviewStatus: review.decision } : prev
+      );
+    } catch (err) {
+      if (err.status === 403) {
+        toast.info(apiErrorMessage(err, 'You have reached your monthly AI review limit. Upgrade for more.'));
+        getAiUsage().then(setAiUsage).catch(() => {});
+      } else if (err.status === 503) {
+        toast.error(apiErrorMessage(err, 'The AI service is temporarily unavailable. Please try again.'));
+      } else {
+        console.error('Error running AI review:', err);
+        toast.error(apiErrorMessage(err, 'Failed to run AI review.'));
+      }
+    } finally {
+      setRunningAiReview(false);
+    }
+  };
+
   const handlePrevImage = () => {
     if (!asset || !asset.images || asset.images.length === 0) return;
     setCurrentImageIndex(prev =>
@@ -275,7 +452,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
         targetPrice: sellFormData.targetPrice ? parseFloat(sellFormData.targetPrice.replace(/[^0-9.-]+/g, '')) : undefined,
         saleNote: sellFormData.saleNote || undefined,
       });
-      alert('Sell request submitted successfully!');
+      toast.success('Sell request submitted successfully!');
       setShowSellModal(false);
       setSellFormData({ targetPrice: '', saleNote: '' });
     } catch (err) {
@@ -296,7 +473,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
         status: err.status,
         error: err,
       });
-      alert(`${errorMessage}\n\nIf this keeps happening, please report this time to support: ${timestamp}`);
+      toast.error(errorMessage);
     } finally {
       setSubmittingSell(false);
     }
@@ -309,12 +486,12 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
       await requestAssetAppraisal(asset.id, {
         appraisalType: appraisalType,
       });
-      alert(`${appraisalType} appraisal request submitted successfully!`);
+      toast.success(`${appraisalType} appraisal request submitted successfully!`);
       setShowAppraisalModal(false);
       setAppraisalType('');
     } catch (err) {
       console.error('Error submitting appraisal request:', err);
-      alert(err.message || 'Failed to submit appraisal request');
+      toast.error(apiErrorMessage(err, 'Failed to submit appraisal request'));
     } finally {
       setSubmittingAppraisal(false);
     }
@@ -340,7 +517,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
       console.log('✅ Transfer completed successfully:', response.data);
       
       // Success - show message and close modal
-      alert(`Asset transferred successfully to ${transferData.newOwnerEmail}!`);
+      toast.success(`Asset transferred successfully to ${transferData.newOwnerEmail}!`);
       setShowTransferModal(false);
       setTransferData({ newOwnerEmail: '', transferType: 'gift', notes: '' });
       setTransferError(null);
@@ -397,15 +574,15 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
         data.shareLink || data.shareUrl || data.url || data.link || '';
       if (shareLink) {
         await navigator.clipboard.writeText(shareLink);
-        alert('Share link copied to clipboard!');
+        toast.success('Share link copied to clipboard!');
       } else {
-        alert('Asset shared successfully!');
+        toast.success('Asset shared successfully!');
       }
       setShowShareModal(false);
       setShareData({ email: '', expiresIn: 7 });
     } catch (err) {
       console.error('Error sharing asset:', err);
-      alert(err.message || 'Failed to share asset');
+      toast.error(apiErrorMessage(err, 'Failed to share asset'));
     } finally {
       setSharing(false);
     }
@@ -423,13 +600,13 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
       if (response.data?.reportUrl) {
         // Open report in new tab
         window.open(response.data.reportUrl, '_blank');
-        alert('Report generated successfully!');
+        toast.success('Report generated successfully!');
       } else {
-        alert('Report generation initiated. You will be notified when it\'s ready.');
+        toast.info('Report generation initiated. You will be notified when it\'s ready.');
       }
     } catch (err) {
       console.error('Error generating report:', err);
-      alert(err.message || 'Failed to generate report');
+      toast.error(apiErrorMessage(err, 'Failed to generate report'));
     } finally {
       setGeneratingReport(false);
     }
@@ -439,7 +616,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     if (docUrl) {
       window.open(docUrl, '_blank');
     } else {
-      alert('Document URL not available');
+      toast.error('Document URL not available');
     }
   };
 
@@ -455,15 +632,37 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
       if (err.status === 409 || msg.toLowerCase().includes('listed') || msg.toLowerCase().includes('marketplace')) {
         msg = 'Cannot delete this asset while it has an active marketplace listing. Remove the listing first.';
       }
-      alert(msg);
+      toast.error(msg);
       setDeleting(false);
     }
   };
 
+  // Static chrome (breadcrumb + back button) renders unconditionally. While
+  // loading, only the data body swaps to a skeleton. On error/not-found the
+  // message renders inside the content region. Never blank the whole page.
   if (loading) {
     return (
       <>
-        <AssetDetailSkeleton isDarkMode={isDarkMode} />
+        <div className='pb-20'>
+          {/* Breadcrumb (static chrome) */}
+          <div className='mb-6 flex items-center gap-2 text-sm'>
+            <button
+              onClick={() => router.push('/dashboard/assets')}
+              className={`transition-colors ${
+                isDarkMode
+                  ? 'text-gray-400 hover:text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Assets
+            </button>
+            <span className={isDarkMode ? 'text-gray-600' : 'text-gray-400'}>›</span>
+            <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>Asset Details</span>
+          </div>
+
+          {/* Data body skeleton */}
+          <AssetDetailSkeleton isDarkMode={isDarkMode} />
+        </div>
       </>
     );
   }
@@ -471,17 +670,36 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   if (error || !asset) {
     return (
       <>
-        <div className={`p-6 rounded-lg border ${
-          isDarkMode ? 'bg-red-900/20 border-red-500/50 text-red-400' : 'bg-red-50 border-red-300 text-red-700'
-        }`}>
-          <p className='font-semibold mb-2'>Error loading asset</p>
-          <p className='text-sm mb-4'>{error || 'Asset not found'}</p>
-          <button
-            onClick={() => router.push('/dashboard/assets')}
-            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
-          >
-            Back to Assets
-          </button>
+        <div className='pb-20'>
+          {/* Breadcrumb (static chrome) */}
+          <div className='mb-6 flex items-center gap-2 text-sm'>
+            <button
+              onClick={() => router.push('/dashboard/assets')}
+              className={`transition-colors ${
+                isDarkMode
+                  ? 'text-gray-400 hover:text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Assets
+            </button>
+            <span className={isDarkMode ? 'text-gray-600' : 'text-gray-400'}>›</span>
+            <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>Asset Details</span>
+          </div>
+
+          {/* Error / not-found message inside the content region */}
+          <div className={`p-6 rounded-lg border ${
+            isDarkMode ? 'bg-red-900/20 border-red-500/50 text-red-400' : 'bg-red-50 border-red-300 text-red-700'
+          }`}>
+            <p className='font-semibold mb-2'>Error loading asset</p>
+            <p className='text-sm mb-4'>{error || 'Asset not found'}</p>
+            <button
+              onClick={() => router.push('/dashboard/assets')}
+              className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+            >
+              Back to Assets
+            </button>
+          </div>
         </div>
       </>
     );
@@ -523,10 +741,25 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
             <h1 className={`text-3xl font-bold mb-2 ${
               isDarkMode ? 'text-white' : 'text-gray-900'
             }`}>{asset.name}</h1>
-            <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-3 flex-wrap'>
               <span className='px-3 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full'>
                 {asset.status}
               </span>
+              {/* AI review verdict chip (latest review or the asset's own field) */}
+              {(() => {
+                const decision = aiReview?.decision || asset.aiReviewStatus;
+                if (!decision || decision === 'not_reviewed') return null;
+                const meta = AI_DECISION_META[decision];
+                if (!meta) return null;
+                return (
+                  <span className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${
+                    isDarkMode ? meta.darkClass : meta.lightClass
+                  }`}>
+                    <span aria-hidden='true'>{meta.icon}</span>
+                    AI: {meta.label}
+                  </span>
+                );
+              })()}
               <span className={`text-sm ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-600'
               }`}>{asset.lastUpdated}</span>
@@ -889,6 +1122,253 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
               }`}>
                 Last Appraisal: {asset.lastAppraisal}
               </p>
+            </div>
+
+            {/* AI Appraisal — instant, synchronous AI valuation */}
+            <div className={`border rounded-2xl p-6 ${
+              isDarkMode
+                ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
+                : 'bg-white border-gray-300'
+            }`}>
+              <div className='flex items-center justify-between mb-1'>
+                <h3 className={`text-lg font-semibold flex items-center gap-2 ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
+                    <path d='M12 3l1.9 5.8L20 10l-5.8 1.9L12 18l-1.9-6.1L4 10l6.1-1.2L12 3z' />
+                  </svg>
+                  AI Appraisal
+                </h3>
+                {/* Remaining-quota badge (null limit => unlimited) */}
+                {aiUsage?.aiAppraisals && (
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    aiLimitReached
+                      ? isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'
+                      : isDarkMode ? 'bg-[#2A2A2D] text-gray-300' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {aiAppraisalsRemaining === null
+                      ? 'Unlimited'
+                      : `${aiAppraisalsRemaining} left this month`}
+                  </span>
+                )}
+              </div>
+              <p className={`text-sm mb-4 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                Get an instant AI-generated value estimate for this asset.
+              </p>
+
+              {/* Result */}
+              {aiResult && (
+                <div className='mb-4'>
+                  <p className={`text-3xl font-bold mb-1 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    {formatCurrency(aiResult.estimatedValue, aiResult.currency)}
+                  </p>
+                  {(aiResult.valueRangeLow != null && aiResult.valueRangeHigh != null) && (
+                    <p className={`text-sm mb-2 ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Range: {formatCurrency(aiResult.valueRangeLow, aiResult.currency)} – {formatCurrency(aiResult.valueRangeHigh, aiResult.currency)}
+                    </p>
+                  )}
+                  {aiResult.confidence && (
+                    <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full mb-3 capitalize ${
+                      aiResult.confidence === 'high'
+                        ? isDarkMode ? 'bg-green-500/10 text-green-400' : 'bg-green-50 text-green-700'
+                        : aiResult.confidence === 'medium'
+                        ? isDarkMode ? 'bg-[#F1CB68]/10 text-[#F1CB68]' : 'bg-yellow-50 text-yellow-700'
+                        : isDarkMode ? 'bg-orange-500/10 text-orange-400' : 'bg-orange-50 text-orange-700'
+                    }`}>
+                      {aiResult.confidence} confidence
+                    </span>
+                  )}
+
+                  {/* Reasoning (expandable) */}
+                  {aiResult.reasoning && (
+                    <div className='mb-3'>
+                      <button
+                        type='button'
+                        onClick={() => setShowAiReasoning(v => !v)}
+                        className={`flex items-center gap-1 text-sm font-medium transition-colors ${
+                          isDarkMode ? 'text-[#F1CB68] hover:text-[#d4b55a]' : 'text-[#b8912f] hover:text-[#96751f]'
+                        }`}
+                      >
+                        {showAiReasoning ? 'Hide reasoning' : 'Show reasoning'}
+                        <svg
+                          width='14' height='14' viewBox='0 0 24 24' fill='none'
+                          stroke='currentColor' strokeWidth='2'
+                          className={`transition-transform ${showAiReasoning ? 'rotate-180' : ''}`}
+                        >
+                          <path d='M6 9l6 6 6-6' />
+                        </svg>
+                      </button>
+                      {showAiReasoning && (
+                        <p className={`text-sm mt-2 leading-relaxed ${
+                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                        }`}>
+                          {aiResult.reasoning}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Disclaimer — REQUIRED near the value (guide §1/§2) */}
+                  {aiResult.disclaimer && (
+                    <p className={`text-xs italic leading-relaxed ${
+                      isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                    }`}>
+                      {aiResult.disclaimer}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Action */}
+              <button
+                onClick={handleRunAiAppraisal}
+                disabled={runningAiAppraisal || aiLimitReached}
+                className={`w-full p-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
+                  runningAiAppraisal || aiLimitReached
+                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    : 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
+                }`}
+              >
+                {runningAiAppraisal ? (
+                  <>
+                    <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
+                      <circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' fill='none' />
+                      <path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z' />
+                    </svg>
+                    Estimating…
+                  </>
+                ) : aiLimitReached ? (
+                  'Upgrade to run more'
+                ) : aiResult ? (
+                  'Re-run AI Estimate'
+                ) : (
+                  'Run AI Estimate'
+                )}
+              </button>
+              {aiLimitReached && (
+                <p className={`text-xs mt-2 text-center ${
+                  isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                }`}>
+                  You've used all AI appraisals on your plan this month.
+                </p>
+              )}
+            </div>
+
+            {/* AI Asset Review — advisory accept/reject decision */}
+            <div className={`border rounded-2xl p-6 ${
+              isDarkMode
+                ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
+                : 'bg-white border-gray-300'
+            }`}>
+              <div className='flex items-center justify-between mb-1'>
+                <h3 className={`text-lg font-semibold flex items-center gap-2 ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
+                    <path d='M9 12l2 2 4-4' />
+                    <circle cx='12' cy='12' r='9' />
+                  </svg>
+                  AI Asset Review
+                </h3>
+                {aiUsage?.aiReviews && (
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    aiReviewLimitReached
+                      ? isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'
+                      : isDarkMode ? 'bg-[#2A2A2D] text-gray-300' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {aiReviewsRemaining === null
+                      ? 'Unlimited'
+                      : `${aiReviewsRemaining} left this month`}
+                  </span>
+                )}
+              </div>
+              <p className={`text-sm mb-4 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                An advisory AI check of this asset's details and documents. Guidance only — it doesn't block the asset.
+              </p>
+
+              {/* Verdict */}
+              {aiReview && aiReview.decision && aiReview.decision !== 'not_reviewed' && (() => {
+                const meta = AI_DECISION_META[aiReview.decision] || AI_DECISION_META.not_reviewed;
+                return (
+                  <div className='mb-4'>
+                    <span className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full mb-3 ${
+                      isDarkMode ? meta.darkClass : meta.lightClass
+                    }`}>
+                      <span aria-hidden='true'>{meta.icon}</span>
+                      {meta.label}
+                    </span>
+                    {aiReview.reason && (
+                      <p className={`text-sm leading-relaxed mb-3 ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        {aiReview.reason}
+                      </p>
+                    )}
+                    {Array.isArray(aiReview.flags) && aiReview.flags.length > 0 && (
+                      <ul className='space-y-1.5'>
+                        {aiReview.flags.map((flag, i) => (
+                          <li
+                            key={i}
+                            className={`flex items-start gap-2 text-sm ${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}
+                          >
+                            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='flex-shrink-0 mt-1'>
+                              <path d='M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z' />
+                              <line x1='4' y1='22' x2='4' y2='15' />
+                            </svg>
+                            <span>{flag}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Action */}
+              <button
+                onClick={handleRunAiReview}
+                disabled={runningAiReview || aiReviewLimitReached}
+                className={`w-full p-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
+                  runningAiReview || aiReviewLimitReached
+                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    : isDarkMode
+                    ? 'bg-[#2A2A2D] text-white hover:bg-[#3A3A3D]'
+                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                {runningAiReview ? (
+                  <>
+                    <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
+                      <circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' fill='none' />
+                      <path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z' />
+                    </svg>
+                    Reviewing…
+                  </>
+                ) : aiReviewLimitReached ? (
+                  'Upgrade to run more'
+                ) : aiReview && aiReview.decision !== 'not_reviewed' ? (
+                  'Re-run AI Review'
+                ) : (
+                  'Run AI Review'
+                )}
+              </button>
+              {aiReviewLimitReached && (
+                <p className={`text-xs mt-2 text-center ${
+                  isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                }`}>
+                  You've used all AI reviews on your plan this month.
+                </p>
+              )}
             </div>
 
             {/* Quick Actions */}

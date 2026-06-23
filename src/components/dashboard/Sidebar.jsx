@@ -10,7 +10,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const pathname = usePathname();
   const router = useRouter();
   const { isDarkMode } = useTheme();
-  const { isAdmin, isAdvisor } = useAuth();
+  const { role, isAdmin, isAdvisor } = useAuth();
 
   // Optimistic navigation highlight: when a link is clicked we mark its href as
   // pending so the tab lights up *immediately*, instead of waiting for the route
@@ -32,52 +32,53 @@ export default function Sidebar({ isOpen, onClose }) {
     router.push('/login');
   };
 
-  // Build role-aware menu sections
-  const getMenuSections = () => {
-    // Marketplace submenu: admin gets "Approve Listings" link
-    const marketplaceSubmenu = [
-      { id: 'active-offers', label: 'Active Offers', href: '/dashboard/marketplace/active-offers' },
-    ];
-    if (isAdmin) {
-      marketplaceSubmenu.push({ id: 'approve-listings', label: 'Approve Listings', href: '/dashboard/marketplace/approve' });
-    }
+  // Roles that exist in the system. Each section/item below declares the roles
+  // allowed to see it; the menu is then filtered by the current user's role so
+  // every account only sees what its role permits.
+  const ALL_ROLES = ['admin', 'advisor', 'investor'];
 
-    // Support link: admin/advisor see all tickets, investor sees own only
+  // Build the full, role-tagged menu. Filtering by role happens at the end so
+  // gating is declarative and lives in one place (no scattered if-branches).
+  const getMenuSections = () => {
+    // Support link: admin/advisor manage all tickets, investor sees own only.
     const supportHref = (isAdmin || isAdvisor) ? '/dashboard/support-dashboard' : '/dashboard/support';
     const supportLabel = (isAdmin || isAdvisor) ? 'Support Dashboard' : 'Support Ticket';
 
-    // CRM Dashboard item — shared by advisor's "Reports & Documents" section and
-    // the admin (super admin) "Administration" section below.
+    // CRM Dashboard — shown to admin (under "Administration") and advisor (under
+    // "Reports & Documents"). Investors lack `view:analytics`, so it's excluded.
     const crmDashboardItem = {
       id: 'crm-dashboard',
       label: 'CRM Dashboard',
       icon: 'BarChart',
       href: '/dashboard/reports/crm',
+      roles: ['admin', 'advisor'],
       hasSubmenu: true,
       submenu: [
-        { id: 'crm-report', label: 'Report', href: '/dashboard/reports/crm' },
-        { id: 'crm-documents', label: 'Documents', href: '/dashboard/documents' },
-        { id: 'crm-support', label: supportLabel, href: supportHref },
-        { id: 'crm-concierge', label: 'Concierge Service', href: '/dashboard/concierge' },
+        { id: 'crm-report', label: 'Report', href: '/dashboard/reports/crm', roles: ['admin', 'advisor'] },
+        { id: 'crm-documents', label: 'Documents', href: '/dashboard/documents', roles: ['admin', 'advisor'] },
+        { id: 'crm-support', label: supportLabel, href: supportHref, roles: ['admin', 'advisor'] },
+        { id: 'crm-concierge', label: 'Concierge Service', href: '/dashboard/concierge', roles: ['admin', 'advisor'] },
       ],
     };
 
     const sections = [
       {
         title: 'Wealth Assets',
+        roles: ALL_ROLES,
         items: [
-          { id: 'assets', label: 'Assets', icon: 'Grid', href: '/dashboard/assets' },
+          { id: 'assets', label: 'Assets', icon: 'Grid', href: '/dashboard/assets', roles: ALL_ROLES },
           {
             id: 'portfolio',
             label: 'Portfolio',
             icon: 'PieChart',
             href: '/dashboard/portfolio/Overview',
+            roles: ALL_ROLES,
             hasSubmenu: true,
             submenu: [
-              { id: 'Overview', label: 'Overview', href: '/dashboard/portfolio/Overview' },
-              { id: 'crypto', label: 'Crypto', href: '/dashboard/portfolio/crypto' },
-              { id: 'cash-flow', label: 'Cash Flow', href: '/dashboard/portfolio/cash-flow' },
-              { id: 'trade-engine', label: 'Trade Engine', href: '/dashboard/portfolio/trade-engine' },
+              { id: 'Overview', label: 'Overview', href: '/dashboard/portfolio/Overview', roles: ALL_ROLES },
+              { id: 'crypto', label: 'Crypto', href: '/dashboard/portfolio/crypto', roles: ALL_ROLES },
+              { id: 'cash-flow', label: 'Cash Flow', href: '/dashboard/portfolio/cash-flow', roles: ALL_ROLES },
+              { id: 'trade-engine', label: 'Trade Engine', href: '/dashboard/portfolio/trade-engine', roles: ALL_ROLES },
             ],
           },
           {
@@ -85,83 +86,103 @@ export default function Sidebar({ isOpen, onClose }) {
             label: 'Investment',
             icon: 'TrendingUp',
             href: '/dashboard/investment',
+            roles: ALL_ROLES,
             hasSubmenu: true,
             submenu: [
-              { id: 'overview', label: 'Overview', href: '/dashboard/investment/overview' },
-              { id: 'goals-tracker', label: 'Goals Tracker', href: '/dashboard/investment/goals-tracker' },
-              { id: 'strategies', label: 'Strategies', href: '/dashboard/investment/strategies' },
+              { id: 'overview', label: 'Overview', href: '/dashboard/investment/overview', roles: ALL_ROLES },
+              { id: 'goals-tracker', label: 'Goals Tracker', href: '/dashboard/investment/goals-tracker', roles: ALL_ROLES },
+              { id: 'strategies', label: 'Strategies', href: '/dashboard/investment/strategies', roles: ALL_ROLES },
             ],
           },
         ],
       },
       {
         title: 'Opportunities',
+        roles: ALL_ROLES,
         items: [
           {
             id: 'marketplace',
             label: 'Marketplace',
             icon: 'ShoppingBag',
             href: '/dashboard/marketplace',
+            roles: ALL_ROLES,
             hasSubmenu: true,
-            submenu: marketplaceSubmenu,
+            submenu: [
+              { id: 'active-offers', label: 'Active Offers', href: '/dashboard/marketplace/active-offers', roles: ALL_ROLES },
+              // Approving listings requires `approve:marketplace_listings` (admin only).
+              { id: 'approve-listings', label: 'Approve Listings', href: '/dashboard/marketplace/approve', roles: ['admin'] },
+            ],
           },
+        ],
+      },
+      // Advisors get analytics/CRM in their own section. Admins see the same CRM
+      // tabs folded into "Administration" below, so this section excludes admin.
+      {
+        title: 'Reports & Documents',
+        roles: ['advisor'],
+        items: [crmDashboardItem],
+      },
+      // Investors have no `view:analytics`: a simplified documents/support section.
+      {
+        title: 'Documents & Support',
+        roles: ['investor'],
+        items: [
+          { id: 'documents', label: 'Documents', icon: 'FileText', href: '/dashboard/documents', roles: ['investor'] },
+          { id: 'support', label: 'Support Ticket', icon: 'HelpCircle', href: '/dashboard/support', roles: ['investor'] },
+          { id: 'concierge', label: 'Concierge Service', icon: 'Shield', href: '/dashboard/concierge', roles: ['investor'] },
+        ],
+      },
+      {
+        title: 'Wealth Structure',
+        roles: ALL_ROLES,
+        items: [
+          { id: 'entity-structure', label: 'Entity Structure', icon: 'Network', href: '/dashboard/entity-structure', roles: ALL_ROLES },
+          { id: 'compliance', label: 'Compliance', icon: 'Shield', href: '/dashboard/compliance', roles: ALL_ROLES },
+        ],
+      },
+      // Admin-only tools (`write:users`, `manage:subscriptions`, KYC/dispute review)
+      // plus the CRM tabs, all under one "Administration" heading.
+      {
+        title: 'Administration',
+        roles: ['admin'],
+        items: [
+          { id: 'admin-users', label: 'Manage Users', icon: 'Grid', href: '/dashboard/admin/users', roles: ['admin'] },
+          { id: 'admin-subscriptions', label: 'Subscriptions', icon: 'BarChart', href: '/dashboard/admin/subscriptions', roles: ['admin'] },
+          { id: 'admin-verifications', label: 'Verifications', icon: 'Shield', href: '/dashboard/admin/verifications', roles: ['admin'] },
+          { id: 'admin-disputes', label: 'Escrow Disputes', icon: 'Shield', href: '/dashboard/admin/disputes', roles: ['admin'] },
+          crmDashboardItem,
+        ],
+      },
+      {
+        title: 'Settings',
+        roles: ALL_ROLES,
+        items: [
+          { id: 'preferences', label: 'Preferences', icon: 'Settings', href: '/dashboard/settings', roles: ALL_ROLES },
+          { id: 'logout', label: 'Logout', icon: 'LogOut', href: '/login', isLogout: true, roles: ALL_ROLES },
+          { id: 'help-center', label: 'Help Center', icon: 'HelpCircle', href: '/dashboard/support', roles: ALL_ROLES },
         ],
       },
     ];
 
-    // Analytics/CRM Dashboard: advisors get their own "Reports & Documents" section.
-    // Admins (super admin) get the CRM tabs consolidated under "Administration" below,
-    // so they don't need this section. Investors get a simplified section (they'd 403).
-    if (isAdvisor) {
-      sections.push({
-        title: 'Reports & Documents',
-        items: [crmDashboardItem],
-      });
-    } else if (!isAdmin) {
-      // Investors: simplified section without analytics
-      sections.push({
-        title: 'Documents & Support',
-        items: [
-          { id: 'documents', label: 'Documents', icon: 'FileText', href: '/dashboard/documents' },
-          { id: 'support', label: 'Support Ticket', icon: 'HelpCircle', href: '/dashboard/support' },
-          { id: 'concierge', label: 'Concierge Service', icon: 'Shield', href: '/dashboard/concierge' },
-        ],
-      });
-    }
+    // Filter everything by the current role. Until the role resolves (first paint
+    // before useAuth reads localStorage / fetches /users/me), only show entries
+    // shared by every role — never flash items a user may not be allowed to see.
+    const isAllowed = (entry) => {
+      if (!entry.roles) return true;
+      if (!role) return entry.roles.length === ALL_ROLES.length; // common-to-all only
+      return entry.roles.includes(role);
+    };
 
-    sections.push({
-      title: 'Wealth Structure',
-      items: [
-        { id: 'entity-structure', label: 'Entity Structure', icon: 'Network', href: '/dashboard/entity-structure' },
-        { id: 'compliance', label: 'Compliance', icon: 'Shield', href: '/dashboard/compliance' },
-      ],
-    });
-
-    // Super admin (admin role): all important tabs under one "Administration" heading —
-    // admin tools plus the advisor/CRM tabs.
-    if (isAdmin) {
-      sections.push({
-        title: 'Administration',
-        items: [
-          { id: 'admin-users', label: 'Manage Users', icon: 'Grid', href: '/dashboard/admin/users' },
-          { id: 'admin-subscriptions', label: 'Subscriptions', icon: 'BarChart', href: '/dashboard/admin/subscriptions' },
-          { id: 'admin-verifications', label: 'Verifications', icon: 'Shield', href: '/dashboard/admin/verifications' },
-          { id: 'admin-disputes', label: 'Escrow Disputes', icon: 'Shield', href: '/dashboard/admin/disputes' },
-          crmDashboardItem,
-        ],
-      });
-    }
-
-    sections.push({
-      title: 'Settings',
-      items: [
-        { id: 'preferences', label: 'Preferences', icon: 'Settings', href: '/dashboard/settings' },
-        { id: 'logout', label: 'Logout', icon: 'LogOut', href: '/login', isLogout: true },
-        { id: 'help-center', label: 'Help Center', icon: 'HelpCircle', href: '/dashboard/support' },
-      ],
-    });
-
-    return sections;
+    return sections
+      .filter(isAllowed)
+      .map((section) => ({
+        ...section,
+        items: section.items.filter(isAllowed).map((item) => ({
+          ...item,
+          submenu: item.submenu ? item.submenu.filter(isAllowed) : item.submenu,
+        })),
+      }))
+      .filter((section) => section.items.length > 0);
   };
 
   const menuSections = getMenuSections();

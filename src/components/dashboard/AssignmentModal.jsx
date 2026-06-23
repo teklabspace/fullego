@@ -26,8 +26,17 @@ export default function AssignmentModal({
         try {
           setLoadingUsers(true);
           const response = await getCrmUsers();
-          const users = response.data || response || [];
-          setCrmUsers(users.map(user => ({
+          // The backend may return a bare array, or wrap the list under data /
+          // users / items / results. Normalise all of these so the dropdown is
+          // never left empty just because the wrapper key was different.
+          const users = Array.isArray(response)
+            ? response
+            : response?.data ||
+              response?.users ||
+              response?.items ||
+              response?.results ||
+              [];
+          setCrmUsers((Array.isArray(users) ? users : []).map(user => ({
             id: user.id || user.userId,
             name: user.name || user.userName || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
             email: user.email,

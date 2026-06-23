@@ -96,79 +96,24 @@ export default function StrategyDetailsPage() {
     }
   };
 
-  // Show loading state
-  if (loading) {
-    return (
-      <>
-        <div className='flex items-center justify-center min-h-[400px]'>
-          <div className='text-center'>
-            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
-            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-              Loading strategy details...
-            </p>
-          </div>
-        </div>
-      </>
-    );
-  }
+  // Skeleton block helper for loading regions
+  const skeletonBlock = (extra = '') =>
+    `${isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'} animate-pulse rounded ${extra}`;
 
-  // Show error state only for critical errors (not 405 or 400 - endpoint issues)
-  if (error && !error.includes('Method Not Allowed') && !error.includes('unsupported operand') && !strategy) {
-    return (
-      <>
-        <div className={`p-6 rounded-lg border text-center ${
-          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
-        }`}>
-          <p className={`font-semibold mb-2 text-lg ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}>
-            Error loading strategy
-          </p>
-          <p className={`text-sm mb-4 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            {error}
-          </p>
-          <button
-            onClick={() => router.back()}
-            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
-          >
-            Go Back
-          </button>
-        </div>
-      </>
-    );
-  }
+  // Whether the critical error region should render inline (kept inside the shell)
+  const showInlineError =
+    error &&
+    !error.includes('Method Not Allowed') &&
+    !error.includes('unsupported operand') &&
+    !strategy;
 
-  // Show not found state
-  if (!strategy) {
-    return (
-      <>
-        <div className='text-center py-12'>
-          <h2
-            className={`text-2xl font-bold mb-4 ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
-            }`}
-          >
-            Strategy not found
-          </h2>
-          <Link
-            href='/dashboard/investment/strategies'
-            className={`text-[#F1CB68] hover:underline`}
-          >
-            Back to Strategies
-          </Link>
-        </div>
-      </>
-    );
-  }
-
-
+  // Not found (after load, no error)
+  const showNotFound = !loading && !showInlineError && !strategy;
 
   return (
     <>
       <div>
-        {/* Back Button */}
+        {/* Back Button (static chrome) */}
         <button
           onClick={() => router.back()}
           className={`flex items-center gap-2 mb-6 text-sm transition-colors ${
@@ -190,10 +135,61 @@ export default function StrategyDetailsPage() {
           Back to Strategies
         </button>
 
+        {/* Inline error message (keeps back button visible) */}
+        {showInlineError && (
+          <div className={`p-6 rounded-lg border text-center ${
+            isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+          }`}>
+            <p className={`font-semibold mb-2 text-lg ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              Error loading strategy
+            </p>
+            <p className={`text-sm mb-4 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              {error}
+            </p>
+            <button
+              onClick={() => router.back()}
+              className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+            >
+              Go Back
+            </button>
+          </div>
+        )}
+
+        {/* Not found state (after load) */}
+        {showNotFound && (
+          <div className='text-center py-12'>
+            <h2
+              className={`text-2xl font-bold mb-4 ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}
+            >
+              Strategy not found
+            </h2>
+            <Link
+              href='/dashboard/investment/strategies'
+              className={`text-[#F1CB68] hover:underline`}
+            >
+              Back to Strategies
+            </Link>
+          </div>
+        )}
+
         {/* Header */}
+        {!showInlineError && !showNotFound && (
         <div className='mb-8'>
           <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6'>
             <div>
+              {loading ? (
+                <>
+                  <div className={skeletonBlock('h-9 w-64 mb-3')} />
+                  <div className={skeletonBlock('h-4 w-48')} />
+                </>
+              ) : (
+                <>
               <h1
                 className={`text-3xl md:text-4xl font-bold mb-3 ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
@@ -231,9 +227,12 @@ export default function StrategyDetailsPage() {
                   {strategy.date}
                 </span>
               </div>
+                </>
+              )}
             </div>
 
             {/* Action Buttons */}
+            {!loading && (
             <div className='flex items-center gap-3'>
               <button
                 onClick={handleSaveStrategy}
@@ -260,9 +259,12 @@ export default function StrategyDetailsPage() {
                 {isSaved ? 'Saved' : 'Save Strategy'}
               </button>
             </div>
+            )}
           </div>
         </div>
+        )}
 
+        {!showInlineError && !showNotFound && (
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
           {/* Main Content */}
           <div className='lg:col-span-2 space-y-6'>
@@ -292,7 +294,7 @@ export default function StrategyDetailsPage() {
                       height='400'
                       fill={isDarkMode ? '#0A0A0A' : '#FFFFFF'}
                     />
-                    {strategy.chartType === 'candlestick' ? (
+                    {(strategy?.chartType || 'candlestick') === 'candlestick' ? (
                       <>
                         {[100, 200, 300, 400, 500, 600, 700].map((x, i) => (
                           <g key={i}>
@@ -350,13 +352,21 @@ export default function StrategyDetailsPage() {
               >
                 Description
               </h2>
-              <p
-                className={`text-sm leading-relaxed whitespace-pre-line ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}
-              >
-                {strategy.fullDescription}
-              </p>
+              {loading ? (
+                <div className='space-y-2'>
+                  <div className={skeletonBlock('h-3 w-full')} />
+                  <div className={skeletonBlock('h-3 w-full')} />
+                  <div className={skeletonBlock('h-3 w-2/3')} />
+                </div>
+              ) : (
+                <p
+                  className={`text-sm leading-relaxed whitespace-pre-line ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}
+                >
+                  {strategy.fullDescription}
+                </p>
+              )}
             </div>
 
             {/* Parameters Section */}
@@ -375,7 +385,14 @@ export default function StrategyDetailsPage() {
                 Strategy Parameters
               </h2>
               <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                {Object.entries(strategy.parameters).map(([key, value]) => (
+                {loading
+                  ? [0, 1, 2, 3].map((i) => (
+                      <div key={i}>
+                        <div className={skeletonBlock('h-3 w-20 mb-2')} />
+                        <div className={skeletonBlock('h-4 w-28')} />
+                      </div>
+                    ))
+                  : Object.entries(strategy.parameters).map(([key, value]) => (
                   <div key={key}>
                     <p
                       className={`text-xs font-medium mb-1 ${
@@ -437,13 +454,17 @@ export default function StrategyDetailsPage() {
                       Comments
                     </span>
                   </div>
-                  <span
-                    className={`text-sm font-semibold ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
-                    }`}
-                  >
-                    {strategy.comments}
-                  </span>
+                  {loading ? (
+                    <div className={skeletonBlock('h-4 w-8')} />
+                  ) : (
+                    <span
+                      className={`text-sm font-semibold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}
+                    >
+                      {strategy.comments}
+                    </span>
+                  )}
                 </div>
                 <div className='flex items-center justify-between'>
                   <div className='flex items-center gap-2'>
@@ -465,13 +486,17 @@ export default function StrategyDetailsPage() {
                       Boosts
                     </span>
                   </div>
-                  <span
-                    className={`text-sm font-semibold ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
-                    }`}
-                  >
-                    {strategy.boosts}
-                  </span>
+                  {loading ? (
+                    <div className={skeletonBlock('h-4 w-8')} />
+                  ) : (
+                    <span
+                      className={`text-sm font-semibold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}
+                    >
+                      {strategy.boosts}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -514,6 +539,7 @@ export default function StrategyDetailsPage() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </>
   );

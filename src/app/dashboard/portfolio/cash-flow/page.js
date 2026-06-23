@@ -196,56 +196,8 @@ export default function CashFlowPage() {
     }
   };
 
-  // Show skeleton while loading
-  if (loading && !cashFlowSummary) {
-    return (
-      <>
-        <CashFlowSkeleton isDarkMode={isDarkMode} />
-      </>
-    );
-  }
-
-  // Show error state
-  if (error && !cashFlowSummary) {
-    return (
-      <>
-        <div className={`p-6 rounded-lg border text-center ${
-          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
-        }`}>
-          <div className='mb-4 flex justify-center'>
-            <svg
-              width='48'
-              height='48'
-              viewBox='0 0 24 24'
-              fill='none'
-              stroke={isDarkMode ? '#EF4444' : '#DC2626'}
-              strokeWidth='2'
-            >
-              <circle cx='12' cy='12' r='10' />
-              <line x1='12' y1='8' x2='12' y2='12' />
-              <line x1='12' y1='16' x2='12.01' y2='16' />
-            </svg>
-          </div>
-          <p className={`font-semibold mb-2 text-lg ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}>
-            Error loading cash flow
-          </p>
-          <p className={`text-sm mb-4 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            {error}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
-          >
-            Retry
-          </button>
-        </div>
-      </>
-    );
-  }
+  const showLoading = loading && !cashFlowSummary;
+  const showError = error && !cashFlowSummary;
 
   return (
     <>
@@ -325,6 +277,45 @@ export default function CashFlowPage() {
           </div>
         </div>
 
+        {showError ? (
+          <div className={`p-6 rounded-lg border text-center ${
+            isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+          }`}>
+            <div className='mb-4 flex justify-center'>
+              <svg
+                width='48'
+                height='48'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke={isDarkMode ? '#EF4444' : '#DC2626'}
+                strokeWidth='2'
+              >
+                <circle cx='12' cy='12' r='10' />
+                <line x1='12' y1='8' x2='12' y2='12' />
+                <line x1='12' y1='16' x2='12.01' y2='16' />
+              </svg>
+            </div>
+            <p className={`font-semibold mb-2 text-lg ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              Error loading cash flow
+            </p>
+            <p className={`text-sm mb-4 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              {error}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+            >
+              Retry
+            </button>
+          </div>
+        ) : showLoading ? (
+          <CashFlowSkeleton isDarkMode={isDarkMode} />
+        ) : (
+        <>
         <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6'>
           {/* Stats Cards - Left Column */}
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
@@ -815,6 +806,8 @@ export default function CashFlowPage() {
             </div>
           </div>
         </div>
+        </>
+        )}
 
         <style jsx global>{`
           .scrollbar-hide {

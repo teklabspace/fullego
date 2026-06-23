@@ -12,6 +12,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
+    "clean:all": "node -e \"['.next','out'].forEach(d=>require('fs').rmSync(d,{recursive:true,force:true}))\"",
+    "dev:clean": "npm run clean && npm run dev",
+    "build:clean": "npm run clean && npm run build",
     "pages:build": "next build",
     "pages:deploy": "npx wrangler pages deploy out",
     "cf:deploy": "npm run pages:build && npm run pages:deploy"

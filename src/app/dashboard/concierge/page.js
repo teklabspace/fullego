@@ -1,6 +1,4 @@
 'use client';
-import Navbar from '@/components/dashboard/Navbar';
-import Sidebar from '@/components/dashboard/Sidebar';
 import { useTheme } from '@/context/ThemeContext';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -23,7 +21,6 @@ import { toast } from 'react-toastify';
 export default function ConciergeServicePage() {
   const { isDarkMode } = useTheme();
   const router = useRouter();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedAppraisal, setSelectedAppraisal] = useState(null);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
@@ -202,21 +199,9 @@ export default function ConciergeServicePage() {
   };
 
   return (
-    <div
-      className={`flex h-screen ${isDarkMode ? 'bg-[#1A1A1F]' : 'bg-gray-50'}`}
-    >
-      {/* Sidebar */}
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-
-      {/* Main Content */}
-      <div className='flex-1 flex flex-col overflow-hidden lg:ml-64'>
-        {/* Navbar */}
-        <Navbar onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-
-        {/* Page Content */}
-        <main className='flex-1 overflow-y-auto'>
-          <div className='p-4 md:p-6'>
-            {/* Header */}
+    <>
+      <div>
+        {/* Header */}
             <div className='mb-6'>
               <h1
                 className={`text-2xl md:text-3xl font-bold mb-2 ${
@@ -425,8 +410,6 @@ export default function ConciergeServicePage() {
                 </div>
               </div>
             )}
-          </div>
-        </main>
       </div>
 
       {/* Appraisal Detail Modal */}
@@ -488,7 +471,7 @@ export default function ConciergeServicePage() {
         itemType='concierge'
         itemId={selectedAppraisal?.id}
       />
-    </div>
+    </>
   );
 }
 

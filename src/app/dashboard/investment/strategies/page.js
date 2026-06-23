@@ -82,49 +82,16 @@ export default function StrategiesPage() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Show loading state
-  if (loading) {
-    return (
-      <>
-        <div className='flex items-center justify-center min-h-[400px]'>
-          <div className='text-center'>
-            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
-            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-              Loading strategies...
-            </p>
-          </div>
-        </div>
-      </>
-    );
-  }
+  // Skeleton block helper for loading regions
+  const skeletonBlock = (extra = '') =>
+    `${isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'} animate-pulse rounded ${extra}`;
 
-  // Show error state only for critical errors (not 405 or 400 - endpoint issues)
-  if (error && !error.includes('Method Not Allowed') && !error.includes('unsupported operand') && !strategies.length) {
-    return (
-      <>
-        <div className={`p-6 rounded-lg border text-center ${
-          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
-        }`}>
-          <p className={`font-semibold mb-2 text-lg ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}>
-            Error loading strategies
-          </p>
-          <p className={`text-sm mb-4 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            {error}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
-          >
-            Retry
-          </button>
-        </div>
-      </>
-    );
-  }
+  // Whether the critical error region should render inline (kept inside the shell)
+  const showInlineError =
+    error &&
+    !error.includes('Method Not Allowed') &&
+    !error.includes('unsupported operand') &&
+    !strategies.length;
 
   return (
     <>
@@ -230,9 +197,53 @@ export default function StrategiesPage() {
           </div>
         </div>
 
+        {/* Inline error message (keeps header + controls visible) */}
+        {!loading && showInlineError && (
+          <div className={`p-6 rounded-lg border text-center mb-6 ${
+            isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+          }`}>
+            <p className={`font-semibold mb-2 text-lg ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              Error loading strategies
+            </p>
+            <p className={`text-sm mb-4 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              {error}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Strategies Grid */}
         <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-          {strategies.length > 0 ? (
+          {loading ? (
+            [0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={`rounded-2xl border overflow-hidden ${
+                  isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+                }`}
+              >
+                <div className={skeletonBlock('w-full h-48 rounded-none')} />
+                <div className='p-6'>
+                  <div className={skeletonBlock('h-6 w-3/4 mb-3')} />
+                  <div className={skeletonBlock('h-3 w-full mb-2')} />
+                  <div className={skeletonBlock('h-3 w-5/6 mb-4')} />
+                  <div className='flex items-center gap-4'>
+                    <div className={skeletonBlock('h-4 w-16')} />
+                    <div className={skeletonBlock('h-4 w-16')} />
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : strategies.length > 0 ? (
             strategies.map((strategy) => (
               <Link
                 key={strategy.id}
