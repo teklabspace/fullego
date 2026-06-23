@@ -2,45 +2,57 @@
 
 import { useEffect, useState } from 'react';
 import { getPaymentMethods, getPaymentHistory, listInvoices } from '@/utils/paymentsApi';
-import { getCurrentSubscription, getSubscriptionLimits } from '@/utils/subscriptionsApi';
+import { useSubscription } from '@/hooks/useSubscription';
+import CurrentPlanCard from '@/components/settings/CurrentPlanCard';
+import PlanSelector from '@/components/settings/PlanSelector';
+import PlanFeatures from '@/components/settings/PlanFeatures';
+import SubscriptionHistory from '@/components/settings/SubscriptionHistory';
+import PlanChangeModal from '@/components/settings/PlanChangeModal';
 
 export default function PaymentBilling({ isDarkMode }) {
-  const [subscription, setSubscription] = useState(null);
+  const {
+    current,
+    plans,
+    limits,
+    permissions,
+    history,
+    loading: subLoading,
+    subscribe,
+    changePlan,
+    cancel,
+    renew,
+  } = useSubscription();
+
+  // Payment methods / payment history / invoices stay on paymentsApi.
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [invoices, setInvoices] = useState([]);
-  const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Shared confirmation modal state.
+  const [modal, setModal] = useState({ open: false, action: 'subscribe', plan: null, billingCycle: 'monthly', busy: false });
+
   useEffect(() => {
-    const fetchAll = async () => {
+    const fetchPayments = async () => {
       try {
         setLoading(true);
         setError(null);
-        const [subRes, methodsRes, historyRes, invoicesRes, limitsRes] = await Promise.allSettled([
-          getCurrentSubscription(),
+        const [methodsRes, historyRes, invoicesRes] = await Promise.allSettled([
           getPaymentMethods(),
           getPaymentHistory(),
           listInvoices(),
-          getSubscriptionLimits(),
         ]);
-        if (subRes.status === 'fulfilled') setSubscription(subRes.value.data || subRes.value.subscription || null);
         if (methodsRes.status === 'fulfilled') {
-          const pmData = methodsRes.value.data || methodsRes.value.paymentMethods || [];
-          setPaymentMethods(pmData);
+          setPaymentMethods(methodsRes.value.data || methodsRes.value.paymentMethods || []);
         }
         if (historyRes.status === 'fulfilled') {
-          const histData = historyRes.value.data || historyRes.value || [];
-          setPaymentHistory(histData);
+          setPaymentHistory(historyRes.value.data || historyRes.value || []);
         }
         if (invoicesRes.status === 'fulfilled') {
-          const invData = invoicesRes.value.data || invoicesRes.value || [];
-          setInvoices(invData);
+          setInvoices(invoicesRes.value.data || invoicesRes.value || []);
         }
-        if (limitsRes.status === 'fulfilled') setUsage(limitsRes.value.data || limitsRes.value || null);
         if (
-          subRes.status === 'rejected' &&
           methodsRes.status === 'rejected' &&
           historyRes.status === 'rejected' &&
           invoicesRes.status === 'rejected'
@@ -54,86 +66,67 @@ export default function PaymentBilling({ isDarkMode }) {
         setLoading(false);
       }
     };
-    fetchAll();
+    fetchPayments();
   }, []);
+
+  const openModal = (action, plan, billingCycle = 'monthly') =>
+    setModal({ open: true, action, plan, billingCycle, busy: false });
+
+  const setModalOpen = (open) => setModal((m) => ({ ...m, open }));
+
+  const handleConfirm = async () => {
+    setModal((m) => ({ ...m, busy: true }));
+    const { action, plan, billingCycle } = modal;
+    const id = plan?.id ?? plan?.planId ?? plan?.plan_id;
+    let ok = false;
+    if (action === 'subscribe') ok = await subscribe(id, billingCycle);
+    else if (action === 'upgrade' || action === 'downgrade') ok = await changePlan(id, billingCycle);
+    else if (action === 'cancel') ok = await cancel();
+    else if (action === 'renew') ok = await renew();
+    setModal((m) => ({ ...m, busy: false, open: ok ? false : m.open }));
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-          Billing
-        </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Billing</h2>
       </div>
+
       {error && (
-        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-400">
-          {error}
-        </div>
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-400">{error}</div>
       )}
-      <div
-        className={`rounded-2xl p-4 md:p-6 border ${
-          isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
-        }`}
-      >
-        <div className="mb-6">
-          {loading ? (
-            <div className="animate-pulse space-y-3">
-              <div className={`h-4 w-40 rounded ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`} />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className={`h-16 rounded ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'}`} />
-                <div className={`h-16 rounded ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'}`} />
-              </div>
-            </div>
-          ) : subscription ? (
-            <p className={`text-base mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Plan: <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {subscription.plan || subscription.planName || subscription.plan_name}
-              </span>{' '}
-              · Status: <span className="font-semibold text-green-400">{subscription.status}</span>
-            </p>
-          ) : (
-            <p className={`text-base mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              No active subscription.
-            </p>
-          )}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <label className={`block text-xs font-semibold uppercase mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              ANNUAL PLAN
-            </label>
-            {subscription ? (
-              <>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {subscription.amount ? `${subscription.amount} ${subscription.currency || 'USD'}` : '—'} estimated
-                  </span>
-                </div>
-                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Next payment {subscription.currentPeriodEnd || subscription.current_period_end || '—'}
-                </p>
-              </>
-            ) : (
-              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Subscribe to a plan to see billing details.
-              </p>
-            )}
-          </div>
-          <div>
-            <label className={`block text-xs font-semibold uppercase mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              MONTHLY OVERAGE
-            </label>
-            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Overage charges will appear here when applicable.
-            </p>
-          </div>
-        </div>
-        {usage && (
+
+      {/* 1. Current plan */}
+      <CurrentPlanCard
+        current={current}
+        loading={subLoading}
+        onCancel={() => openModal('cancel', null)}
+        onRenew={() => openModal('renew', null)}
+        isDarkMode={isDarkMode}
+      />
+
+      {/* 2. Available plans */}
+      <PlanSelector
+        plans={plans}
+        current={current}
+        loading={subLoading}
+        onSelectPlan={(plan, billingCycle, action) => openModal(action, plan, billingCycle)}
+        isDarkMode={isDarkMode}
+      />
+
+      {/* 3. Plan features */}
+      <PlanFeatures permissions={permissions} loading={subLoading} isDarkMode={isDarkMode} />
+
+      {/* 4. Usage + Payment methods (existing markup) */}
+      <div className={`rounded-2xl p-4 md:p-6 border ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`}>
+        {limits && (
           <p className={`text-xs mb-6 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-            Usage this period: accounts {usage.usage?.accounts?.used ?? 0}/{usage.limits?.accounts ?? '—'}, assets{' '}
-            {usage.usage?.assets?.used ?? 0}/{usage.limits?.assets ?? '—'}.
+            Usage this period: accounts {limits.usage?.accounts?.used ?? 0}/{limits.limits?.accounts ?? '—'}, assets{' '}
+            {limits.usage?.assets?.used ?? 0}/{limits.limits?.assets ?? '—'}.
           </p>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Bill To card */}
           <div
             className={`rounded-xl p-5 border ${
               isDarkMode ? 'bg-gradient-to-br from-[#1A1A1D] to-[#151518] border-[#F1CB68]/20' : 'bg-gradient-to-br from-white to-gray-50 border-[#F1CB68]/30'
@@ -163,6 +156,7 @@ export default function PaymentBilling({ isDarkMode }) {
               MANAGE BILLING INFO
             </button>
           </div>
+          {/* Payment Method card */}
           <div
             className={`rounded-xl p-5 border ${
               isDarkMode ? 'bg-gradient-to-br from-[#1A1A1D] to-[#151518] border-[#F1CB68]/20' : 'bg-gradient-to-br from-white to-gray-50 border-[#F1CB68]/30'
@@ -218,6 +212,11 @@ export default function PaymentBilling({ isDarkMode }) {
           </div>
         </div>
       </div>
+
+      {/* 5. Subscription history */}
+      <SubscriptionHistory history={history} loading={subLoading} isDarkMode={isDarkMode} />
+
+      {/* 6. Payment history — existing markup */}
       <div
         className={`rounded-2xl p-4 md:p-6 border ${
           isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
@@ -316,6 +315,17 @@ export default function PaymentBilling({ isDarkMode }) {
           )}
         </div>
       </div>
+
+      <PlanChangeModal
+        isOpen={modal.open}
+        setIsOpen={setModalOpen}
+        action={modal.action}
+        plan={modal.plan}
+        billingCycle={modal.billingCycle}
+        busy={modal.busy}
+        onConfirm={handleConfirm}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 }
