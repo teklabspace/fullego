@@ -1,5 +1,11 @@
 'use client';
 
+const formatDate = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString();
+};
+
 const isActiveStatus = (status) => ['active', 'trialing'].includes(String(status || '').toLowerCase());
 
 export default function CurrentPlanCard({ current, loading, onCancel, onRenew, isDarkMode }) {
@@ -7,7 +13,7 @@ export default function CurrentPlanCard({ current, loading, onCancel, onRenew, i
   const status = current?.status;
   const amount = current?.amount ?? current?.price;
   const currency = current?.currency || 'USD';
-  const nextPayment = current?.currentPeriodEnd || current?.current_period_end || '—';
+  const nextPayment = formatDate(current?.currentPeriodEnd || current?.current_period_end);
   const active = isActiveStatus(status);
 
   return (

@@ -66,8 +66,18 @@ export function useSubscription() {
 
   const runMutation = async (fn, successMsg, failMsg) => {
     try {
-      await fn();
-      toast.success(successMsg);
+      const res = await fn();
+      const payload = (res && (res.data ?? res)) || {};
+      const needsAction =
+        payload.requiresAction ||
+        payload.requires_action ||
+        payload.clientSecret ||
+        payload.client_secret;
+      if (needsAction) {
+        toast.info('Action required to complete payment. Please check your billing details.');
+      } else {
+        toast.success(successMsg);
+      }
       await load();
       return true;
     } catch (err) {

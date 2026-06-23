@@ -1,6 +1,12 @@
 'use client';
 
-const rowDate = (r) => r.createdAt || r.created_at || r.date || '—';
+const formatDate = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString();
+};
+
+const rowDate = (r) => formatDate(r.createdAt || r.created_at || r.date);
 const rowChange = (r) => r.action || r.changeType || r.change_type || r.event || '—';
 const rowPlan = (r) => r.plan || r.planName || r.plan_name || r.toPlan || r.to_plan || '—';
 const rowStatus = (r) => r.status || '—';

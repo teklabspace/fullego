@@ -4,11 +4,23 @@ import { useState } from 'react';
 const planId = (p) => p?.id ?? p?.planId ?? p?.plan_id;
 const planPrice = (p) => Number(p?.price ?? p?.amount ?? 0);
 
+// The current subscription may identify its plan by id, name, or slug;
+// compare across all plausible fields on both sides.
+const matchesCurrent = (plan, current) => {
+  const currentKeys = [
+    current?.planId, current?.plan_id, current?.id,
+    current?.plan, current?.planName, current?.plan_name,
+  ].filter((v) => v != null).map(String);
+  const planKeys = [
+    planId(plan), plan?.name, plan?.planName, plan?.plan_name,
+  ].filter((v) => v != null).map(String);
+  return currentKeys.some((a) => planKeys.some((b) => a === b));
+};
+
 // Decide the CTA for a plan relative to the user's current subscription.
 const ctaFor = (plan, current) => {
-  const currentId = current?.planId ?? current?.plan_id ?? current?.id;
-  if (!current || !currentId) return { action: 'subscribe', label: 'Subscribe', disabled: false };
-  if (planId(plan) === currentId) return { action: 'current', label: 'Current plan', disabled: true };
+  if (!current) return { action: 'subscribe', label: 'Subscribe', disabled: false };
+  if (matchesCurrent(plan, current)) return { action: 'current', label: 'Current plan', disabled: true };
   const currentPrice = Number(current?.amount ?? current?.price ?? 0);
   return planPrice(plan) >= currentPrice
     ? { action: 'upgrade', label: 'Upgrade', disabled: false }

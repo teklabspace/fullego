@@ -17,6 +17,7 @@ export default function PaymentBilling({ isDarkMode }) {
     permissions,
     history,
     loading: subLoading,
+    error: subError,
     subscribe,
     changePlan,
     cancel,
@@ -92,8 +93,8 @@ export default function PaymentBilling({ isDarkMode }) {
         <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Billing</h2>
       </div>
 
-      {error && (
-        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-400">{error}</div>
+      {(error || subError) && (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-400">{error || subError}</div>
       )}
 
       {/* 1. Current plan */}
