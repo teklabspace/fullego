@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { can as checkPermission, getStoredUser } from '@/utils/permissions';
+import { getUserProfile } from '@/utils/authApi';
 
 /**
  * Hook that exposes the current user's identity and permission helpers.
@@ -13,7 +14,26 @@ export function useAuth() {
 
   useEffect(() => {
     setMounted(true);
-    setUser(getStoredUser());
+    const stored = getStoredUser();
+    setUser(stored);
+
+    // Some auth paths (Google OAuth, 2FA, older sessions) don't always persist
+    // `role` into user_info. Without it, every role-gated UI (sidebar, routes)
+    // falls back to the most-restricted role and every account looks identical.
+    // If we have a session but no stored role, recover it from /users/me.
+    const hasToken =
+      typeof window !== 'undefined' && !!localStorage.getItem('access_token');
+    if (hasToken && !stored?.role) {
+      getUserProfile()
+        .then((profile) => {
+          if (profile?.role) {
+            const merged = { ...(stored || {}), ...profile };
+            localStorage.setItem('user_info', JSON.stringify(merged));
+            setUser(merged);
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const role = user?.role ?? null;

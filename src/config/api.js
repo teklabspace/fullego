@@ -130,6 +130,10 @@ export const API_ENDPOINTS = {
     GET_APPRAISALS: (id) => `/assets/${id}/appraisals`,
     GET_APPRAISAL: (id, appraisalId) => `/assets/${id}/appraisals/${appraisalId}`,
     UPDATE_VALUATION: (id) => `/assets/${id}/valuation`,
+    // AI Appraisal & Review (instant, synchronous AI valuation / advisory review)
+    // Note: the Automated AI appraisal reuses REQUEST_APPRAISAL with type "API".
+    AI_REVIEW: (id) => `/assets/${id}/ai-review`,
+    AI_USAGE: '/assets/ai/usage',
     // Sale Requests
     REQUEST_SALE: (id) => `/assets/${id}/sale-requests`,
     GET_SALE_REQUESTS: (id) => `/assets/${id}/sale-requests`,

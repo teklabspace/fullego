@@ -12,11 +12,21 @@ import {
   deleteAsset,
   requestAssetSale,
   requestAssetAppraisal,
+  runAiAppraisal,
   formatCurrency,
 } from '@/utils/assetsApi';
 import AssetCardSkeleton from '@/components/skeletons/AssetCardSkeleton';
 import { LuClock, LuZap, LuCheck } from 'react-icons/lu';
 import { FaUserTie, FaRobot } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+
+// Pull the human-readable message the API sent (FastAPI `detail`), falling back
+// to the thrown Error message and finally a provided default — so toasts show
+// exactly what the server said.
+const apiErrorMessage = (err, fallback) => {
+  const detail = err?.data?.detail ?? err?.data?.message ?? err?.message;
+  return typeof detail === 'string' && detail ? detail : fallback;
+};
 
 export default function AssetsPage() {
   const { isDarkMode } = useTheme();
@@ -145,12 +155,12 @@ export default function AssetsPage() {
         targetPrice: sellFormData.targetPrice ? parseFloat(sellFormData.targetPrice.replace(/[^0-9.-]+/g, '')) : undefined,
         saleNote: sellFormData.saleNote || undefined,
       });
-      alert('Sell request submitted successfully!');
+      toast.success('Sell request submitted successfully!');
       setShowSellModal(false);
       setSellFormData({ saleNote: '', targetPrice: '' });
     } catch (err) {
       console.error('Error submitting sell request:', err);
-      alert(err.message || 'Failed to submit sell request');
+      toast.error(apiErrorMessage(err, 'Failed to submit sell request'));
     } finally {
       setSubmittingSell(false);
     }
@@ -159,15 +169,44 @@ export default function AssetsPage() {
   const handleSubmitAppraisal = async () => {
     try {
       setSubmittingAppraisal(true);
-      await requestAssetAppraisal(selectedAsset.id, {
-        appraisalType: appraisalType,
-      });
-      alert(`${appraisalType} appraisal request submitted successfully!`);
+
+      // Automated (AI) appraisal: a single synchronous call that returns the
+      // estimate inline. Concierge: a normal request handled later by staff.
+      if (appraisalType === 'API') {
+        const response = await runAiAppraisal(selectedAsset.id);
+        const result = response.aiResult;
+        if (result) {
+          toast.success(
+            `AI estimate: ${formatCurrency(result.estimatedValue, result.currency)}`
+          );
+          if (result.disclaimer) {
+            toast.info(result.disclaimer);
+          }
+        } else {
+          toast.success('Automated appraisal completed.');
+        }
+        // Backend updated the asset's estimated value — refresh the list.
+        fetchAssets();
+      } else {
+        await requestAssetAppraisal(selectedAsset.id, {
+          appraisalType: appraisalType,
+        });
+        toast.success('Concierge appraisal request submitted successfully!');
+      }
+
       setShowAppraisalModal(false);
       setAppraisalType(null);
     } catch (err) {
       console.error('Error submitting appraisal request:', err);
-      alert(err.message || 'Failed to submit appraisal request');
+      if (err.status === 403) {
+        // Monthly AI limit reached — surface the backend's upgrade message.
+        toast.info(apiErrorMessage(err, 'You have reached your monthly AI appraisal limit. Upgrade for more.'));
+      } else if (err.status === 503) {
+        // AI not configured / temporarily unavailable — show the server's reason.
+        toast.error(apiErrorMessage(err, 'The AI service is temporarily unavailable. Please try again.'));
+      } else {
+        toast.error(apiErrorMessage(err, 'Failed to submit appraisal request'));
+      }
     } finally {
       setSubmittingAppraisal(false);
     }

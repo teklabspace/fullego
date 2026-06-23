@@ -154,49 +154,16 @@ export default function GoalsTrackerPage() {
     }).format(value);
   };
 
-  // Show loading state
-  if (loading) {
-    return (
-      <>
-        <div className='flex items-center justify-center min-h-[400px]'>
-          <div className='text-center'>
-            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[#F1CB68] mx-auto mb-4'></div>
-            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-              Loading investment goals...
-            </p>
-          </div>
-        </div>
-      </>
-    );
-  }
+  // Skeleton block helper for loading regions
+  const skeletonBlock = (extra = '') =>
+    `${isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'} animate-pulse rounded ${extra}`;
 
-  // Show error state only for critical errors (not 405 or 400 - endpoint issues)
-  if (error && !error.includes('Method Not Allowed') && !error.includes('unsupported operand') && !investmentGoals.length) {
-    return (
-      <>
-        <div className={`p-6 rounded-lg border text-center ${
-          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
-        }`}>
-          <p className={`font-semibold mb-2 text-lg ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}>
-            Error loading goals
-          </p>
-          <p className={`text-sm mb-4 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            {error}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
-          >
-            Retry
-          </button>
-        </div>
-      </>
-    );
-  }
+  // Whether the critical error region should render inline (kept inside the shell)
+  const showInlineError =
+    error &&
+    !error.includes('Method Not Allowed') &&
+    !error.includes('unsupported operand') &&
+    !investmentGoals.length;
 
   // Marketplace assets (for search results)
   const displayMarketplaceAssets = marketplaceAssets.length > 0 ? marketplaceAssets : [];
@@ -218,9 +185,50 @@ export default function GoalsTrackerPage() {
           </p>
         </div>
 
+        {/* Inline error message (keeps header + shell visible) */}
+        {!loading && showInlineError && (
+          <div className={`p-6 rounded-lg border text-center mb-8 ${
+            isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+          }`}>
+            <p className={`font-semibold mb-2 text-lg ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              Error loading goals
+            </p>
+            <p className={`text-sm mb-4 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              {error}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Investment Goals Cards */}
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8'>
-          {investmentGoals.length > 0 ? (
+          {loading ? (
+            [0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={`rounded-2xl p-6 border ${
+                  isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+                }`}
+              >
+                <div className='flex items-center gap-3 mb-4'>
+                  <div className={skeletonBlock('w-12 h-12 rounded-full')} />
+                  <div className={skeletonBlock('h-5 w-20')} />
+                </div>
+                <div className={skeletonBlock('h-8 w-28 mb-2')} />
+                <div className={skeletonBlock('h-3 w-20 mb-4')} />
+                <div className={skeletonBlock('h-2 w-full')} />
+              </div>
+            ))
+          ) : investmentGoals.length > 0 ? (
             investmentGoals.map((goal) => (
               <GoalCard key={goal.id || goal.symbol} goal={goal} isDarkMode={isDarkMode} />
             ))

@@ -4,20 +4,6 @@
 export default function CashFlowSkeleton({ isDarkMode }) {
   return (
     <div className='space-y-6'>
-      {/* Header Skeleton */}
-      <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4'>
-        <div
-          className={`h-8 w-64 rounded-lg animate-pulse ${
-            isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-          }`}
-        />
-        <div
-          className={`h-10 w-64 rounded-full animate-pulse ${
-            isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-          }`}
-        />
-      </div>
-
       {/* Stats and Chart Grid Skeleton */}
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         {/* Stats Cards Skeleton */}

@@ -343,61 +343,8 @@ export default function EntityStructurePage() {
     toast.info('Add person functionality coming soon');
   };
 
-  // Show loading state with skeleton
-  if (loading) {
-    return (
-      <>
-        <div className='space-y-6'>
-          {/* Header Skeleton */}
-          <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6'>
-            <div className='space-y-3'>
-              <div className={`h-10 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}></div>
-              <div className={`h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}></div>
-              <div className={`h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}></div>
-            </div>
-          </div>
-
-          {/* Content Skeleton */}
-          <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
-            {/* Left Sidebar Skeleton */}
-            <div className='lg:col-span-1 space-y-4'>
-              <div className={`rounded-2xl p-6 border ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`}>
-                <div className={`h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse`}></div>
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className='mb-4'>
-                    <div className={`h-4 w-full bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse`}></div>
-                    <div className={`h-4 w-3/4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Main Content Skeleton */}
-            <div className='lg:col-span-2 space-y-4'>
-              {/* Tabs Skeleton */}
-              <div className='flex gap-2 border-b border-gray-200 dark:border-[#FFFFFF14]'>
-                <div className={`h-10 w-24 bg-gray-200 dark:bg-gray-700 rounded-t animate-pulse`}></div>
-                <div className={`h-10 w-24 bg-gray-200 dark:bg-gray-700 rounded-t animate-pulse`}></div>
-              </div>
-
-              {/* Content Cards Skeleton */}
-              <div className={`rounded-2xl p-6 border ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`}>
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className='mb-4 last:mb-0'>
-                    <div className={`h-5 w-full bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse`}></div>
-                    <div className={`h-4 w-2/3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  // Show message if no entities
-  if (!selectedEntity && entities.length === 0) {
+  // Show message if no entities (only after the initial load has finished)
+  if (!loading && !selectedEntity && entities.length === 0) {
     return (
       <>
         <div className='flex items-center justify-center h-64'>
@@ -422,16 +369,25 @@ export default function EntityStructurePage() {
             >
           Entity Structure
         </h1>
-            <h2
-              className={`text-xl md:text-2xl font-semibold mb-1 ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}
-            >
-              {selectedEntity?.name || 'No Entity Selected'}
-            </h2>
-            <p className='text-[#F1CB68] text-sm md:text-base'>
-              {selectedEntity?.location || ''}
-            </p>
+            {loading ? (
+              <>
+                <div className='h-8 w-48 mb-2 rounded bg-gray-200 dark:bg-gray-700 animate-pulse'></div>
+                <div className='h-4 w-32 rounded bg-gray-200 dark:bg-gray-700 animate-pulse'></div>
+              </>
+            ) : (
+              <>
+                <h2
+                  className={`text-xl md:text-2xl font-semibold mb-1 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  {selectedEntity?.name || 'No Entity Selected'}
+                </h2>
+                <p className='text-[#F1CB68] text-sm md:text-base'>
+                  {selectedEntity?.location || ''}
+                </p>
+              </>
+            )}
           </div>
           <button
             onClick={handleDownloadCompliancePackage}
@@ -466,9 +422,14 @@ export default function EntityStructurePage() {
             Entity Type Overview
           </h3>
           <div className='overflow-x-auto'>
-            {loadingEntity ? (
-              <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Loading entity types...
+            {loading || loadingEntity ? (
+              <div className='space-y-3 py-2'>
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className='h-10 w-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse'
+                  ></div>
+                ))}
               </div>
             ) : entityTypes.length === 0 ? (
               <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -592,6 +553,17 @@ export default function EntityStructurePage() {
               Entity Structure
             </h3>
             <div className='space-y-4'>
+              {loading || loadingEntity ? (
+                <>
+                  {[1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className='h-16 w-full rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse'
+                    ></div>
+                  ))}
+                </>
+              ) : (
+                <>
               {/* Parent Entity */}
               {hierarchy?.parent && (
                 <>
@@ -658,6 +630,8 @@ export default function EntityStructurePage() {
                   ))}
                 </>
               )}
+                </>
+              )}
 
               {/* Add Entity Button */}
               <div
@@ -693,10 +667,18 @@ export default function EntityStructurePage() {
               Compliance Status & Documentation
             </h3>
             <div className='space-y-4'>
-              {loadingEntity ? (
-                <div className={`text-center py-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Loading compliance status...
-                </div>
+              {loading || loadingEntity ? (
+                <>
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className='flex items-center justify-between py-3'
+                    >
+                      <div className='h-4 w-32 rounded bg-gray-200 dark:bg-gray-700 animate-pulse'></div>
+                      <div className='h-4 w-20 rounded bg-gray-200 dark:bg-gray-700 animate-pulse'></div>
+                    </div>
+                  ))}
+                </>
               ) : complianceStatus.length === 0 ? (
                 <div className={`text-center py-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                   No compliance data available
@@ -825,10 +807,21 @@ export default function EntityStructurePage() {
           {/* Tab Content */}
           {activeTab === 'people' ? (
             <div className='space-y-4'>
-              {loadingPeople ? (
-                <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Loading people and roles...
-                </div>
+              {loading || loadingPeople ? (
+                <>
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className='flex items-center justify-between py-3'
+                    >
+                      <div className='space-y-2'>
+                        <div className='h-4 w-40 rounded bg-gray-200 dark:bg-gray-700 animate-pulse'></div>
+                        <div className='h-3 w-24 rounded bg-gray-200 dark:bg-gray-700 animate-pulse'></div>
+                      </div>
+                      <div className='h-4 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse'></div>
+                    </div>
+                  ))}
+                </>
               ) : people.length === 0 ? (
                 <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                   No people assigned to this entity
@@ -886,10 +879,23 @@ export default function EntityStructurePage() {
             <div className='space-y-4'>
               {/* Audit Trail Entries */}
               <div className='space-y-4 max-h-[600px] overflow-y-auto'>
-                {loadingAudit ? (
-                  <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Loading audit trail...
-                  </div>
+                {loading || loadingAudit ? (
+                  <>
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className={`rounded-lg p-4 border ${
+                          isDarkMode
+                            ? 'bg-white/5 border-white/10'
+                            : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className='h-4 w-40 mb-2 rounded bg-gray-200 dark:bg-gray-700 animate-pulse'></div>
+                        <div className='h-3 w-28 mb-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse'></div>
+                        <div className='h-3 w-3/4 rounded bg-gray-200 dark:bg-gray-700 animate-pulse'></div>
+                      </div>
+                    ))}
+                  </>
                 ) : auditTrailEntries.length === 0 ? (
                   <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                     No audit trail entries found

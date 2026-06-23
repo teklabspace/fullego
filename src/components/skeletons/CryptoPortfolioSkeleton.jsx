@@ -4,27 +4,6 @@
 export default function CryptoPortfolioSkeleton({ isDarkMode }) {
   return (
     <div className='space-y-6'>
-      {/* Header Skeleton */}
-      <div className='flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4'>
-        <div>
-          <div
-            className={`h-4 w-24 rounded-lg mb-2 animate-pulse ${
-              isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-            }`}
-          />
-          <div
-            className={`h-8 w-48 rounded-lg animate-pulse ${
-              isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-            }`}
-          />
-        </div>
-        <div
-          className={`h-10 w-64 rounded-lg animate-pulse ${
-            isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-          }`}
-        />
-      </div>
-
       {/* Stats Cards Skeleton */}
       <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
         {[...Array(4)].map((_, i) => (

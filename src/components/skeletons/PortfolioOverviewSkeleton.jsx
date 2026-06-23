@@ -4,27 +4,6 @@
 export default function PortfolioOverviewSkeleton({ isDarkMode }) {
   return (
     <div className='space-y-6'>
-      {/* Header Skeleton */}
-      <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4'>
-        <div>
-          <div
-            className={`h-8 w-64 rounded-lg mb-2 animate-pulse ${
-              isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-            }`}
-          />
-          <div
-            className={`h-4 w-96 rounded-lg animate-pulse ${
-              isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-            }`}
-          />
-        </div>
-        <div
-          className={`h-10 w-48 rounded-full animate-pulse ${
-            isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-          }`}
-        />
-      </div>
-
       {/* Total Portfolio Value Card Skeleton */}
       <div
         className={`p-6 rounded-2xl border ${

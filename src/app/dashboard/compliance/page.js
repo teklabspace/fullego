@@ -237,70 +237,6 @@ export default function CompliancePage() {
     }
   };
 
-  // Show loading state with skeletons
-  if (loading) {
-    return (
-      <>
-        <div className='space-y-6 animate-pulse'>
-          {/* Header skeleton */}
-          <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6'>
-            <div className='h-8 w-48 rounded-lg bg-gray-700/40' />
-            <div className='h-10 w-64 rounded-lg bg-gray-700/40' />
-          </div>
-
-          {/* Summary cards skeleton */}
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className={`rounded-2xl p-4 md:p-6 border ${
-                  isDarkMode
-                    ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
-                    : 'bg-white border-gray-200'
-                }`}
-              >
-                <div className='h-4 w-24 mb-4 rounded bg-gray-700/40' />
-                <div className='h-8 w-32 mb-3 rounded bg-gray-700/50' />
-                <div className='h-3 w-28 mb-4 rounded bg-gray-700/40' />
-                <div className='w-full h-1 rounded-full bg-gray-700/30' />
-              </div>
-            ))}
-          </div>
-
-          {/* Table skeleton */}
-          <div
-            className={`rounded-2xl p-4 md:p-6 border ${
-              isDarkMode
-                ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
-                : 'bg-white border-gray-200'
-            }`}
-          >
-            <div className='h-6 w-40 mb-6 rounded bg-gray-700/40' />
-            <div className='space-y-4'>
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className={`flex items-center justify-between rounded-xl px-4 py-3 ${
-                    isDarkMode ? 'bg-white/5' : 'bg-gray-100'
-                  }`}
-                >
-                  <div className='flex-1'>
-                    <div className='h-4 w-40 mb-2 rounded bg-gray-700/40' />
-                    <div className='h-3 w-24 rounded bg-gray-700/30' />
-                  </div>
-                  <div className='flex items-center gap-4'>
-                    <div className='h-4 w-24 rounded bg-gray-700/30' />
-                    <div className='h-8 w-20 rounded-lg bg-gray-700/40' />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
   return (
     <>
       <div className='space-y-6'>
@@ -356,42 +292,58 @@ export default function CompliancePage() {
 
         {/* Summary Cards */}
         <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
-          {summaryCards.map((card, index) => (
-            <div
-              key={index}
-              className={`rounded-2xl p-4 md:p-6 border ${
-                isDarkMode
-                  ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
-                  : 'bg-white border-gray-200'
-              }`}
-            >
-              <h3
-                className={`text-sm md:text-base mb-4 ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                }`}
-              >
-                {card.title}
-              </h3>
-              <p
-                className={`text-3xl md:text-4xl font-bold mb-2 ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
-                }`}
-              >
-                {card.value}
-              </p>
-              <p className={`text-xs md:text-sm mb-4 ${card.changeColor}`}>
-                {card.change}
-              </p>
-              <div className={`w-full h-1 rounded-full overflow-hidden ${
-                isDarkMode ? 'bg-white/10' : 'bg-gray-200'
-              }`}>
+          {loading
+            ? [1, 2, 3].map((i) => (
                 <div
-                  className='h-full bg-[#F1CB68] transition-all'
-                  style={{ width: `${card.progress}%` }}
-                />
-              </div>
-            </div>
-          ))}
+                  key={i}
+                  className={`rounded-2xl p-4 md:p-6 border animate-pulse ${
+                    isDarkMode
+                      ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
+                      : 'bg-white border-gray-200'
+                  }`}
+                >
+                  <div className='h-4 w-24 mb-4 rounded bg-gray-700/40' />
+                  <div className='h-8 w-32 mb-3 rounded bg-gray-700/50' />
+                  <div className='h-3 w-28 mb-4 rounded bg-gray-700/40' />
+                  <div className='w-full h-1 rounded-full bg-gray-700/30' />
+                </div>
+              ))
+            : summaryCards.map((card, index) => (
+                <div
+                  key={index}
+                  className={`rounded-2xl p-4 md:p-6 border ${
+                    isDarkMode
+                      ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
+                      : 'bg-white border-gray-200'
+                  }`}
+                >
+                  <h3
+                    className={`text-sm md:text-base mb-4 ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}
+                  >
+                    {card.title}
+                  </h3>
+                  <p
+                    className={`text-3xl md:text-4xl font-bold mb-2 ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}
+                  >
+                    {card.value}
+                  </p>
+                  <p className={`text-xs md:text-sm mb-4 ${card.changeColor}`}>
+                    {card.change}
+                  </p>
+                  <div className={`w-full h-1 rounded-full overflow-hidden ${
+                    isDarkMode ? 'bg-white/10' : 'bg-gray-200'
+                  }`}>
+                    <div
+                      className='h-full bg-[#F1CB68] transition-all'
+                      style={{ width: `${card.progress}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
         </div>
 
         {/* Pending Tasks Section */}
@@ -455,7 +407,32 @@ export default function CompliancePage() {
                 </tr>
               </thead>
               <tbody>
-                {pendingTasks.map((task, index) => (
+                {loading
+                  ? [1, 2, 3, 4].map((i) => (
+                      <tr
+                        key={i}
+                        className={`border-b ${
+                          isDarkMode ? 'border-white/5' : 'border-gray-200'
+                        } ${i === 4 ? 'border-0' : ''}`}
+                      >
+                        <td className='px-4 md:px-6 py-4'>
+                          <div className='h-4 w-40 rounded bg-gray-700/40 animate-pulse' />
+                        </td>
+                        <td className='px-4 md:px-6 py-4'>
+                          <div className='h-4 w-28 rounded bg-gray-700/40 animate-pulse' />
+                        </td>
+                        <td className='px-4 md:px-6 py-4'>
+                          <div className='h-4 w-24 rounded bg-gray-700/30 animate-pulse' />
+                        </td>
+                        <td className='px-4 md:px-6 py-4'>
+                          <div className='h-4 w-20 rounded bg-gray-700/30 animate-pulse' />
+                        </td>
+                        <td className='px-4 md:px-6 py-4'>
+                          <div className='h-8 w-16 rounded-lg bg-gray-700/40 animate-pulse' />
+                        </td>
+                      </tr>
+                    ))
+                  : pendingTasks.map((task, index) => (
                   <tr
                     key={task.id}
                     className={`border-b transition-colors ${

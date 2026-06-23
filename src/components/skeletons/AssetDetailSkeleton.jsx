@@ -3,27 +3,8 @@
  */
 export default function AssetDetailSkeleton({ isDarkMode }) {
   return (
-    <div className='pb-20'>
-      {/* Breadcrumb Skeleton */}
-      <div className='mb-6 flex items-center gap-2'>
-        <div
-          className={`h-4 w-16 rounded animate-pulse ${
-            isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-          }`}
-        />
-        <div
-          className={`h-4 w-20 rounded animate-pulse ${
-            isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-          }`}
-        />
-        <div
-          className={`h-4 w-32 rounded animate-pulse ${
-            isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-          }`}
-        />
-      </div>
-
-      {/* Header Skeleton */}
+    <div>
+      {/* Header Skeleton (data body — breadcrumb chrome rendered by the page) */}
       <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6'>
         <div>
           <div

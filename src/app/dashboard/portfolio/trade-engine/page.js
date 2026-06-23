@@ -15,7 +15,6 @@ import {
   getBrokerageAccounts,
   placeOrder,
 } from '@/utils/portfolioApi';
-import TradeEngineSkeleton from '@/components/skeletons/TradeEngineSkeleton';
 
 export default function TradeEnginePage() {
   const { isDarkMode } = useTheme();
@@ -197,56 +196,8 @@ export default function TradeEnginePage() {
     }).format(value);
   };
 
-  // Show skeleton while loading
-  if (loading && !recentTrades.length) {
-    return (
-      <>
-        <TradeEngineSkeleton isDarkMode={isDarkMode} />
-      </>
-    );
-  }
-
-  // Show error state
-  if (error && !recentTrades.length) {
-    return (
-      <>
-        <div className={`p-6 rounded-lg border text-center ${
-          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
-        }`}>
-          <div className='mb-4 flex justify-center'>
-            <svg
-              width='48'
-              height='48'
-              viewBox='0 0 24 24'
-              fill='none'
-              stroke={isDarkMode ? '#EF4444' : '#DC2626'}
-              strokeWidth='2'
-            >
-              <circle cx='12' cy='12' r='10' />
-              <line x1='12' y1='8' x2='12' y2='12' />
-              <line x1='12' y1='16' x2='12.01' y2='16' />
-            </svg>
-          </div>
-          <p className={`font-semibold mb-2 text-lg ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}>
-            Error loading trade engine
-          </p>
-          <p className={`text-sm mb-4 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            {error}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
-          >
-            Retry
-          </button>
-        </div>
-      </>
-    );
-  }
+  const showLoading = loading && !recentTrades.length;
+  const showError = error && !recentTrades.length;
 
   return (
     <>
@@ -279,12 +230,71 @@ export default function TradeEnginePage() {
         />
 
         {/* Recent Trades */}
-        <RecentTrades
-          trades={recentTrades}
-          selectedStock={selectedStock}
-          setSelectedStock={setSelectedStock}
-          isDarkMode={isDarkMode}
-        />
+        {showError ? (
+          <div className={`my-6 p-6 rounded-lg border text-center ${
+            isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1D]' : 'border-gray-300 bg-gray-50'
+          }`}>
+            <div className='mb-4 flex justify-center'>
+              <svg
+                width='48'
+                height='48'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke={isDarkMode ? '#EF4444' : '#DC2626'}
+                strokeWidth='2'
+              >
+                <circle cx='12' cy='12' r='10' />
+                <line x1='12' y1='8' x2='12' y2='12' />
+                <line x1='12' y1='16' x2='12.01' y2='16' />
+              </svg>
+            </div>
+            <p className={`font-semibold mb-2 text-lg ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              Error loading trade engine
+            </p>
+            <p className={`text-sm mb-4 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              {error}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className='px-4 py-2 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+            >
+              Retry
+            </button>
+          </div>
+        ) : showLoading ? (
+          <div
+            className={`rounded-2xl border p-6 my-6 animate-pulse ${
+              isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+            }`}
+          >
+            <div
+              className={`h-6 w-32 rounded-lg mb-4 animate-pulse ${
+                isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
+              }`}
+            />
+            <div className='grid grid-cols-2 md:grid-cols-5 gap-4'>
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-20 rounded-lg animate-pulse ${
+                    isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <RecentTrades
+            trades={recentTrades}
+            selectedStock={selectedStock}
+            setSelectedStock={setSelectedStock}
+            isDarkMode={isDarkMode}
+          />
+        )}
 
         {/* Main Trading Interface */}
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
@@ -313,18 +323,65 @@ export default function TradeEnginePage() {
           />
 
           {/* Order Summary */}
-          <OrderSummary
-            quantity={quantity}
-            limitPrice={limitPrice}
-            calculateTotal={calculateTotal}
-          recentTrades={recentAAPlTrades.map(trade => ({
-            type: trade.type || trade.orderType,
-            shares: trade.quantity || trade.shares,
-            price: trade.price ? formatCurrency(trade.price) : '$0.00',
-            date: trade.date || trade.executionDate,
-          }))}
-          isDarkMode={isDarkMode}
-        />
+          {showLoading ? (
+            <div>
+              <div
+                className={`rounded-2xl border p-6 animate-pulse ${
+                  isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+                }`}
+              >
+                <div
+                  className={`h-6 w-32 rounded-lg mb-6 animate-pulse ${
+                    isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
+                  }`}
+                />
+                <div className='space-y-4 mb-6'>
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className='flex justify-between'>
+                      <div
+                        className={`h-4 w-24 rounded-lg animate-pulse ${
+                          isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
+                        }`}
+                      />
+                      <div
+                        className={`h-4 w-20 rounded-lg animate-pulse ${
+                          isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
+                        }`}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div
+                  className={`h-6 w-32 rounded-lg mb-4 animate-pulse ${
+                    isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
+                  }`}
+                />
+                <div className='space-y-3'>
+                  {[...Array(3)].map((_, i) => (
+                    <div
+                      key={i}
+                      className={`h-16 rounded-lg animate-pulse ${
+                        isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <OrderSummary
+              quantity={quantity}
+              limitPrice={limitPrice}
+              calculateTotal={calculateTotal}
+              recentTrades={recentAAPlTrades.map(trade => ({
+                type: trade.type || trade.orderType,
+                shares: trade.quantity || trade.shares,
+                price: trade.price ? formatCurrency(trade.price) : '$0.00',
+                date: trade.date || trade.executionDate,
+              }))}
+              isDarkMode={isDarkMode}
+            />
+          )}
         </div>
 
         {/* Order Confirmation Modal */}
