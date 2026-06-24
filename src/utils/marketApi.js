@@ -48,7 +48,11 @@ export const getBenchmarks = async (benchmarks = ['SPY', 'DIA', 'TSLA'], timeRan
     const response = await apiGet(endpoint);
     return transformKeys(response);
   } catch (error) {
-    console.error('Error fetching benchmarks:', error);
-    throw error;
+    if (error?.isNetworkError || error?.status === undefined) {
+      console.warn('Market benchmarks unavailable:', error?.message || error);
+    } else {
+      console.error('Error fetching benchmarks:', error);
+    }
+    return { benchmarks: [] };
   }
 };

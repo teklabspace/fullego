@@ -174,13 +174,19 @@ export default function AssetsPage() {
       // estimate inline. Concierge: a normal request handled later by staff.
       if (appraisalType === 'API') {
         const response = await runAiAppraisal(selectedAsset.id);
+        const status = response.data?.status;
         const result = response.aiResult;
-        if (result) {
-          toast.success(
-            `AI estimate: ${formatCurrency(result.estimatedValue, result.currency)}`
-          );
-          if (result.disclaimer) {
-            toast.info(result.disclaimer);
+
+        if (status === 'appraisal_failed') {
+          toast.error(response.data?.notes || 'AI appraisal could not be completed. Please try again.');
+        } else if (result) {
+          const valueStr = formatCurrency(result.estimatedValue, result.currency);
+          if (status === 'needs_more_information') {
+            toast.success(`AI estimate: ${valueStr} — add missing details to improve accuracy.`);
+          } else if (status === 'professional_appraisal_recommended') {
+            toast.success(`AI estimate: ${valueStr} — a certified appraisal is recommended.`);
+          } else {
+            toast.success(`AI estimate: ${valueStr}`);
           }
         } else {
           toast.success('Automated appraisal completed.');

@@ -55,7 +55,7 @@ export function useSubscription() {
     }
 
     if (cur.status === 'rejected' && pl.status === 'rejected') {
-      setError('Failed to load subscription data.');
+      console.warn('Subscription API unavailable; using fallback plan data.');
     }
     setLoading(false);
   }, []);

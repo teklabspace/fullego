@@ -1163,14 +1163,30 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                 Get an instant AI-generated value estimate for this asset.
               </p>
 
-              {/* Result */}
-              {aiResult && (
+              {/* Result — appraisal_failed state */}
+              {appraisalStatus === 'appraisal_failed' && (
+                <div className={`mb-4 p-3 rounded-lg border ${
+                  isDarkMode
+                    ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                    : 'bg-red-50 border-red-200 text-red-700'
+                }`}>
+                  <p className='text-sm font-semibold mb-0.5'>Appraisal failed</p>
+                  <p className='text-xs'>The AI could not complete the appraisal. Please try again later.</p>
+                </div>
+              )}
+
+              {/* Result — all successful statuses */}
+              {aiResult && appraisalStatus !== 'appraisal_failed' && (
                 <div className='mb-4'>
+
+                  {/* Estimated value */}
                   <p className={`text-3xl font-bold mb-1 ${
                     isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     {formatCurrency(aiResult.estimatedValue, aiResult.currency)}
                   </p>
+
+                  {/* Value range */}
                   {(aiResult.valueRangeLow != null && aiResult.valueRangeHigh != null) && (
                     <p className={`text-sm mb-2 ${
                       isDarkMode ? 'text-gray-400' : 'text-gray-600'
@@ -1178,6 +1194,8 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                       Range: {formatCurrency(aiResult.valueRangeLow, aiResult.currency)} – {formatCurrency(aiResult.valueRangeHigh, aiResult.currency)}
                     </p>
                   )}
+
+                  {/* Confidence badge */}
                   {aiResult.confidence && (
                     <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full mb-3 capitalize ${
                       aiResult.confidence === 'high'
@@ -1190,16 +1208,139 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                     </span>
                   )}
 
-                  {/* Reasoning — shown inline (appraisalSummary replaces toggle in Task 3 JSX) */}
-                  {aiResult.reasoning && (
+                  {/* Missing information banner (needs_more_information status) */}
+                  {aiResult.missingInformation?.length > 0 && (
+                    <div className={`mb-3 p-3 rounded-lg border ${
+                      isDarkMode
+                        ? 'bg-orange-500/10 border-orange-500/30'
+                        : 'bg-orange-50 border-orange-200'
+                    }`}>
+                      <p className={`text-xs font-semibold mb-1 ${
+                        isDarkMode ? 'text-orange-300' : 'text-orange-700'
+                      }`}>
+                        To improve accuracy, add:
+                      </p>
+                      <ul className={`text-xs space-y-0.5 list-disc list-inside ${
+                        isDarkMode ? 'text-orange-300' : 'text-orange-700'
+                      }`}>
+                        {aiResult.missingInformation.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Professional appraisal callout */}
+                  {aiResult.professionalAppraisalNeeded && (
+                    <div className={`mb-3 p-3 rounded-lg border ${
+                      isDarkMode
+                        ? 'bg-blue-500/10 border-blue-500/30'
+                        : 'bg-blue-50 border-blue-200'
+                    }`}>
+                      <p className={`text-xs font-semibold mb-0.5 ${
+                        isDarkMode ? 'text-blue-300' : 'text-blue-700'
+                      }`}>
+                        A certified appraisal is recommended for this asset.
+                      </p>
+                      <p className={`text-xs ${
+                        isDarkMode ? 'text-blue-300' : 'text-blue-700'
+                      }`}>
+                        The AI estimate is for reference. A professional appraisal is advised before insuring or selling.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Appraisal summary */}
+                  {aiResult.appraisalSummary && (
                     <p className={`text-sm mb-3 leading-relaxed ${
                       isDarkMode ? 'text-gray-300' : 'text-gray-700'
                     }`}>
-                      {aiResult.reasoning}
+                      {aiResult.appraisalSummary}
                     </p>
                   )}
 
-                  {/* Disclaimer — REQUIRED near the value (guide §1/§2) */}
+                  {/* Key value drivers */}
+                  {aiResult.keyValueDrivers?.length > 0 && (
+                    <div className='mb-3'>
+                      <p className={`text-xs font-semibold mb-1.5 uppercase tracking-wide ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        Value drivers
+                      </p>
+                      <ul className='text-xs space-y-1'>
+                        {aiResult.keyValueDrivers.map((driver, i) => (
+                          <li key={i} className={`flex items-start gap-1.5 ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
+                            <span className='text-green-500 mt-0.5 shrink-0'>↑</span>
+                            {driver}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Risk factors */}
+                  {aiResult.riskFactors?.length > 0 && (
+                    <div className='mb-3'>
+                      <p className={`text-xs font-semibold mb-1.5 uppercase tracking-wide ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        Risk factors
+                      </p>
+                      <ul className='text-xs space-y-1'>
+                        {aiResult.riskFactors.map((risk, i) => (
+                          <li key={i} className={`flex items-start gap-1.5 ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
+                            <span className='text-orange-400 mt-0.5 shrink-0'>!</span>
+                            {risk}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Suggested next step */}
+                  {aiResult.suggestedNextStep && (
+                    <div className={`mb-3 p-3 rounded-lg ${
+                      isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-50'
+                    }`}>
+                      <p className={`text-xs font-semibold mb-0.5 ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        Next step
+                      </p>
+                      <p className={`text-xs ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        {aiResult.suggestedNextStep}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Recommended documents */}
+                  {aiResult.recommendedDocuments?.length > 0 && (
+                    <div className='mb-3'>
+                      <p className={`text-xs font-semibold mb-1.5 uppercase tracking-wide ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        Recommended documents
+                      </p>
+                      <ul className='text-xs space-y-1'>
+                        {aiResult.recommendedDocuments.map((doc, i) => (
+                          <li key={i} className={`flex items-start gap-1.5 ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
+                            <span className='shrink-0'>•</span>
+                            {doc}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Disclaimer — required directly below the value */}
                   {aiResult.disclaimer && (
                     <p className={`text-xs italic leading-relaxed ${
                       isDarkMode ? 'text-gray-500' : 'text-gray-500'
@@ -1207,6 +1348,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                       {aiResult.disclaimer}
                     </p>
                   )}
+
                 </div>
               )}
 
