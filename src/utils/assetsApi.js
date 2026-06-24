@@ -387,22 +387,25 @@ export const requestAssetAppraisal = async (assetId, appraisalData) => {
 };
 
 /**
- * 14b. Run AI (Automated) Appraisal — instant, synchronous valuation
- * POST /api/v1/assets/{asset_id}/appraisals  with { appraisal_type: "API" }
+ * 14b. Run AI Appraisal — synchronous single-request AI valuation
+ * POST /api/v1/assets/{asset_id}/appraisals  { appraisal_type: "API" }
  *
- * Unlike the Concierge flow, this returns the full AI result in the same
- * response (no polling). The rich fields live on `ai_result`; `data` is the
- * persisted appraisal record. Both are transformed to camelCase.
+ * Returns { data, aiResult } — both transformed to camelCase.
  *
- * The caller should handle the documented status codes via the thrown error's
- * `status`:
- *   403 - monthly AI limit reached (error.data.detail has the upgrade message)
- *   503 - AI temporarily unavailable / not configured (transient, offer retry)
+ * data.status ∈ ai_appraised | needs_more_information |
+ *               professional_appraisal_recommended | appraisal_failed
  *
- * Returns: { data, aiResult } where aiResult = {
+ * aiResult fields:
  *   estimatedValue, valueRangeLow, valueRangeHigh, currency,
- *   confidence, reasoning, disclaimer, model
- * }
+ *   confidence ("low"|"medium"|"high"),
+ *   appraisalSummary, keyValueDrivers[], riskFactors[],
+ *   missingInformation[], recommendedDocuments[],
+ *   suggestedNextStep, professionalAppraisalNeeded,
+ *   disclaimer, model
+ *
+ * Error status codes:
+ *   403 — monthly AI limit reached
+ *   503 — AI service temporarily unavailable
  */
 export const runAiAppraisal = async (assetId) => {
   const response = await apiPost(API_ENDPOINTS.ASSETS.REQUEST_APPRAISAL(assetId), {
