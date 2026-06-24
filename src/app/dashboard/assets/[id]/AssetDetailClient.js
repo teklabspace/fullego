@@ -119,9 +119,9 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
 
   // AI Appraisal (instant, synchronous AI valuation)
   const [aiUsage, setAiUsage] = useState(null);        // { plan, aiAppraisals: { limit, used, remaining }, ... }
-  const [aiResult, setAiResult] = useState(null);      // { estimatedValue, valueRangeLow, ... }
+  const [aiResult, setAiResult] = useState(null);
+  const [appraisalStatus, setAppraisalStatus] = useState(null); // ai_appraised | needs_more_information | professional_appraisal_recommended | appraisal_failed
   const [runningAiAppraisal, setRunningAiAppraisal] = useState(false);
-  const [showAiReasoning, setShowAiReasoning] = useState(false);
 
   // AI Asset Review (advisory accept/reject)
   const [aiReview, setAiReview] = useState(null);      // { decision, reason, flags, model, createdAt }
@@ -352,16 +352,21 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   const handleRunAiAppraisal = async () => {
     if (runningAiAppraisal) return;
     try {
-      setRunningAiAppraisal(true); // inline "Estimating…" state only — no page spinner
+      setRunningAiAppraisal(true);
       const response = await runAiAppraisal(asset.id);
+      const status = response.data?.status ?? null;
       const result = response.aiResult;
-      if (!result) {
+
+      setAppraisalStatus(status);
+
+      if (status === 'appraisal_failed') {
+        toast.error('AI appraisal could not be completed. Please try again.');
+      } else if (result) {
+        setAiResult(result);
+        toast.success('AI estimate ready.');
+      } else {
         toast.error('AI appraisal did not return a result. Please try again.');
-        return;
       }
-      setAiResult(result);
-      setShowAiReasoning(false);
-      toast.success('AI estimate ready.');
 
       // Reflect the updated quota without an extra round-trip.
       setAiUsage(prev => {
@@ -1185,33 +1190,13 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                     </span>
                   )}
 
-                  {/* Reasoning (expandable) */}
+                  {/* Reasoning — shown inline (appraisalSummary replaces toggle in Task 3 JSX) */}
                   {aiResult.reasoning && (
-                    <div className='mb-3'>
-                      <button
-                        type='button'
-                        onClick={() => setShowAiReasoning(v => !v)}
-                        className={`flex items-center gap-1 text-sm font-medium transition-colors ${
-                          isDarkMode ? 'text-[#F1CB68] hover:text-[#d4b55a]' : 'text-[#b8912f] hover:text-[#96751f]'
-                        }`}
-                      >
-                        {showAiReasoning ? 'Hide reasoning' : 'Show reasoning'}
-                        <svg
-                          width='14' height='14' viewBox='0 0 24 24' fill='none'
-                          stroke='currentColor' strokeWidth='2'
-                          className={`transition-transform ${showAiReasoning ? 'rotate-180' : ''}`}
-                        >
-                          <path d='M6 9l6 6 6-6' />
-                        </svg>
-                      </button>
-                      {showAiReasoning && (
-                        <p className={`text-sm mt-2 leading-relaxed ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>
-                          {aiResult.reasoning}
-                        </p>
-                      )}
-                    </div>
+                    <p className={`text-sm mb-3 leading-relaxed ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      {aiResult.reasoning}
+                    </p>
                   )}
 
                   {/* Disclaimer — REQUIRED near the value (guide §1/§2) */}
