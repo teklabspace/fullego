@@ -5,8 +5,8 @@ const FALLBACK_PLANS = [
   {
     id: 'starter',
     name: 'Starter',
-    monthlyPrice: '$0 – $49',
-    annualPrice: '$0 – $499',
+    monthlyPrice: '$49',
+    annualPrice: '$470',
     features: [
       'Basic portfolio dashboard and limited aggregation (1–2 accounts)',
       'Read-only market performance view',
@@ -18,8 +18,8 @@ const FALLBACK_PLANS = [
   {
     id: 'pro',
     name: 'Pro',
-    monthlyPrice: '$99 – $299',
-    annualPrice: '$999 – $2,999',
+    monthlyPrice: '$299',
+    annualPrice: '$2,870',
     popular: true,
     features: [
       'Full portfolio management (stocks, bonds, ETFs, alternatives)',
@@ -34,8 +34,8 @@ const FALLBACK_PLANS = [
   {
     id: 'premium',
     name: 'Premium',
-    monthlyPrice: '$499 – $899',
-    annualPrice: '$4,999 – $8,999',
+    monthlyPrice: '$899',
+    annualPrice: '$8,630',
     features: [
       'Everything in Pro + AI-driven wealth insights and risk optimization',
       'Automated asset valuation updates via third-party feeds',
@@ -48,6 +48,7 @@ const FALLBACK_PLANS = [
   {
     id: 'concierge',
     name: 'Concierge',
+    isCustom: true,
     monthlyPrice: 'Custom ($1,000+/mo)',
     annualPrice: 'Custom ($10,000+/yr)',
     features: [
@@ -62,7 +63,34 @@ const FALLBACK_PLANS = [
 ];
 
 const planId = (p) => p?.id ?? p?.planId ?? p?.plan_id;
-const planPrice = (p) => Number(p?.price ?? p?.amount ?? 0);
+// Canonical magnitude for upgrade/downgrade direction. Live plans carry numeric
+// monthly/annual prices; fallback data uses pre-formatted strings (→ NaN → 0).
+const planPrice = (p) =>
+  Number(p?.price ?? p?.amount ?? p?.monthlyPrice ?? p?.monthly_price ?? 0) || 0;
+
+// Custom/enterprise plans (e.g. Concierge) have no purchasable price and are
+// routed to sales instead of the subscribe flow.
+const isCustomPlan = (p) =>
+  Boolean(p?.isCustom ?? p?.is_custom) ||
+  (p?.monthlyPrice == null && p?.monthly_price == null &&
+    p?.annualPrice == null && p?.annual_price == null &&
+    p?.price == null && p?.amount == null);
+
+// Format a price for display. Numbers are rendered as currency via Intl; strings
+// (pre-formatted fallback data) pass through untouched.
+const formatMoney = (value, currency = 'USD') => {
+  if (value == null) return null;
+  if (typeof value === 'string') return value;
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    }).format(value);
+  } catch {
+    return `${value} ${currency}`;
+  }
+};
 
 // The current subscription may identify its plan by id, name, or slug;
 // compare across all plausible fields on both sides.
@@ -79,8 +107,9 @@ const matchesCurrent = (plan, current) => {
 
 // Decide the CTA for a plan relative to the user's current subscription.
 const ctaFor = (plan, current) => {
+  if (current && matchesCurrent(plan, current)) return { action: 'current', label: 'Current plan', disabled: true };
+  if (isCustomPlan(plan)) return { action: 'contact', label: 'Contact Sales', disabled: false };
   if (!current) return { action: 'subscribe', label: 'Subscribe', disabled: false };
-  if (matchesCurrent(plan, current)) return { action: 'current', label: 'Current plan', disabled: true };
   const currentPrice = Number(current?.amount ?? current?.price ?? 0);
   return planPrice(plan) >= currentPrice
     ? { action: 'upgrade', label: 'Upgrade', disabled: false }
@@ -93,11 +122,19 @@ export default function PlanSelector({ plans, current, loading, onSelectPlan, is
   const displayPlans = plans.length > 0 ? plans : FALLBACK_PLANS;
 
   const getPriceDisplay = (plan) => {
-    if (billingCycle === 'annual' && plan.annualPrice) return plan.annualPrice;
-    if (billingCycle === 'monthly' && plan.monthlyPrice) return plan.monthlyPrice;
-    const raw = plan.price ?? plan.amount;
     const currency = plan.currency || 'USD';
-    return raw != null ? `${raw} ${currency}` : '—';
+    if (isCustomPlan(plan)) {
+      // Prefer a human-written custom label from fallback data; else "Custom".
+      const raw = billingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice;
+      return typeof raw === 'string' ? raw : 'Custom';
+    }
+    const raw =
+      billingCycle === 'annual'
+        ? plan.annualPrice ?? plan.annual_price
+        : plan.monthlyPrice ?? plan.monthly_price;
+    const formatted = formatMoney(raw, currency);
+    if (formatted != null) return formatted;
+    return formatMoney(plan.price ?? plan.amount, currency) ?? '—';
   };
 
   return (
@@ -164,9 +201,11 @@ export default function PlanSelector({ plans, current, loading, onSelectPlan, is
                 </p>
                 <p className={`text-xl font-bold mb-3 ${isDarkMode ? 'text-[#F1CB68]' : 'text-[#BF9B30]'}`}>
                   {getPriceDisplay(plan)}
-                  <span className={`text-xs font-normal ml-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    /{billingCycle === 'annual' ? 'yr' : 'mo'}
-                  </span>
+                  {!isCustomPlan(plan) && (
+                    <span className={`text-xs font-normal ml-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      /{billingCycle === 'annual' ? 'yr' : 'mo'}
+                    </span>
+                  )}
                 </p>
                 {Array.isArray(plan.features) && plan.features.length > 0 && (
                   <ul className={`text-xs space-y-1.5 mb-4 flex-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
