@@ -3,13 +3,14 @@
 import Footer from '@/components/layout/Footer';
 import Navbar from '@/components/layout/Navbar';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 const plans = [
   {
     name: 'Starter',
-    monthlyCost: '$0 – $49',
-    annualCost: '$0 – $499',
+    monthlyCost: '$49',
+    annualCost: '$470',
     idealUser: 'New or casual investors',
     features: [
       'Basic portfolio dashboard and limited aggregation (1–2 accounts)',
@@ -22,8 +23,8 @@ const plans = [
   },
   {
     name: 'Pro',
-    monthlyCost: '$99 – $299',
-    annualCost: '$999 – $2,999',
+    monthlyCost: '$299',
+    annualCost: '$2,870',
     idealUser: 'Active investors & small business owners',
     features: [
       'Full portfolio management (stocks, bonds, ETFs, alternatives)',
@@ -38,8 +39,8 @@ const plans = [
   },
   {
     name: 'Premium',
-    monthlyCost: '$499 – $899',
-    annualCost: '$4,999 – $8,999',
+    monthlyCost: '$899',
+    annualCost: '$8,630',
     idealUser: 'Advanced investors, entrepreneurs & multi-portfolio users',
     features: [
       'Everything in Pro + AI-driven wealth insights and risk optimization',
@@ -71,7 +72,27 @@ const plans = [
 ];
 
 export default function Plans() {
-  const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' or 'annual'
+  const [billingCycle, setBillingCycle] = useState('monthly');
+  const router = useRouter();
+
+  const handleGetStarted = (plan) => {
+    if (plan.isCustom) {
+      router.push('/contact');
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        try {
+          const user = JSON.parse(localStorage.getItem('user_info') || '{}');
+          if (user.role === 'admin' || user.role === 'advisor') return;
+        } catch {}
+        router.push('/dashboard/settings');
+        return;
+      }
+    }
+    router.push('/signup');
+  };
 
   return (
     <div className='min-h-screen bg-[#0B0D12] text-brand-white relative overflow-hidden'>
@@ -518,13 +539,10 @@ export default function Plans() {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className={`w-full rounded-full px-6 py-3 font-semibold transition-all shadow-lg ${
-                    plan.popular ? 'text-[#0B0D12]' : 'text-[#0B0D12]'
-                  }`}
+                  onClick={() => handleGetStarted(plan)}
+                  className='w-full rounded-full px-6 py-3 font-semibold transition-all shadow-lg text-[#0B0D12]'
                   style={{
-                    background: plan.popular
-                      ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
-                      : 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
+                    background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
                   }}
                 >
                   {plan.isCustom ? 'Contact Sales' : 'Get Started'}

@@ -148,10 +148,10 @@ export const renewSubscription = async () => {
  */
 export const updateSubscriptionPlan = async (updateData) => {
   const endpoint = API_ENDPOINTS.SUBSCRIPTIONS.UPGRADE;
-  const body = transformToSnake({
+  const body = {
     plan_id: updateData.planId,
-    billing_cycle: updateData.billingCycle
-  });
+    billing_cycle: updateData.billingCycle,
+  };
   const response = await apiPut(endpoint, body);
 
   if (response.data) {
@@ -175,7 +175,7 @@ export const updateSubscriptionPlan = async (updateData) => {
 export const getSubscriptionHistory = async (params = {}) => {
   const queryParams = new URLSearchParams();
   if (params.limit) queryParams.append('limit', params.limit.toString());
-  if (params.offset) queryParams.append('offset', params.offset.toString());
+  if (params.offset !== undefined) queryParams.append('offset', params.offset.toString());
   
   const endpoint = `${API_ENDPOINTS.SUBSCRIPTIONS.HISTORY}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);

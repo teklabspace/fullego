@@ -8,11 +8,36 @@ const formatDate = (value) => {
 
 const isActiveStatus = (status) => ['active', 'trialing'].includes(String(status || '').toLowerCase());
 
+// Format a price for display. Numbers (live backend prices) render as currency
+// via Intl; strings pass through untouched.
+const formatMoney = (value, currency = 'USD') => {
+  if (value == null) return null;
+  if (typeof value === 'string') return value;
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    }).format(value);
+  } catch {
+    return `${value} ${currency}`;
+  }
+};
+
 export default function CurrentPlanCard({ current, loading, onCancel, onRenew, isDarkMode }) {
   const planName = current?.plan || current?.planName || current?.plan_name;
   const status = current?.status;
-  const amount = current?.amount ?? current?.price;
   const currency = current?.currency || 'USD';
+  const billingCycle = current?.billingCycle || current?.billing_cycle;
+  // Subscriptions may carry separate monthly_price/annual_price (camelCased by
+  // the transform) plus a billing_cycle, or a flat amount/price. Prefer the
+  // cycle-matched price, then fall back to any flat field.
+  const cyclePrice =
+    billingCycle === 'annual'
+      ? current?.annualPrice ?? current?.annual_price
+      : current?.monthlyPrice ?? current?.monthly_price;
+  const amount = formatMoney(cyclePrice ?? current?.amount ?? current?.price, currency);
+  const cycleSuffix = billingCycle ? ` (${billingCycle})` : '';
   const nextPayment = formatDate(current?.currentPeriodEnd || current?.current_period_end);
   const active = isActiveStatus(status);
 
@@ -44,7 +69,7 @@ export default function CurrentPlanCard({ current, loading, onCancel, onRenew, i
             </span>
           </p>
           <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            {amount != null ? `${amount} ${currency}` : '—'} · Next payment {nextPayment}
+            {amount != null ? `${amount}${cycleSuffix}` : '—'} · Next payment {nextPayment}
           </p>
           <div className="flex gap-3">
             {active ? (
