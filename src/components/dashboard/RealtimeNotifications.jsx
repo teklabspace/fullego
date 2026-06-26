@@ -1,12 +1,16 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'react-toastify';
 import { mutate } from 'swr';
+import { useTheme } from '@/context/ThemeContext';
 import { API_BASE_URL, API_BASE_PATH } from '@/config/api';
 
 // SWR key used by the notification bell (NotificationDropdown) for the unread count.
 const UNREAD_COUNT_KEY = 'notifications-unread-count';
+
+// "nadia nazar" / "NADIA NAZAR" → "Nadia Nazar"
+const titleCase = (s) =>
+  (s || '').toString().toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
 // Derive the WebSocket URL from the REST base (same backend host). A dedicated
 // override can be set via NEXT_PUBLIC_WS_BASE_URL if the WS host ever differs.
@@ -51,58 +55,85 @@ async function refreshAccessToken() {
  */
 export default function RealtimeNotifications() {
   const router = useRouter();
-  const wsRef = useRef(null);
-  const reconnectTimer = useRef(null);
-  const pingTimer = useRef(null);
-  const attempts = useRef(0);
-  const stopped = useRef(false);
+  const { isDarkMode } = useTheme();
+  const [popups, setPopups] = useState([]);
+  // Remember notification ids we've already shown, to drop duplicate events.
+  const seenIds = useRef(new Set());
+
+  const removePopup = (key) =>
+    setPopups((prev) => prev.filter((p) => p.key !== key));
+
+  const openPopup = (p) => {
+    removePopup(p.key);
+    if (p.appraisalId) {
+      router.push(`/dashboard/concierge?appraisal=${p.appraisalId}`);
+    }
+  };
 
   useEffect(() => {
-    stopped.current = false;
+    // All connection state is closure-local so React StrictMode's double-invoke
+    // (or any re-mount) can never leave a stale socket reconnecting → no dupes.
+    let cancelled = false;
+    let ws = null;
+    let reconnectTimer = null;
+    let pingTimer = null;
+    let attempts = 0;
 
     const scheduleReconnect = (delayMs) => {
-      clearTimeout(reconnectTimer.current);
-      const n = attempts.current++;
-      const backoff = delayMs != null ? delayMs : Math.min(30000, 1000 * 2 ** n);
-      reconnectTimer.current = setTimeout(connect, backoff);
+      if (cancelled) return;
+      clearTimeout(reconnectTimer);
+      const backoff = delayMs != null ? delayMs : Math.min(30000, 1000 * 2 ** attempts++);
+      reconnectTimer = setTimeout(connect, backoff);
     };
 
     const handleEvent = (msg) => {
-      // Refresh the bell's unread count.
+      // Dedupe by notification id so one message can't show two popups.
+      const nid = msg.notification_id;
+      if (nid) {
+        if (seenIds.current.has(nid)) return;
+        seenIds.current.add(nid);
+      }
       mutate(UNREAD_COUNT_KEY);
-      const code = msg.asset_code ? `${msg.asset_code} · ` : '';
-      const preview =
-        msg.preview ||
-        (msg.type === 'appraisal_created' ? 'New appraisal request' : 'New message');
-      toast.info(`${code}${preview}`, {
-        onClick: () => {
-          if (msg.appraisal_id) {
-            router.push(`/dashboard/concierge?appraisal=${msg.appraisal_id}`);
-          }
-        },
-      });
+      // Broadcast so any open list (e.g. the Notifications page) can prepend it
+      // live without re-calling the API.
+      if (typeof window !== 'undefined') {
+        console.log('[notifications] broadcast app:notification', msg.type, msg.notification_id);
+        window.dispatchEvent(new CustomEvent('app:notification', { detail: msg }));
+      }
+      const key = nid || `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+      const popup = {
+        key,
+        assetCode: msg.asset_code,
+        authorName: msg.author_name,
+        preview:
+          msg.preview ||
+          (msg.type === 'appraisal_created' ? 'New appraisal request' : 'New message'),
+        appraisalId: msg.appraisal_id,
+      };
+      // Keep at most the last 3 popups stacked.
+      setPopups((prev) => [...prev.slice(-2), popup]);
+      setTimeout(() => removePopup(key), 6000);
     };
 
     const connect = () => {
-      if (typeof window === 'undefined' || stopped.current) return;
+      if (cancelled || typeof window === 'undefined') return;
       const token = localStorage.getItem('access_token');
       if (!token) return; // not logged in — nothing to connect
 
-      let ws;
       try {
         ws = new WebSocket(`${wsBaseUrl()}?token=${encodeURIComponent(token)}`);
       } catch {
         scheduleReconnect();
         return;
       }
-      wsRef.current = ws;
 
       ws.onopen = () => {
-        attempts.current = 0;
-        clearInterval(pingTimer.current);
+        attempts = 0;
+        console.log('[notifications] WebSocket connected');
+        clearInterval(pingTimer);
         // Keepalive so Railway's proxy doesn't drop the idle socket.
-        pingTimer.current = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
+        pingTimer = setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'ping' }));
           }
         }, 25000);
@@ -123,8 +154,9 @@ export default function RealtimeNotifications() {
       };
 
       ws.onclose = (ev) => {
-        clearInterval(pingTimer.current);
-        if (stopped.current) return;
+        clearInterval(pingTimer);
+        if (cancelled) return;
+        console.warn('[notifications] WebSocket closed', ev.code, '— reconnecting');
         if (ev.code === 4401) {
           // Token expired/invalid — refresh, then reconnect.
           refreshAccessToken().then((ok) => scheduleReconnect(ok ? 0 : undefined));
@@ -141,12 +173,12 @@ export default function RealtimeNotifications() {
     connect();
 
     return () => {
-      stopped.current = true;
-      clearTimeout(reconnectTimer.current);
-      clearInterval(pingTimer.current);
-      if (wsRef.current) {
+      cancelled = true;
+      clearTimeout(reconnectTimer);
+      clearInterval(pingTimer);
+      if (ws) {
         try {
-          wsRef.current.close();
+          ws.close();
         } catch {
           /* ignore */
         }
@@ -154,5 +186,83 @@ export default function RealtimeNotifications() {
     };
   }, [router]);
 
-  return null;
+  if (popups.length === 0) return null;
+
+  return (
+    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-[320px] max-w-[calc(100vw-2rem)] pointer-events-none">
+      {popups.map((p) => (
+        <div
+          key={p.key}
+          role="button"
+          tabIndex={0}
+          onClick={() => openPopup(p)}
+          className={`pointer-events-auto cursor-pointer rounded-2xl border shadow-2xl p-3 transition-transform hover:scale-[1.02] ${
+            isDarkMode
+              ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
+              : 'bg-white border-gray-200'
+          }`}
+          style={{ animation: 'rtSlideIn 0.2s ease-out' }}
+        >
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <div className="flex items-center gap-2 min-w-0">
+              {/* small bell glyph */}
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#F1CB68"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-4 h-4 shrink-0"
+              >
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              {p.authorName && (
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#F1CB68]/15 text-[#F1CB68] truncate max-w-[130px]">
+                  {titleCase(p.authorName)}
+                </span>
+              )}
+              {p.assetCode && (
+                <span className="text-[11px] font-mono text-gray-400 shrink-0">
+                  {p.assetCode}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                removePopup(p.key);
+              }}
+              aria-label="Dismiss"
+              className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                isDarkMode ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+              }`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <p className={`text-sm line-clamp-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+            {p.preview}
+          </p>
+        </div>
+      ))}
+
+      <style jsx global>{`
+        @keyframes rtSlideIn {
+          from {
+            opacity: 0;
+            transform: translateX(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+      `}</style>
+    </div>
+  );
 }
