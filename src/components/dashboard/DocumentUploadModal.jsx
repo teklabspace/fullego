@@ -9,10 +9,19 @@ export default function DocumentUploadModal({
   title = 'Upload Documents',
   itemType = 'ticket', // 'ticket' or 'task'
   itemId,
+  // Optional: real upload with progress. (rawFiles, onProgress, { heading }) => Promise.
+  // When provided, the modal performs the upload itself and reports % live.
+  uploadFn,
+  // Optional: [{ value, label }] — shows a heading/type selector (e.g. for admins).
+  headingOptions,
+  infoText,
 }) {
   const { isDarkMode } = useTheme();
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState('');
+  const [heading, setHeading] = useState(headingOptions?.[0]?.value || '');
 
   const handleFileChange = e => {
     const selectedFiles = Array.from(e.target.files);
@@ -35,9 +44,17 @@ export default function DocumentUploadModal({
     e.preventDefault();
     if (files.length === 0) return;
 
+    setError('');
     setUploading(true);
-    // Simulate upload - in production, this would upload to your backend
-    setTimeout(() => {
+    setProgress(0);
+    try {
+      if (uploadFn) {
+        // Real upload with live progress.
+        await uploadFn(files, p => setProgress(p), { heading });
+      } else {
+        // Legacy fallback (parent handles the actual upload in onUpload).
+        await new Promise(r => setTimeout(r, 600));
+      }
       onUpload({
         files: files.map(file => ({
           name: file.name,
@@ -47,15 +64,24 @@ export default function DocumentUploadModal({
         })),
         itemType,
         itemId,
+        heading,
       });
       setFiles([]);
+      setProgress(0);
       setUploading(false);
       setIsOpen(false);
-    }, 1000);
+    } catch (err) {
+      setUploading(false);
+      setProgress(0);
+      setError(err?.data?.detail || err?.message || 'Upload failed. Please try again.');
+    }
   };
 
   const handleClose = () => {
+    if (uploading) return; // don't close mid-upload
     setFiles([]);
+    setProgress(0);
+    setError('');
     setIsOpen(false);
   };
 
@@ -114,6 +140,32 @@ export default function DocumentUploadModal({
 
         {/* Content */}
         <div className='p-4 md:p-6 space-y-6 overflow-y-auto flex-1 document-modal-scrollbar'>
+          {/* Heading / document type (optional, e.g. admin) */}
+          {Array.isArray(headingOptions) && headingOptions.length > 0 && (
+            <div>
+              <label
+                className={`block text-sm font-medium mb-2 ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                Document Type
+              </label>
+              <select
+                value={heading}
+                onChange={e => setHeading(e.target.value)}
+                className={`w-full px-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:border-[#F1CB68] ${
+                  isDarkMode
+                    ? 'bg-[#2C2C2E] border-[#FFFFFF14] text-white'
+                    : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              >
+                {headingOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Upload Area */}
           <div>
             <label
@@ -252,6 +304,35 @@ export default function DocumentUploadModal({
             </div>
           )}
 
+          {/* Upload progress */}
+          {uploading && (
+            <div>
+              <div className='flex items-center justify-between mb-1.5'>
+                <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Uploading…
+                </span>
+                <span className={`text-xs font-semibold ${isDarkMode ? 'text-[#F1CB68]' : 'text-[#a07d1f]'}`}>
+                  {progress}%
+                </span>
+              </div>
+              <div className={`h-2 rounded-full overflow-hidden ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}>
+                <div
+                  className='h-full bg-[#F1CB68] transition-all duration-150'
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className={`rounded-lg p-3 text-xs ${
+              isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'
+            }`}>
+              {error}
+            </div>
+          )}
+
           {/* Info */}
           <div
             className={`rounded-lg p-4 ${
@@ -263,8 +344,8 @@ export default function DocumentUploadModal({
                 isDarkMode ? 'text-gray-300' : 'text-gray-700'
               }`}
             >
-              Documents will be attached to this {itemType} and will be
-              accessible to all team members working on it.
+              {infoText ||
+                `Documents will be attached to this ${itemType} and will be accessible to all team members working on it.`}
             </p>
           </div>
         </div>
@@ -296,7 +377,7 @@ export default function DocumentUploadModal({
               color: '#000000',
             }}
           >
-            {uploading ? 'Uploading...' : `Upload ${files.length} File${files.length !== 1 ? 's' : ''}`}
+            {uploading ? `Uploading ${progress}%` : `Upload ${files.length} File${files.length !== 1 ? 's' : ''}`}
           </button>
         </div>
 

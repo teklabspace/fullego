@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getAssets,
+  listAllAssetsAdmin,
   deleteAsset,
   requestAssetSale,
   requestAssetAppraisal,
@@ -16,6 +17,8 @@ import {
   formatCurrency,
 } from '@/utils/assetsApi';
 import AssetCardSkeleton from '@/components/skeletons/AssetCardSkeleton';
+import { useAuth } from '@/hooks/useAuth';
+import { useSearch } from '@/context/SearchContext';
 import { LuClock, LuZap, LuCheck } from 'react-icons/lu';
 import { FaUserTie, FaRobot } from 'react-icons/fa';
 import { toast } from 'react-toastify';
@@ -28,9 +31,20 @@ const apiErrorMessage = (err, fallback) => {
   return typeof detail === 'string' && detail ? detail : fallback;
 };
 
+const ADMIN_PAGE_SIZE = 10;
+
 export default function AssetsPage() {
   const { isDarkMode } = useTheme();
   const router = useRouter();
+  // Admins see ALL users' assets (searchable + paginated) via the admin endpoint;
+  // everyone else sees their own. `authMounted` gates the first fetch until the
+  // role is known so we don't fire the wrong request on mount.
+  const { isAdmin, mounted: authMounted } = useAuth();
+  // Search term comes from the shared navbar search box (see SearchContext).
+  const { query: adminSearchInput } = useSearch();
+  const [adminSearch, setAdminSearch] = useState('');
+  const [adminPage, setAdminPage] = useState(1);
+  const [adminPagination, setAdminPagination] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [showSellModal, setShowSellModal] = useState(false);
@@ -48,17 +62,28 @@ export default function AssetsPage() {
 
   // Fetch assets from API
   const fetchAssets = useCallback(async () => {
+    // Hold off until we know the role (admin vs. not) so the first call is right.
+    if (!authMounted) return;
     try {
       setLoading(true);
       setError(null);
 
-      const params = {
-        category: selectedCategory !== 'all' ? selectedCategory : undefined,
-        sortBy: 'created_at',
-        order: 'desc',
-      };
-
-      const response = await getAssets(params);
+      let response;
+      if (isAdmin) {
+        // All users' assets — server-side search + pagination, owner attached.
+        response = await listAllAssetsAdmin({
+          search: adminSearch || undefined,
+          page: adminPage,
+          pageSize: ADMIN_PAGE_SIZE,
+        });
+        setAdminPagination(response.pagination || null);
+      } else {
+        response = await getAssets({
+          category: selectedCategory !== 'all' ? selectedCategory : undefined,
+          sortBy: 'created_at',
+          order: 'desc',
+        });
+      }
 
       const formattedAssets = (response.data || []).map(asset => ({
         ...asset,
@@ -105,11 +130,21 @@ export default function AssetsPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory, router]);
+  }, [authMounted, isAdmin, adminSearch, adminPage, selectedCategory, router]);
 
   useEffect(() => {
     fetchAssets();
   }, [fetchAssets]);
+
+  // Debounce the admin search box, resetting to page 1 on each new query.
+  useEffect(() => {
+    if (!isAdmin) return;
+    const t = setTimeout(() => {
+      setAdminSearch(adminSearchInput.trim());
+      setAdminPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [adminSearchInput, isAdmin]);
 
   // Get all categories for filtering
   const categories = [
@@ -133,7 +168,12 @@ export default function AssetsPage() {
         );
 
   const handleViewDetails = asset => {
-    router.push(`/dashboard/assets/detail?id=${asset.id}`);
+    // Admins load any user's asset by code via the admin-only detail endpoint.
+    if (isAdmin && asset.assetCode) {
+      router.push(`/dashboard/assets/detail?code=${encodeURIComponent(asset.assetCode)}`);
+    } else {
+      router.push(`/dashboard/assets/detail?id=${asset.id}`);
+    }
   };
 
   const handleRequestSell = asset => {
@@ -255,20 +295,23 @@ export default function AssetsPage() {
             Track, monitor, and manage your high-value assets in one place
           </p>
           <div className='flex gap-2 sm:gap-4 flex-wrap'>
-            <button
-              onClick={() => router.push('/dashboard/assets/add')}
-              className='bg-[#F1CB68] text-[#101014] px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors flex items-center gap-1.5 sm:gap-2 hover:bg-[#d4b55a] text-xs sm:text-base whitespace-nowrap'
-            >
-              <span>
-                <img
-                  src='/AssestSpark.svg'
-                  alt='Add'
-                  className='w-3.5 h-3.5 sm:w-5 sm:h-5'
-                />
-              </span>
-              <span className='hidden sm:inline'>Add New Asset</span>
-              <span className='sm:hidden'>Add Asset</span>
-            </button>
+            {/* Admins manage all users' assets and don't create their own. */}
+            {!isAdmin && (
+              <button
+                onClick={() => router.push('/dashboard/assets/add')}
+                className='bg-[#F1CB68] text-[#101014] px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors flex items-center gap-1.5 sm:gap-2 hover:bg-[#d4b55a] text-xs sm:text-base whitespace-nowrap'
+              >
+                <span>
+                  <img
+                    src='/AssestSpark.svg'
+                    alt='Add'
+                    className='w-3.5 h-3.5 sm:w-5 sm:h-5'
+                  />
+                </span>
+                <span className='hidden sm:inline'>Add New Asset</span>
+                <span className='sm:hidden'>Add Asset</span>
+              </button>
+            )}
             <button
               onClick={() => router.push('/dashboard')}
               className={`px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors border text-xs sm:text-base whitespace-nowrap ${
@@ -282,6 +325,8 @@ export default function AssetsPage() {
           </div>
         </div>
       </div>
+
+      {/* Admin asset search is driven by the navbar search box (SearchContext). */}
 
       {/* Category Tabs */}
       <div className='flex gap-3 mb-6 overflow-x-auto pb-2 scrollbar-hide'>
@@ -373,13 +418,23 @@ export default function AssetsPage() {
           isDarkMode ? 'border-[#FFFFFF14] text-gray-400' : 'border-gray-300 text-gray-600'
         }`}>
           <p className='text-lg mb-2'>No assets found</p>
-          <p className='text-sm mb-4'>Get started by adding your first asset</p>
-          <button
-            onClick={() => router.push('/dashboard/assets/add')}
-            className='px-6 py-3 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
-          >
-            Add New Asset
-          </button>
+          {isAdmin ? (
+            <p className='text-sm'>
+              {adminSearch
+                ? 'No assets match your search.'
+                : 'There are no assets across any users yet.'}
+            </p>
+          ) : (
+            <>
+              <p className='text-sm mb-4'>Get started by adding your first asset</p>
+              <button
+                onClick={() => router.push('/dashboard/assets/add')}
+                className='px-6 py-3 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+              >
+                Add New Asset
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
@@ -396,6 +451,42 @@ export default function AssetsPage() {
           ))}
         </div>
       )}
+
+      {/* Admin pagination — shown whenever the admin all-assets list has results.
+          Falls back gracefully if the API omits any pagination field. */}
+      {isAdmin && !loading && !error && assets.length > 0 && (() => {
+        const totalPages = Math.max(1, Number(adminPagination?.totalPages) || 1);
+        const currentPage = Number(adminPagination?.page) || adminPage;
+        const total = Number(adminPagination?.total);
+        const baseBtn = 'px-4 py-2 rounded-lg text-sm font-medium border transition-colors';
+        const activeBtn = isDarkMode
+          ? 'bg-white/5 hover:bg-white/10 text-white border-[#FFFFFF14]'
+          : 'bg-gray-100 hover:bg-gray-200 text-gray-900 border-gray-300';
+        return (
+          <div className='flex items-center justify-between gap-4 mt-6'>
+            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Page {currentPage} of {totalPages}
+              {Number.isFinite(total) && ` · ${total} assets`}
+            </p>
+            <div className='flex gap-2'>
+              <button
+                onClick={() => setAdminPage(p => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                className={`${baseBtn} ${currentPage <= 1 ? 'opacity-40 cursor-not-allowed' : activeBtn}`}
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setAdminPage(p => p + 1)}
+                disabled={currentPage >= totalPages}
+                className={`${baseBtn} ${currentPage >= totalPages ? 'opacity-40 cursor-not-allowed' : activeBtn}`}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Sell Request Modal */}
       {showSellModal && selectedAsset && (
@@ -440,6 +531,9 @@ function AssetCard({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const menuRef = useRef(null);
+  // Selling and requesting an appraisal are investor actions. Admins/advisors
+  // manage assets but don't transact on them, so these are gated to investors.
+  const { isInvestor } = useAuth();
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -708,31 +802,35 @@ function AssetCard({
                 View Details
               </button>
 
-              <button
-                onClick={() => { setMenuOpen(false); onRequestSell(); }}
-                className='w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors text-left whitespace-nowrap text-gray-200 hover:bg-white/[0.07] hover:text-white'
-              >
-                <span className='w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-[#F1CB68]/20'>
-                  <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2.2'>
-                    <line x1='12' y1='1' x2='12' y2='23' />
-                    <path d='M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' />
-                  </svg>
-                </span>
-                Request to Sell
-              </button>
+              {isInvestor && (
+                <>
+                  <button
+                    onClick={() => { setMenuOpen(false); onRequestSell(); }}
+                    className='w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors text-left whitespace-nowrap text-gray-200 hover:bg-white/[0.07] hover:text-white'
+                  >
+                    <span className='w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-[#F1CB68]/20'>
+                      <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2.2'>
+                        <line x1='12' y1='1' x2='12' y2='23' />
+                        <path d='M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' />
+                      </svg>
+                    </span>
+                    Request to Sell
+                  </button>
 
-              <button
-                onClick={() => { setMenuOpen(false); onRequestAppraisal(); }}
-                className='w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors text-left whitespace-nowrap text-gray-200 hover:bg-white/[0.07] hover:text-white'
-              >
-                <span className='w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-purple-500/20'>
-                  <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#c084fc' strokeWidth='2.2'>
-                    <circle cx='11' cy='11' r='8' />
-                    <line x1='21' y1='21' x2='16.65' y2='16.65' />
-                  </svg>
-                </span>
-                Request Appraisal
-              </button>
+                  <button
+                    onClick={() => { setMenuOpen(false); onRequestAppraisal(); }}
+                    className='w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors text-left whitespace-nowrap text-gray-200 hover:bg-white/[0.07] hover:text-white'
+                  >
+                    <span className='w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-purple-500/20'>
+                      <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#c084fc' strokeWidth='2.2'>
+                        <circle cx='11' cy='11' r='8' />
+                        <line x1='21' y1='21' x2='16.65' y2='16.65' />
+                      </svg>
+                    </span>
+                    Request Appraisal
+                  </button>
+                </>
+              )}
             </div>
 
             <div className='border-t mx-3 border-[#ffffff0f]' />
@@ -767,6 +865,26 @@ function AssetCard({
           {asset.name}
         </h3>
 
+        {/* Owner + asset code — present only on admin (all-assets) results.
+            Username + id shown together in a single badge. Backend guarantees a
+            name, so we never render an "unknown owner" placeholder. */}
+        {asset.owner && (asset.owner.name || asset.owner.email) && (
+          <div className='flex items-center gap-2 flex-wrap mb-3'>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+              isDarkMode ? 'bg-[#F1CB68]/10 text-[#F1CB68]' : 'bg-yellow-50 text-yellow-700'
+            }`}>
+              <svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                <path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' />
+                <circle cx='12' cy='7' r='4' />
+              </svg>
+              {asset.owner.name || asset.owner.email}
+              {asset.assetCode && (
+                <span className='font-mono opacity-70'>· {asset.assetCode}</span>
+              )}
+            </span>
+          </div>
+        )}
+
         {/* Dynamic Card Fields */}
         <div className='mb-4 space-y-2'>
           {cardFields.map(field => {
@@ -788,8 +906,9 @@ function AssetCard({
               }
             }
 
-            // Format dates
-            if (lowerName.includes('date') && value) {
+            // Format dates — includes "Last Appraisal" (an ISO timestamp), shown
+            // as date only. Non-date strings (e.g. "Just now") pass through.
+            if ((lowerName.includes('date') || lowerName.includes('appraisal')) && value) {
               try {
                 const date = new Date(value);
                 if (!isNaN(date.getTime())) {
@@ -829,7 +948,7 @@ function AssetCard({
           >
             View Details
           </button>
-          {categoryGroup === 'Assets' && (
+          {isInvestor && categoryGroup === 'Assets' && (
             <div className='grid grid-cols-2 gap-2'>
               <button
                 onClick={onRequestSell}

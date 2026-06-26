@@ -149,6 +149,56 @@ export const uploadAppraisalDocuments = async (appraisalId, files) => {
 };
 
 /**
+ * Upload documents with live progress (XHR — fetch can't report upload %).
+ * Extra fields: `documentType` (heading, e.g. "Valuation Report") and
+ * `isClientVisible` (admin "help doc" = false → not mirrored onto the asset).
+ * @param {function} onProgress - called with an integer 0–100
+ * @returns {Promise<object>} parsed JSON response
+ */
+export const uploadAppraisalDocumentsWithProgress = (
+  appraisalId,
+  files,
+  { onProgress, documentType, isClientVisible } = {}
+) =>
+  new Promise((resolve, reject) => {
+    const formData = new FormData();
+    (Array.isArray(files) ? files : [files]).forEach((f) => formData.append('files', f));
+    if (documentType) formData.append('document_type', documentType);
+    if (typeof isClientVisible === 'boolean') {
+      formData.append('is_client_visible', String(isClientVisible));
+    }
+
+    const url = `${API_BASE_URL.replace(/\/$/, '')}/${API_BASE_PATH.replace(/^\//, '')}${API_ENDPOINTS.CONCIERGE.APPRAISAL_DOCUMENTS(appraisalId)}`;
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText); } catch { /* non-JSON ok */ }
+        resolve(transformKeys(data));
+      } else {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText); } catch { /* ignore */ }
+        const err = new Error(data.detail || 'Document upload failed');
+        err.status = xhr.status;
+        err.data = data;
+        reject(err);
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.send(formData);
+  });
+
+/**
  * Get Appraisal Documents
  * GET /api/v1/concierge/appraisals/{appraisal_id}/documents
  */

@@ -8,18 +8,21 @@ function AssetDetailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const assetId = searchParams.get('id');
-  
-  // Redirect to assets list if no ID provided
+  // Admins open an asset by its code (?code=AK-01); AssetDetailClient resolves
+  // it via the admin-only endpoint, reading the code from the URL itself.
+  const assetCode = searchParams.get('code');
+
+  // Redirect to assets list only if neither an id nor a code was provided.
   useEffect(() => {
-    if (!assetId) {
+    if (!assetId && !assetCode) {
       router.replace('/dashboard/assets');
     }
-  }, [assetId, router]);
-  
-  if (!assetId) {
+  }, [assetId, assetCode, router]);
+
+  if (!assetId && !assetCode) {
     return null;
   }
-  
+
   return <AssetDetailClient assetId={assetId} />;
 }
 

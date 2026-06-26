@@ -533,6 +533,10 @@ export const API_ENDPOINTS = {
     LIST_DISPUTES: '/admin/disputes',
     GET_DISPUTE: (id) => `/admin/disputes/${id}`,
     RESOLVE_DISPUTE: (id) => `/admin/disputes/${id}/resolve`,
+    // Assets (all users, admin-only). LIST_ASSETS supports search/page/page_size;
+    // GET_ASSET_BY_CODE looks up by asset code (e.g. AK-01). Both attach `owner`.
+    LIST_ASSETS: '/admin/assets',
+    GET_ASSET_BY_CODE: (code) => `/admin/assets/${code}`,
   },
   // Notifications endpoints
   NOTIFICATIONS: {

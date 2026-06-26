@@ -1,13 +1,40 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
+import { useSearch } from '@/context/SearchContext';
+import { useAuth } from '@/hooks/useAuth';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import { useEffect } from 'react';
 import NotificationDropdown from './NotificationDropdown';
 import ProfileDropdown from './ProfileDropdown';
 
 export default function Navbar({ onMenuClick }) {
   const { isDarkMode, setIsDarkMode } = useTheme();
   const router = useRouter();
+  const pathname = usePathname();
+  const { isAdmin } = useAuth();
+  const { query, setQuery } = useSearch();
+
+  // The navbar search drives whatever tab is open. Admin-only for now:
+  // Assets tab → searches all assets; Concierge tab → searches appraisals.
+  const searchContext =
+    isAdmin && pathname?.startsWith('/dashboard/assets')
+      ? 'assets'
+      : isAdmin && pathname?.startsWith('/dashboard/concierge')
+      ? 'concierge'
+      : null;
+  const searchPlaceholder =
+    searchContext === 'assets'
+      ? 'Search assets…'
+      : searchContext === 'concierge'
+      ? 'Search appraisals…'
+      : 'Search...';
+
+  // Clear the shared query whenever the route changes so each tab starts fresh.
+  useEffect(() => {
+    setQuery('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   return (
     <nav
@@ -46,7 +73,9 @@ export default function Navbar({ onMenuClick }) {
               </div>
               <input
                 type='text'
-                placeholder='Search...'
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={searchPlaceholder}
                 className={`
                   w-full pl-11 pr-4 py-2 lg:py-3
                   border rounded-full text-sm lg:text-base
@@ -174,7 +203,9 @@ export default function Navbar({ onMenuClick }) {
             </div>
             <input
               type='text'
-              placeholder='Search...'
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder}
               className={`
                 w-full pl-10 pr-4 py-2
                 border rounded-full text-sm
