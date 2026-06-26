@@ -159,6 +159,60 @@ export const getAsset = async (assetId) => {
 };
 
 /**
+ * Admin: list / search ALL assets across every user (admin role only).
+ * GET /api/v1/admin/assets?search=&page=&page_size=
+ * `search` matches asset code, name, symbol, or description (partial, case-insensitive).
+ * Each asset carries an `owner` block ({ userId, name, email }) and the response
+ * includes `pagination`. Returns the same camelCase shape as getAssets().
+ */
+export const listAllAssetsAdmin = async (params = {}) => {
+  const queryParams = new URLSearchParams();
+  if (params.search) queryParams.append('search', params.search);
+  if (params.page) queryParams.append('page', params.page);
+  if (params.pageSize) queryParams.append('page_size', params.pageSize);
+
+  const endpoint = `${API_ENDPOINTS.ADMIN.LIST_ASSETS}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await apiGet(endpoint);
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+  if (response.pagination) {
+    response.pagination = transformKeys(response.pagination);
+  }
+
+  return response;
+};
+
+/**
+ * Admin: fetch a single asset by its asset code (admin role only).
+ * GET /api/v1/admin/assets/{code}  — exact, case-insensitive; 404 if not found.
+ * Mirrors getAsset()'s formatting (lastAppraisal mapping + formatted values) and
+ * preserves the `owner` block, so the detail page can consume it identically.
+ */
+export const getAssetByCodeAdmin = async (code) => {
+  const response = await apiGet(API_ENDPOINTS.ADMIN.GET_ASSET_BY_CODE(code));
+
+  if (response.data) {
+    const asset = transformKeys(response.data);
+
+    if (asset.lastAppraisalDate) {
+      asset.lastAppraisal = asset.lastAppraisalDate;
+    }
+    if (asset.currentValue && typeof asset.currentValue === 'number') {
+      asset.currentValueFormatted = formatCurrency(asset.currentValue, asset.currency);
+    }
+    if (asset.estimatedValue && typeof asset.estimatedValue === 'number') {
+      asset.estimatedValueFormatted = formatCurrency(asset.estimatedValue, asset.currency);
+    }
+
+    return { data: asset };
+  }
+
+  return response;
+};
+
+/**
  * 3. Create Asset
  * POST /api/v1/assets
  */

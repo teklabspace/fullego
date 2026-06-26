@@ -69,6 +69,12 @@ export default function SignupClient() {
     setError('');
     setIsLoading(true);
 
+    if (!firstName.trim() || !lastName.trim()) {
+      // Backend now requires non-empty first/last name on POST /register (422 otherwise).
+      setError('First name and last name are required');
+      setIsLoading(false);
+      return;
+    }
     if (!email || !password) {
       setError('Email and password are required');
       setIsLoading(false);
@@ -89,8 +95,8 @@ export default function SignupClient() {
       await register({
         email,
         password,
-        firstName,
-        lastName,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         phone,
       });
 
@@ -175,7 +181,7 @@ export default function SignupClient() {
                 htmlFor='firstName'
                 className='block text-white text-sm mb-2'
               >
-                First Name
+                First Name <span className='text-[#F1CB68]'>*</span>
               </label>
               <input
                 type='text'
@@ -183,6 +189,7 @@ export default function SignupClient() {
                 value={firstName}
                 onChange={e => setFirstName(e.target.value)}
                 placeholder='John'
+                required
                 className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
               />
             </div>
@@ -192,7 +199,7 @@ export default function SignupClient() {
                 htmlFor='lastName'
                 className='block text-white text-sm mb-2'
               >
-                Last Name
+                Last Name <span className='text-[#F1CB68]'>*</span>
               </label>
               <input
                 type='text'
@@ -200,6 +207,7 @@ export default function SignupClient() {
                 value={lastName}
                 onChange={e => setLastName(e.target.value)}
                 placeholder='Doe'
+                required
                 className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
               />
             </div>

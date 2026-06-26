@@ -10,6 +10,7 @@ import
     getAiReview,
     getAiUsage,
     getAsset,
+    getAssetByCodeAdmin,
     getAssetAppraisals,
     getAssetDocuments,
     getAssetValueHistory,
@@ -23,6 +24,7 @@ import
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
+import { useAuth } from '@/hooks/useAuth';
 
 // Pull the human-readable message the API sent (FastAPI `detail`), falling back
 // to the thrown Error message and finally a provided default. Used so AI toasts
@@ -35,19 +37,47 @@ const apiErrorMessage = (err, fallback) => {
 // Format the "Last Appraisal" value for display. The backend sends a raw ISO
 // timestamp (e.g. "2026-06-25T22:49:00.137718+00:00"); after a fresh AI appraisal
 // the code sets a friendly literal ("Just now"). Render real dates as a readable
-// date + time and pass friendly/unparseable strings through unchanged.
+// date only (no time) and pass friendly/unparseable strings through unchanged.
 const formatAppraisalDate = (value) => {
   if (!value) return '—';
   const d = new Date(value);
   if (isNaN(d.getTime())) return value;
-  return d.toLocaleString('en-US', {
+  return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
   });
 };
+
+// Appraisal types shown to investors on the detail page. The chosen value is
+// sent as `appraisal_type` (existing field — no new backend field). These share
+// one backend code path today; descriptions are copy-only.
+const APPRAISAL_TYPE_OPTIONS = [
+  {
+    value: 'Standard',
+    label: 'Standard',
+    description:
+      'A standard professional appraisal covering current market value and overall condition.',
+  },
+  {
+    value: 'Comprehensive',
+    label: 'Comprehensive',
+    description:
+      'An in-depth appraisal with full documentation, provenance, and detailed market analysis.',
+  },
+  {
+    value: 'Expedited',
+    label: 'Expedited',
+    description:
+      'A faster-turnaround appraisal for when you need a valuation quickly.',
+  },
+  {
+    value: 'Insurance',
+    label: 'Insurance',
+    description:
+      'A valuation prepared specifically for insurance coverage and replacement value.',
+  },
+];
 
 // Display metadata for an AI review verdict (guide §4). Tailwind classes are
 // split dark/light so they survive the JIT (no dynamic class names).
@@ -107,10 +137,20 @@ const APPRAISAL_STATUS_META = {
     darkClass: 'bg-[#F1CB68]/10 text-[#F1CB68]',
     lightClass: 'bg-yellow-50 text-yellow-700',
   },
+  in_progress: {
+    label: 'In progress',
+    darkClass: 'bg-blue-500/10 text-blue-400',
+    lightClass: 'bg-blue-50 text-blue-700',
+  },
   completed: {
     label: 'Completed',
     darkClass: 'bg-green-500/10 text-green-400',
     lightClass: 'bg-green-50 text-green-700',
+  },
+  cancelled: {
+    label: 'Cancelled',
+    darkClass: 'bg-gray-500/10 text-gray-400',
+    lightClass: 'bg-gray-100 text-gray-600',
   },
 };
 
@@ -118,6 +158,10 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   const router = useRouter();
   const params = useParams(); // Returns {} if not in dynamic route
   const { isDarkMode } = useTheme();
+  // Role gating: investors transact on assets (sell / request appraisal / run AI
+  // tools); admins get a read-only view and only see AI results that already
+  // exist (no run controls, no transactional actions). See gating below.
+  const { isAdmin, isInvestor, mounted: authMounted } = useAuth();
   
   // Get asset ID from multiple sources (for static export compatibility)
   // Priority: prop > params > query parameter > window.location
@@ -138,6 +182,15 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
       }
     }
   }
+
+  // Admins reach an asset by its code (?code=AK-01) and load it via the
+  // admin-only /admin/assets/{code} endpoint (which can read any user's asset).
+  // The asset's real id is resolved from that response and reused for the
+  // standard sub-resource calls (documents, value history, appraisals, AI review).
+  let adminCode = null;
+  if (typeof window !== 'undefined') {
+    adminCode = new URLSearchParams(window.location.search).get('code');
+  }
   
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showSellModal, setShowSellModal] = useState(false);
@@ -147,6 +200,8 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     saleNote: '',
   });
   const [appraisalType, setAppraisalType] = useState('');
+  // Optional free-text note the investor adds with the appraisal request.
+  const [appraisalNote, setAppraisalNote] = useState('');
   const [asset, setAsset] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -171,11 +226,18 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // The asset's real id, used to key all sub-resource fetches. For the standard
+  // id-based flow it equals the URL id; for the admin by-code flow it's resolved
+  // from the fetched asset (see main fetch effect).
+  const [resolvedAssetId, setResolvedAssetId] = useState(null);
+
   // AI Appraisal (instant, synchronous AI valuation)
   const [aiUsage, setAiUsage] = useState(null);        // { plan, aiAppraisals: { limit, used, remaining }, ... }
   const [aiResult, setAiResult] = useState(null);
   const [appraisalStatus, setAppraisalStatus] = useState(null); // ai_appraised | needs_more_information | professional_appraisal_recommended | appraisal_failed
   const [runningAiAppraisal, setRunningAiAppraisal] = useState(false);
+  // AI Appraisal card is collapsed by default; toggled open via the header arrow.
+  const [showAiAppraisal, setShowAiAppraisal] = useState(false);
 
   // AI Asset Review (advisory accept/reject)
   const [aiReview, setAiReview] = useState(null);      // { decision, reason, flags, model, createdAt }
@@ -187,22 +249,43 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [expandedAppraisalId, setExpandedAppraisalId] = useState(null);
 
+  // Keep the standard (id-based) flow resolving sub-resources immediately; the
+  // admin by-code flow resolves the id once the asset loads (main fetch below).
+  useEffect(() => {
+    if (assetId) setResolvedAssetId(assetId);
+  }, [assetId]);
+
   // Fetch asset data
   useEffect(() => {
-    if (!assetId) {
+    // Wait until the role is known so we pick the right fetch path.
+    if (!authMounted) return;
+
+    const useAdminFetch = isAdmin && !!adminCode;
+    if (!assetId && !useAdminFetch) {
       setError('Asset ID is required');
       setLoading(false);
       return;
     }
-    
+
     const fetchAssetData = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        // Fetch asset details
-        const assetResponse = await getAsset(assetId);
+
+        // Fetch asset details — admins look up any user's asset by code.
+        const assetResponse = useAdminFetch
+          ? await getAssetByCodeAdmin(adminCode)
+          : await getAsset(assetId);
         const assetData = assetResponse.data;
+        // Real id for all sub-resource calls (the by-code response carries it).
+        const effectiveId = assetData.id || assetId;
+        setResolvedAssetId(effectiveId);
+
+        // The admin by-code response embeds the latest AI artifacts so the
+        // read-only AI cards render immediately (admins don't run them). Falls
+        // back to the dedicated endpoints below if an embed is absent.
+        if (assetData.aiResult) setAiResult(assetData.aiResult);
+        if (assetData.aiReview) setAiReview(assetData.aiReview);
         
         // Helper to normalise value history into [{ date, value }]
         const normaliseHistory = rawHistoryData => {
@@ -249,7 +332,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
         let documents = Array.isArray(assetData.documents) ? assetData.documents : [];
         if (!documents.length) {
           try {
-            const docsResponse = await getAssetDocuments(assetId);
+            const docsResponse = await getAssetDocuments(effectiveId);
             documents = docsResponse.data || [];
           } catch (err) {
             console.error('Error fetching documents:', err);
@@ -264,7 +347,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
           history = normaliseHistory(assetData.valueHistory);
         } else {
           try {
-            const historyResponse = await getAssetValueHistory(assetId);
+            const historyResponse = await getAssetValueHistory(effectiveId);
             history = normaliseHistory(historyResponse?.data);
           } catch (err) {
             console.error('Error fetching value history:', err);
@@ -360,10 +443,8 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
       }
     };
 
-    if (assetId) {
-      fetchAssetData();
-    }
-  }, [assetId]);
+    fetchAssetData();
+  }, [assetId, adminCode, isAdmin, authMounted]);
 
   // Fetch the current-month AI quota so we can show "X left" and disable the
   // button once it's exhausted (guide §5). Best-effort: a failure here just
@@ -385,9 +466,9 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   // Load the latest AI review for this asset so we can show the current verdict
   // on page load without making the user re-run it. `data: null` means none yet.
   useEffect(() => {
-    if (!assetId) return;
+    if (!resolvedAssetId) return;
     let cancelled = false;
-    getAiReview(assetId)
+    getAiReview(resolvedAssetId)
       .then(res => {
         if (!cancelled && res?.data) setAiReview(res.data);
       })
@@ -397,15 +478,15 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     return () => {
       cancelled = true;
     };
-  }, [assetId]);
+  }, [resolvedAssetId]);
 
   // Load the full appraisal history (AI + human) so past AI estimates and their
   // stored `aiData` are visible without re-running. Refetched after a new run.
   const refreshAppraisalHistory = async () => {
-    if (!assetId) return;
+    if (!resolvedAssetId) return;
     try {
       setLoadingHistory(true);
-      const res = await getAssetAppraisals(assetId);
+      const res = await getAssetAppraisals(resolvedAssetId);
       const list = Array.isArray(res?.data) ? res.data : [];
       setAppraisalHistory(list);
     } catch (err) {
@@ -417,12 +498,12 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
 
   useEffect(() => {
     let cancelled = false;
-    if (!assetId) {
+    if (!resolvedAssetId) {
       setLoadingHistory(false);
       return;
     }
     setLoadingHistory(true);
-    getAssetAppraisals(assetId)
+    getAssetAppraisals(resolvedAssetId)
       .then(res => {
         if (cancelled) return;
         setAppraisalHistory(Array.isArray(res?.data) ? res.data : []);
@@ -436,7 +517,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     return () => {
       cancelled = true;
     };
-  }, [assetId]);
+  }, [resolvedAssetId]);
 
   // Remaining AI appraisals for this month. null => unlimited (annual/admin).
   const aiAppraisalsRemaining = aiUsage?.aiAppraisals?.remaining ?? null;
@@ -447,6 +528,24 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   const aiReviewsRemaining = aiUsage?.aiReviews?.remaining ?? null;
   const aiReviewLimitReached =
     aiReviewsRemaining !== null && aiReviewsRemaining <= 0;
+
+  // One open human appraisal at a time. AI/instant ("API") appraisals are
+  // unrestricted, but a human appraisal (Concierge/Standard/Comprehensive/…)
+  // can't be requested while another for this asset is still open (not yet
+  // completed/cancelled/failed). Derived from the loaded Past Appraisals.
+  const OPEN_APPRAISAL_STATUSES = [
+    'pending',
+    'in_progress',
+    'needs_more_information',
+    'professional_appraisal_recommended',
+  ];
+  const openHumanAppraisal = appraisalHistory.find(a => {
+    const type = (a.appraisalType || '').toString().toUpperCase();
+    const isAi = type === 'API' || type === 'AI';
+    const status = (a.status || '').toString().toLowerCase();
+    return !isAi && OPEN_APPRAISAL_STATUSES.includes(status);
+  });
+  const hasOpenHumanAppraisal = !!openHumanAppraisal;
 
   const handleRunAiAppraisal = async () => {
     if (runningAiAppraisal) return;
@@ -588,16 +687,28 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
 
   const handleAppraisalSubmit = async (e) => {
     e.preventDefault();
+    // Backstop: block a second open human appraisal for this asset.
+    if (hasOpenHumanAppraisal) {
+      toast.error('You already have an appraisal in progress for this asset.');
+      return;
+    }
     try {
       setSubmittingAppraisal(true);
       await requestAssetAppraisal(asset.id, {
         appraisalType: appraisalType,
+        ...(appraisalNote.trim() ? { note: appraisalNote.trim() } : {}),
       });
       toast.success(`${appraisalType} appraisal request submitted successfully!`);
       setShowAppraisalModal(false);
       setAppraisalType('');
+      setAppraisalNote('');
     } catch (err) {
       console.error('Error submitting appraisal request:', err);
+      // 409: the backend already has an open human appraisal for this asset
+      // (our UI state was stale). Refresh so the banner + disabled state appear.
+      if (err?.status === 409) {
+        refreshAppraisalHistory();
+      }
       toast.error(apiErrorMessage(err, 'Failed to submit appraisal request'));
     } finally {
       setSubmittingAppraisal(false);
@@ -871,6 +982,31 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                 isDarkMode ? 'text-gray-400' : 'text-gray-600'
               }`}>{asset.lastUpdated}</span>
             </div>
+            {/* Owner block — present only on the admin by-code response, so this
+                row appears for admins viewing another user's asset. Backend
+                guarantees a name, so we never render an "unknown owner" label. */}
+            {asset.owner && (asset.owner.name || asset.owner.email) && (
+              <div className='mt-2 flex items-center gap-2 flex-wrap'>
+                {/* Owner username + asset code together in a single badge. */}
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                  isDarkMode ? 'bg-[#F1CB68]/10 text-[#F1CB68]' : 'bg-yellow-50 text-yellow-700'
+                }`}>
+                  <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                    <path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' />
+                    <circle cx='12' cy='7' r='4' />
+                  </svg>
+                  {asset.owner.name || asset.owner.email}
+                  {asset.assetCode && (
+                    <span className='font-mono opacity-70'>· {asset.assetCode}</span>
+                  )}
+                </span>
+                {asset.owner.email && (
+                  <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {asset.owner.email}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className='flex gap-3'>
             <button
@@ -883,6 +1019,8 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
             >
               Delete
             </button>
+            {isInvestor && (
+              <>
             <button
               onClick={() => setShowSellModal(true)}
               disabled={submittingSell}
@@ -918,7 +1056,9 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
             </button>
             <button
               onClick={() => {
-                setAppraisalType('Concierge');
+                // No preselection — the investor picks one of the four types.
+                setAppraisalType('');
+                setAppraisalNote('');
                 setShowAppraisalModal(true);
               }}
               disabled={submittingAppraisal}
@@ -954,6 +1094,8 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                 'Request Appraisal'
               )}
             </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -1234,39 +1376,62 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
               </p>
             </div>
 
-            {/* AI Appraisal — instant, synchronous AI valuation */}
+            {/* AI Appraisal — instant, synchronous AI valuation. Admins see this
+                read-only and only when a result already exists (no run controls). */}
+            {(!isAdmin || aiResult) && (
             <div className={`border rounded-2xl p-6 ${
               isDarkMode
                 ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
                 : 'bg-white border-gray-300'
             }`}>
-              <div className='mb-1'>
-                <h3 className={`text-lg font-semibold flex items-center gap-2 ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
-                }`}>
-                  <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
-                    <path d='M12 3l1.9 5.8L20 10l-5.8 1.9L12 18l-1.9-6.1L4 10l6.1-1.2L12 3z' />
-                  </svg>
-                  AI Appraisal
-                </h3>
-                {/* Remaining-quota badge (null limit => unlimited) */}
-                {aiUsage?.aiAppraisals && (
-                  <span className={`inline-block mt-1.5 text-xs px-2 py-1 rounded-full whitespace-nowrap ${
-                    aiLimitReached
-                      ? isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'
-                      : isDarkMode ? 'bg-[#2A2A2D] text-gray-300' : 'bg-gray-100 text-gray-700'
+              {/* Header doubles as the collapse toggle (collapsed by default). */}
+              <button
+                type='button'
+                onClick={() => setShowAiAppraisal(v => !v)}
+                aria-expanded={showAiAppraisal}
+                className='w-full flex items-start justify-between gap-3 text-left'
+              >
+                <div className='mb-1'>
+                  <h3 className={`text-lg font-semibold flex items-center gap-2 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
-                    {aiAppraisalsRemaining === null
-                      ? 'Unlimited'
-                      : `${aiAppraisalsRemaining} left this month`}
-                  </span>
-                )}
-              </div>
-              <p className={`text-sm mb-4 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-600'
-              }`}>
-                Get an instant AI-generated value estimate for this asset.
-              </p>
+                    <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
+                      <path d='M12 3l1.9 5.8L20 10l-5.8 1.9L12 18l-1.9-6.1L4 10l6.1-1.2L12 3z' />
+                    </svg>
+                    AI Appraisal
+                  </h3>
+                  {/* Remaining-quota badge (null limit => unlimited) */}
+                  {!isAdmin && aiUsage?.aiAppraisals && (
+                    <span className={`inline-block mt-1.5 text-xs px-2 py-1 rounded-full whitespace-nowrap ${
+                      aiLimitReached
+                        ? isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'
+                        : isDarkMode ? 'bg-[#2A2A2D] text-gray-300' : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {aiAppraisalsRemaining === null
+                        ? 'Unlimited'
+                        : `${aiAppraisalsRemaining} left this month`}
+                    </span>
+                  )}
+                </div>
+                <svg
+                  width='20' height='20' viewBox='0 0 24 24' fill='none'
+                  stroke='currentColor' strokeWidth='2'
+                  className={`shrink-0 mt-1 transition-transform ${showAiAppraisal ? 'rotate-180' : ''} ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}
+                >
+                  <path d='M6 9l6 6 6-6' />
+                </svg>
+              </button>
+
+              {showAiAppraisal && (<>
+              {!isAdmin && (
+                <p className={`text-sm mb-4 mt-2 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  Get an instant AI-generated value estimate for this asset.
+                </p>
+              )}
 
               {/* Result — appraisal_failed state */}
               {appraisalStatus === 'appraisal_failed' && (
@@ -1457,7 +1622,8 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                 </div>
               )}
 
-              {/* Action */}
+              {/* Action — investors only; admins view results without running. */}
+              {!isAdmin && (<>
               <button
                 onClick={handleRunAiAppraisal}
                 disabled={runningAiAppraisal || aiLimitReached}
@@ -1490,9 +1656,14 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   You've used all AI appraisals on your plan this month.
                 </p>
               )}
+              </>)}
+              </>)}
             </div>
+            )}
 
-            {/* AI Asset Review — advisory accept/reject decision */}
+            {/* AI Asset Review — advisory accept/reject decision. Admins see this
+                read-only and only when a review already exists (no run controls). */}
+            {(!isAdmin || (aiReview && aiReview.decision && aiReview.decision !== 'not_reviewed')) && (
             <div className={`border rounded-2xl p-6 ${
               isDarkMode
                 ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
@@ -1508,7 +1679,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   </svg>
                   AI Asset Review
                 </h3>
-                {aiUsage?.aiReviews && (
+                {!isAdmin && aiUsage?.aiReviews && (
                   <span className={`inline-block mt-1.5 text-xs px-2 py-1 rounded-full whitespace-nowrap ${
                     aiReviewLimitReached
                       ? isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'
@@ -1520,11 +1691,13 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   </span>
                 )}
               </div>
-              <p className={`text-sm mb-4 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-600'
-              }`}>
-                An advisory AI check of this asset's details and documents. Guidance only — it doesn't block the asset.
-              </p>
+              {!isAdmin && (
+                <p className={`text-sm mb-4 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  An advisory AI check of this asset's details and documents. Guidance only — it doesn't block the asset.
+                </p>
+              )}
 
               {/* Verdict */}
               {aiReview && aiReview.decision && aiReview.decision !== 'not_reviewed' && (() => {
@@ -1566,7 +1739,8 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                 );
               })()}
 
-              {/* Action */}
+              {/* Action — investors only; admins view the verdict without running. */}
+              {!isAdmin && (<>
               <button
                 onClick={handleRunAiReview}
                 disabled={runningAiReview || aiReviewLimitReached}
@@ -1601,7 +1775,9 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   You've used all AI reviews on your plan this month.
                 </p>
               )}
+              </>)}
             </div>
+            )}
 
             {/* Past Appraisals — history of AI + human appraisals (guide §2/§3).
                 Stored `aiData` is surfaced here without re-running. */}
@@ -1839,7 +2015,8 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
               </div>
             )}
 
-            {/* Quick Actions */}
+            {/* Quick Actions — hidden for admins (read-only asset view). */}
+            {!isAdmin && (
             <div className={`border rounded-2xl p-6 ${
               isDarkMode
                 ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
@@ -1981,6 +2158,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                 </button>
               </div>
             </div>
+            )}
 
             {/* Financial Summary */}
             <div className={`border rounded-2xl p-6 ${
@@ -2345,27 +2523,95 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   </div>
                 </div>
 
-                {/* Appraisal type — a single human (Concierge) appraisal.
-                    Standard/Comprehensive/Expedited/Insurance share one identical
-                    backend code path, so we surface just one human option. */}
+                {/* Block a second open human appraisal for this asset. */}
+                {hasOpenHumanAppraisal && (
+                  <div className={`mb-4 sm:mb-6 p-3 rounded-lg border ${
+                    isDarkMode
+                      ? 'bg-orange-500/10 border-orange-500/30 text-orange-300'
+                      : 'bg-orange-50 border-orange-200 text-orange-700'
+                  }`}>
+                    <p className='text-sm font-semibold mb-0.5'>An appraisal is already in progress</p>
+                    <p className='text-xs'>
+                      You already have a{openHumanAppraisal?.appraisalType ? ` ${openHumanAppraisal.appraisalType}` : ''} appraisal
+                      pending for this asset. You can request another once it's completed.
+                      AI appraisals are unaffected.
+                    </p>
+                  </div>
+                )}
+
+                {/* Appraisal type — a grid of tabs; clicking one reveals its
+                    detail below. Chosen value is sent as `appraisal_type`. */}
                 <div className='mb-4 sm:mb-6'>
                   <label className={`block text-sm font-medium mb-3 ${
                     isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     Appraisal Type
                   </label>
-                  <div className='p-3 sm:p-4 rounded-xl border-2 border-[#F1CB68] bg-[#F1CB68]/10'>
-                    <h4 className={`font-semibold mb-1 text-sm sm:text-base ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      Concierge Appraisal
-                    </h4>
-                    <p className={`text-xs sm:text-sm ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}>
-                      A certified human expert reviews this asset and returns a detailed valuation report.
-                    </p>
+
+                  {/* Tabs grid */}
+                  <div className='grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3'>
+                    {APPRAISAL_TYPE_OPTIONS.map(opt => {
+                      const selected = appraisalType === opt.value;
+                      return (
+                        <button
+                          type='button'
+                          key={opt.value}
+                          onClick={() => setAppraisalType(opt.value)}
+                          className={`px-2 py-2.5 sm:py-3 rounded-xl border-2 text-sm font-semibold text-center transition-colors ${
+                            selected
+                              ? 'border-[#F1CB68] bg-[#F1CB68]/10 text-[#F1CB68]'
+                              : isDarkMode
+                              ? 'border-[#FFFFFF14] text-white hover:border-[#F1CB68]/40'
+                              : 'border-gray-200 text-gray-900 hover:border-[#F1CB68]/40'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
                   </div>
+
+                  {/* Detail of the selected tab */}
+                  {(() => {
+                    const opt = APPRAISAL_TYPE_OPTIONS.find(o => o.value === appraisalType);
+                    if (!opt) return null;
+                    return (
+                      <div className={`mt-3 p-3 sm:p-4 rounded-xl border ${
+                        isDarkMode
+                          ? 'border-[#F1CB68]/30 bg-[#F1CB68]/5'
+                          : 'border-[#F1CB68]/40 bg-[#F1CB68]/10'
+                      }`}>
+                        <h4 className={`font-semibold mb-1 text-sm sm:text-base ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {opt.label}
+                        </h4>
+                        <p className={`text-xs sm:text-sm ${
+                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          {opt.description}
+                        </p>
+
+                        {/* Optional note for this request */}
+                        <label className={`block text-xs font-medium mt-3 mb-1.5 ${
+                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                        }`}>
+                          Note <span className='font-normal opacity-70'>(optional)</span>
+                        </label>
+                        <textarea
+                          value={appraisalNote}
+                          onChange={e => setAppraisalNote(e.target.value)}
+                          rows={3}
+                          placeholder='Add any details for the appraiser…'
+                          className={`w-full px-3 py-2.5 rounded-lg border text-sm resize-none ${
+                            isDarkMode
+                              ? 'bg-white/5 border-[#FFFFFF14] text-white placeholder-gray-500 focus:border-[#F1CB68]'
+                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-[#F1CB68]'
+                          } focus:outline-none`}
+                        />
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Info Notice */}
@@ -2399,11 +2645,11 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   </button>
                   <button
                     type='submit'
-                    disabled={!appraisalType || submittingAppraisal}
+                    disabled={!appraisalType || submittingAppraisal || hasOpenHumanAppraisal}
                     className={`flex-1 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-semibold transition-colors text-sm ${
                       submittingAppraisal
                         ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        : !appraisalType
+                        : !appraisalType || hasOpenHumanAppraisal
                         ? 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-50'
                         : 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
                     }`}
