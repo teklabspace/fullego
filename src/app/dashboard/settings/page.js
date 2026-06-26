@@ -1,7 +1,7 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   getUserProfile,
   updateUserProfile,
@@ -25,12 +25,15 @@ import PaymentBilling from '@/components/settings/PaymentBilling';
 export default function SettingsPage() {
   const { isDarkMode } = useTheme();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('profile');
-  
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = searchParams?.get('tab');
+    return ['profile', 'linked', 'payment'].includes(tab) ? tab : 'profile';
+  });
+
   // Check authentication on mount
   useEffect(() => {
     if (!isAuthenticated()) {
-      // Redirect to login if not authenticated
       router.push('/login');
     }
   }, [router]);

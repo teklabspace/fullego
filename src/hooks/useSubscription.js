@@ -12,6 +12,7 @@ import {
   cancelSubscription,
   renewSubscription,
 } from '@/utils/subscriptionsApi';
+import { getStripe } from '@/lib/stripe';
 
 // Backend response shapes are inconsistent; prefer `data`, then a named key,
 // then the raw response, finally the provided fallback.
@@ -67,14 +68,32 @@ export function useSubscription() {
   const runMutation = async (fn, successMsg, failMsg) => {
     try {
       const res = await fn();
+      // `requires_action` + `client_secret` are returned at the top level for 3DS
+      // (and may also appear nested under `data`). Cover both shapes.
       const payload = (res && (res.data ?? res)) || {};
+      const top = res || {};
       const needsAction =
-        payload.requiresAction ||
-        payload.requires_action ||
-        payload.clientSecret ||
-        payload.client_secret;
-      if (needsAction) {
-        toast.info('Action required to complete payment. Please check your billing details.');
+        top.requiresAction || top.requires_action ||
+        payload.requiresAction || payload.requires_action;
+      const clientSecret =
+        top.clientSecret || top.client_secret ||
+        payload.clientSecret || payload.client_secret;
+
+      if (needsAction || clientSecret) {
+        const stripe = await getStripe();
+        if (stripe && clientSecret) {
+          // Complete 3DS / SCA against the PaymentIntent already attached to the
+          // user's payment method — no card re-entry required.
+          const { error } = await stripe.confirmCardPayment(clientSecret);
+          if (error) {
+            toast.error(error.message || 'Payment authentication failed.');
+            await load();
+            return false;
+          }
+          toast.success(successMsg);
+        } else {
+          toast.info('Additional authentication is required to complete payment.');
+        }
       } else {
         toast.success(successMsg);
       }

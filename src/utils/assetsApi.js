@@ -165,10 +165,10 @@ export const getAsset = async (assetId) => {
 export const createAsset = async (assetData) => {
   // Transform camelCase to snake_case for API
   const transformedData = transformToSnake(assetData);
-  
+
   // Log transformed data for debugging
   console.log('🔄 Transformed asset data (snake_case):', JSON.stringify(transformedData, null, 2));
-  
+
   const response = await apiPost(API_ENDPOINTS.ASSETS.CREATE, transformedData);
   
   // Transform response back to camelCase
@@ -186,7 +186,7 @@ export const createAsset = async (assetData) => {
 export const updateAsset = async (assetId, assetData) => {
   // Transform camelCase to snake_case for API
   const transformedData = transformToSnake(assetData);
-  
+
   const response = await apiPut(API_ENDPOINTS.ASSETS.UPDATE(assetId), transformedData);
   
   // Transform response back to camelCase

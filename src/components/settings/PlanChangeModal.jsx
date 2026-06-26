@@ -9,6 +9,22 @@ const COPY = {
   renew: { title: 'Renew subscription', verb: 'Renew' },
 };
 
+// Format a price for display. Numbers (live backend prices) render as currency
+// via Intl; strings (pre-formatted fallback data) pass through untouched.
+const formatMoney = (value, currency = 'USD') => {
+  if (value == null) return null;
+  if (typeof value === 'string') return value;
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    }).format(value);
+  } catch {
+    return `${value} ${currency}`;
+  }
+};
+
 export default function PlanChangeModal({
   isOpen,
   setIsOpen,
@@ -21,8 +37,15 @@ export default function PlanChangeModal({
 }) {
   const copy = COPY[action] || COPY.subscribe;
   const planName = plan?.name || plan?.planName || plan?.plan_name || '';
-  const price = plan?.price ?? plan?.amount;
   const currency = plan?.currency || 'USD';
+  // Backend plans carry separate monthly_price/annual_price (camelCased by the
+  // transform), not a flat `price`. Pick the cycle the user is confirming, then
+  // fall back to any legacy flat field.
+  const rawPrice =
+    billingCycle === 'annual'
+      ? plan?.annualPrice ?? plan?.annual_price
+      : plan?.monthlyPrice ?? plan?.monthly_price;
+  const price = formatMoney(rawPrice ?? plan?.price ?? plan?.amount, currency);
 
   return (
     <Modal isOpen={isOpen} setIsOpen={setIsOpen} maxWidth="max-w-md">
@@ -52,7 +75,12 @@ export default function PlanChangeModal({
               <p>
                 Price:{' '}
                 <span className="font-semibold">
-                  {price} {currency}
+                  {price}
+                  {typeof rawPrice === 'number' && (
+                    <span className="font-normal opacity-70">
+                      {' '}/{billingCycle === 'annual' ? 'yr' : 'mo'}
+                    </span>
+                  )}
                 </span>
               </p>
             )}

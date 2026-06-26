@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import {
   createAsset,
+  requestAssetAppraisal,
   uploadFile,
   uploadAssetPhoto,
   uploadAssetDocument,
@@ -398,8 +399,8 @@ export default function AddAssetPage() {
         });
 
         // Asset created successfully with photo and document IDs
-        if (response.data?.id) {
-          const assetId = response.data.id;
+        const assetId = response.data?.id;
+        if (assetId) {
           console.log('🔗 Asset ID received:', assetId);
           console.log('📎 Asset created with IDs:', {
             photos: photoIds.length,
@@ -409,9 +410,30 @@ export default function AddAssetPage() {
           });
         }
 
-        // Redirect to assets page
+        // If the user chose a professional appraisal, request it now that the
+        // asset exists (the appraisal endpoint needs the asset id).
+        let appraisalRequested = false;
+        if (valuationType === 'appraisal' && assetId) {
+          try {
+            console.log('🔍 Requesting professional appraisal for asset:', assetId);
+            await requestAssetAppraisal(assetId, { appraisalType: 'Standard' });
+            appraisalRequested = true;
+            console.log('✅ Professional appraisal requested.');
+          } catch (appraisalErr) {
+            // Don't fail asset creation if the appraisal request fails — the
+            // user can retry from the asset detail page.
+            console.error('⚠️ Appraisal request failed (asset was still created):', appraisalErr);
+          }
+        }
+
+        // Redirect: send to the asset detail page when an appraisal was
+        // requested so the user can see its status; otherwise to the list.
         console.log('✅ Asset creation complete. Redirecting...');
-        router.push('/dashboard/assets');
+        if (appraisalRequested && assetId) {
+          router.push(`/dashboard/assets/${assetId}`);
+        } else {
+          router.push('/dashboard/assets');
+        }
       } catch (err) {
         console.error('❌ Error creating asset:', err);
         console.error('❌ Error details:', {
@@ -1874,7 +1896,11 @@ export default function AddAssetPage() {
 
               {/* Option 2: Professional Appraisal */}
               <div className='mb-8'>
-                <div className='bg-[#2A2A2D] rounded-2xl p-6 border-2 border-transparent hover:border-[#F1CB68]/30 transition-colors'>
+                <div className={`bg-[#2A2A2D] rounded-2xl p-6 border-2 transition-colors ${
+                  valuationType === 'appraisal'
+                    ? 'border-[#F1CB68]'
+                    : 'border-transparent hover:border-[#F1CB68]/30'
+                }`}>
                   <h4 className='text-lg font-semibold text-white mb-2'>
                     Request a Professional Appraisal
                   </h4>
@@ -1885,10 +1911,20 @@ export default function AddAssetPage() {
 
                   <div className='flex items-center gap-3'>
                     <button
-                      onClick={() => setValuationType('appraisal')}
-                      className='px-6 py-3 bg-[#F1CB68] text-[#0B0D12] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+                      onClick={() =>
+                        setValuationType(
+                          valuationType === 'appraisal' ? 'manual' : 'appraisal'
+                        )
+                      }
+                      className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                        valuationType === 'appraisal'
+                          ? 'bg-[#d4b55a] text-[#0B0D12] ring-2 ring-[#F1CB68] ring-offset-2 ring-offset-[#2A2A2D]'
+                          : 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
+                      }`}
                     >
-                      Request Appraisal
+                      {valuationType === 'appraisal'
+                        ? '✓ Appraisal Requested'
+                        : 'Request Appraisal'}
                     </button>
                     <button className='w-8 h-8 rounded-full border border-[#FFFFFF14] flex items-center justify-center text-gray-400 hover:text-white hover:border-[#F1CB68] transition-colors'>
                       <svg
@@ -1904,6 +1940,14 @@ export default function AddAssetPage() {
                       </svg>
                     </button>
                   </div>
+
+                  {valuationType === 'appraisal' && (
+                    <p className='text-[#F1CB68] text-xs mt-4'>
+                      A professional appraisal will be requested automatically
+                      once you finish creating this asset. You can track its
+                      status on the asset&apos;s detail page.
+                    </p>
+                  )}
                 </div>
               </div>
 

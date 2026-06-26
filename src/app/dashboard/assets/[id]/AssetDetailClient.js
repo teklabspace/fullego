@@ -10,6 +10,7 @@ import
     getAiReview,
     getAiUsage,
     getAsset,
+    getAssetAppraisals,
     getAssetDocuments,
     getAssetValueHistory,
     requestAssetAppraisal,
@@ -29,6 +30,23 @@ import { toast } from 'react-toastify';
 const apiErrorMessage = (err, fallback) => {
   const detail = err?.data?.detail ?? err?.data?.message ?? err?.message;
   return typeof detail === 'string' && detail ? detail : fallback;
+};
+
+// Format the "Last Appraisal" value for display. The backend sends a raw ISO
+// timestamp (e.g. "2026-06-25T22:49:00.137718+00:00"); after a fresh AI appraisal
+// the code sets a friendly literal ("Just now"). Render real dates as a readable
+// date + time and pass friendly/unparseable strings through unchanged.
+const formatAppraisalDate = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return d.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 };
 
 // Display metadata for an AI review verdict (guide §4). Tailwind classes are
@@ -57,6 +75,42 @@ const AI_DECISION_META = {
     icon: '–',
     darkClass: 'bg-[#2A2A2D] text-gray-400',
     lightClass: 'bg-gray-100 text-gray-500',
+  },
+};
+
+// Display metadata for an appraisal record's `status` (guide "Appraisal Status
+// Values" table). Used by the Past Appraisals history list. Classes are split
+// dark/light so Tailwind's JIT keeps them (no dynamic class names).
+const APPRAISAL_STATUS_META = {
+  ai_appraised: {
+    label: 'AI appraised',
+    darkClass: 'bg-green-500/10 text-green-400',
+    lightClass: 'bg-green-50 text-green-700',
+  },
+  needs_more_information: {
+    label: 'Needs more info',
+    darkClass: 'bg-orange-500/10 text-orange-400',
+    lightClass: 'bg-orange-50 text-orange-700',
+  },
+  professional_appraisal_recommended: {
+    label: 'Pro appraisal advised',
+    darkClass: 'bg-blue-500/10 text-blue-400',
+    lightClass: 'bg-blue-50 text-blue-700',
+  },
+  appraisal_failed: {
+    label: 'Failed',
+    darkClass: 'bg-red-500/10 text-red-400',
+    lightClass: 'bg-red-50 text-red-600',
+  },
+  pending: {
+    label: 'Pending',
+    darkClass: 'bg-[#F1CB68]/10 text-[#F1CB68]',
+    lightClass: 'bg-yellow-50 text-yellow-700',
+  },
+  completed: {
+    label: 'Completed',
+    darkClass: 'bg-green-500/10 text-green-400',
+    lightClass: 'bg-green-50 text-green-700',
   },
 };
 
@@ -126,6 +180,12 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   // AI Asset Review (advisory accept/reject)
   const [aiReview, setAiReview] = useState(null);      // { decision, reason, flags, model, createdAt }
   const [runningAiReview, setRunningAiReview] = useState(false);
+
+  // Past appraisals (AI + human) — guide §2/§3. Each record may carry stored
+  // `aiData` (camelCase of `ai_data`) with the same fields as a live ai_result.
+  const [appraisalHistory, setAppraisalHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [expandedAppraisalId, setExpandedAppraisalId] = useState(null);
 
   // Fetch asset data
   useEffect(() => {
@@ -339,6 +399,45 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     };
   }, [assetId]);
 
+  // Load the full appraisal history (AI + human) so past AI estimates and their
+  // stored `aiData` are visible without re-running. Refetched after a new run.
+  const refreshAppraisalHistory = async () => {
+    if (!assetId) return;
+    try {
+      setLoadingHistory(true);
+      const res = await getAssetAppraisals(assetId);
+      const list = Array.isArray(res?.data) ? res.data : [];
+      setAppraisalHistory(list);
+    } catch (err) {
+      console.warn('Could not load appraisal history:', err?.message);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!assetId) {
+      setLoadingHistory(false);
+      return;
+    }
+    setLoadingHistory(true);
+    getAssetAppraisals(assetId)
+      .then(res => {
+        if (cancelled) return;
+        setAppraisalHistory(Array.isArray(res?.data) ? res.data : []);
+      })
+      .catch(err => {
+        if (!cancelled) console.warn('Could not load appraisal history:', err?.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingHistory(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assetId]);
+
   // Remaining AI appraisals for this month. null => unlimited (annual/admin).
   const aiAppraisalsRemaining = aiUsage?.aiAppraisals?.remaining ?? null;
   const aiLimitReached =
@@ -379,6 +478,9 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
       // The backend also updated the asset's estimated value + valuation type,
       // so keep the displayed "Last Appraisal" in sync for this session.
       setAsset(prev => (prev ? { ...prev, lastAppraisal: 'Just now' } : prev));
+
+      // Pull the freshly-created record into the Past Appraisals history.
+      refreshAppraisalHistory();
     } catch (err) {
       if (err.status === 403) {
         // Monthly limit hit — surface the backend message and re-sync quota so
@@ -815,7 +917,10 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
               )}
             </button>
             <button
-              onClick={() => setShowAppraisalModal(true)}
+              onClick={() => {
+                setAppraisalType('Concierge');
+                setShowAppraisalModal(true);
+              }}
               disabled={submittingAppraisal}
               className={`px-6 py-3 bg-transparent border rounded-lg font-semibold transition-colors ${
                 submittingAppraisal
@@ -1125,7 +1230,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
               <p className={`text-sm ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-600'
               }`}>
-                Last Appraisal: {asset.lastAppraisal}
+                Last Appraisal: {formatAppraisalDate(asset.lastAppraisal)}
               </p>
             </div>
 
@@ -1135,7 +1240,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                 ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
                 : 'bg-white border-gray-300'
             }`}>
-              <div className='flex items-center justify-between mb-1'>
+              <div className='mb-1'>
                 <h3 className={`text-lg font-semibold flex items-center gap-2 ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}>
@@ -1146,7 +1251,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                 </h3>
                 {/* Remaining-quota badge (null limit => unlimited) */}
                 {aiUsage?.aiAppraisals && (
-                  <span className={`text-xs px-2 py-1 rounded-full ${
+                  <span className={`inline-block mt-1.5 text-xs px-2 py-1 rounded-full whitespace-nowrap ${
                     aiLimitReached
                       ? isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'
                       : isDarkMode ? 'bg-[#2A2A2D] text-gray-300' : 'bg-gray-100 text-gray-700'
@@ -1393,7 +1498,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                 ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
                 : 'bg-white border-gray-300'
             }`}>
-              <div className='flex items-center justify-between mb-1'>
+              <div className='mb-1'>
                 <h3 className={`text-lg font-semibold flex items-center gap-2 ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}>
@@ -1404,7 +1509,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   AI Asset Review
                 </h3>
                 {aiUsage?.aiReviews && (
-                  <span className={`text-xs px-2 py-1 rounded-full ${
+                  <span className={`inline-block mt-1.5 text-xs px-2 py-1 rounded-full whitespace-nowrap ${
                     aiReviewLimitReached
                       ? isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'
                       : isDarkMode ? 'bg-[#2A2A2D] text-gray-300' : 'bg-gray-100 text-gray-700'
@@ -1497,6 +1602,242 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                 </p>
               )}
             </div>
+
+            {/* Past Appraisals — history of AI + human appraisals (guide §2/§3).
+                Stored `aiData` is surfaced here without re-running. */}
+            {(loadingHistory || appraisalHistory.length > 0) && (
+              <div className={`border rounded-2xl p-6 ${
+                isDarkMode
+                  ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
+                  : 'bg-white border-gray-300'
+              }`}>
+                <h3 className={`text-lg font-semibold mb-4 ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Past Appraisals
+                </h3>
+
+                {loadingHistory ? (
+                  <div className='space-y-3'>
+                    {[0, 1].map((i) => (
+                      <div
+                        key={i}
+                        className={`rounded-lg border p-3 ${
+                          isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1F]' : 'border-gray-200 bg-gray-50'
+                        }`}
+                      >
+                        <div className='flex items-start justify-between gap-3'>
+                          <div className='min-w-0 flex-1'>
+                            <div className='flex items-center gap-2'>
+                              <div className={`h-5 w-10 rounded-full animate-pulse ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`} />
+                              <div className={`h-5 w-28 rounded-full animate-pulse ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`} />
+                            </div>
+                            <div className={`h-3 w-32 rounded mt-2 animate-pulse ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`} />
+                          </div>
+                          <div className={`h-5 w-20 rounded animate-pulse ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className='space-y-3'>
+                    {appraisalHistory.map((appr) => {
+                      const statusMeta =
+                        APPRAISAL_STATUS_META[appr.status] || {
+                          label: appr.status || 'Unknown',
+                          darkClass: 'bg-[#2A2A2D] text-gray-400',
+                          lightClass: 'bg-gray-100 text-gray-500',
+                        };
+                      const aiData = appr.aiData || null;
+                      const isAi = appr.appraisalType === 'API';
+                      const isExpanded = expandedAppraisalId === appr.id;
+                      const hasDetails = !!aiData || !!appr.notes;
+
+                      return (
+                        <div
+                          key={appr.id}
+                          className={`rounded-lg border ${
+                            isDarkMode ? 'border-[#FFFFFF14] bg-[#1A1A1F]' : 'border-gray-200 bg-gray-50'
+                          }`}
+                        >
+                          {/* Summary row */}
+                          <button
+                            type='button'
+                            onClick={() =>
+                              hasDetails &&
+                              setExpandedAppraisalId(isExpanded ? null : appr.id)
+                            }
+                            className={`w-full text-left p-3 flex items-start justify-between gap-3 ${
+                              hasDetails ? 'cursor-pointer' : 'cursor-default'
+                            }`}
+                          >
+                            <div className='min-w-0'>
+                              <div className='flex items-center gap-2 flex-wrap'>
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                  isDarkMode ? 'bg-[#F1CB68]/10 text-[#F1CB68]' : 'bg-yellow-50 text-yellow-700'
+                                }`}>
+                                  {isAi ? 'AI' : (appr.appraisalType || 'Appraisal')}
+                                </span>
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                                  isDarkMode ? statusMeta.darkClass : statusMeta.lightClass
+                                }`}>
+                                  {statusMeta.label}
+                                </span>
+                              </div>
+                              <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                {formatDate(appr.requestedAt || appr.completedAt)}
+                              </p>
+                            </div>
+                            <div className='flex items-center gap-2 shrink-0'>
+                              {appr.estimatedValue != null && (
+                                <span className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {formatCurrency(appr.estimatedValue, aiData?.currency)}
+                                </span>
+                              )}
+                              {hasDetails && (
+                                <svg
+                                  width='14' height='14' viewBox='0 0 24 24' fill='none'
+                                  stroke='currentColor' strokeWidth='2'
+                                  className={`transition-transform ${isExpanded ? 'rotate-180' : ''} ${
+                                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                  }`}
+                                >
+                                  <path d='M6 9l6 6 6-6' />
+                                </svg>
+                              )}
+                            </div>
+                          </button>
+
+                          {/* Expanded detail */}
+                          {isExpanded && (
+                            <div className={`px-3 pb-3 border-t ${
+                              isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                            }`}>
+                              {/* Failed appraisals: show the notes/error */}
+                              {appr.status === 'appraisal_failed' && appr.notes && (
+                                <p className={`text-xs mt-3 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>
+                                  {appr.notes}
+                                </p>
+                              )}
+
+                              {aiData && (
+                                <div className='mt-3 space-y-2'>
+                                  {/* Range + confidence */}
+                                  <div className='flex items-center gap-2 flex-wrap'>
+                                    {(aiData.valueRangeLow != null && aiData.valueRangeHigh != null) && (
+                                      <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        Range: {formatCurrency(aiData.valueRangeLow, aiData.currency)} – {formatCurrency(aiData.valueRangeHigh, aiData.currency)}
+                                      </span>
+                                    )}
+                                    {aiData.confidence && (
+                                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${
+                                        aiData.confidence === 'high'
+                                          ? isDarkMode ? 'bg-green-500/10 text-green-400' : 'bg-green-50 text-green-700'
+                                          : aiData.confidence === 'medium'
+                                          ? isDarkMode ? 'bg-[#F1CB68]/10 text-[#F1CB68]' : 'bg-yellow-50 text-yellow-700'
+                                          : isDarkMode ? 'bg-orange-500/10 text-orange-400' : 'bg-orange-50 text-orange-700'
+                                      }`}>
+                                        {aiData.confidence} confidence
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Summary */}
+                                  {aiData.appraisalSummary && (
+                                    <p className={`text-xs leading-relaxed ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                      {aiData.appraisalSummary}
+                                    </p>
+                                  )}
+
+                                  {/* Missing information */}
+                                  {aiData.missingInformation?.length > 0 && (
+                                    <div>
+                                      <p className={`text-xs font-semibold ${isDarkMode ? 'text-orange-300' : 'text-orange-700'}`}>
+                                        To improve accuracy, add:
+                                      </p>
+                                      <ul className={`text-xs list-disc list-inside ${isDarkMode ? 'text-orange-300' : 'text-orange-700'}`}>
+                                        {aiData.missingInformation.map((item, i) => (
+                                          <li key={i}>{item}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+
+                                  {/* Professional appraisal callout */}
+                                  {aiData.professionalAppraisalNeeded && (
+                                    <p className={`text-xs ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                                      A certified appraisal is recommended for this asset.
+                                    </p>
+                                  )}
+
+                                  {/* Value drivers */}
+                                  {aiData.keyValueDrivers?.length > 0 && (
+                                    <ul className='text-xs space-y-0.5'>
+                                      {aiData.keyValueDrivers.map((driver, i) => (
+                                        <li key={i} className={`flex items-start gap-1.5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                          <span className='text-green-500 mt-0.5 shrink-0'>↑</span>
+                                          {driver}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+
+                                  {/* Risk factors */}
+                                  {aiData.riskFactors?.length > 0 && (
+                                    <ul className='text-xs space-y-0.5'>
+                                      {aiData.riskFactors.map((risk, i) => (
+                                        <li key={i} className={`flex items-start gap-1.5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                          <span className='text-orange-400 mt-0.5 shrink-0'>!</span>
+                                          {risk}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+
+                                  {/* Suggested next step */}
+                                  {aiData.suggestedNextStep && (
+                                    <p className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                      <span className='font-semibold'>Next step: </span>
+                                      {aiData.suggestedNextStep}
+                                    </p>
+                                  )}
+
+                                  {/* Recommended documents */}
+                                  {aiData.recommendedDocuments?.length > 0 && (
+                                    <ul className='text-xs space-y-0.5'>
+                                      {aiData.recommendedDocuments.map((doc, i) => (
+                                        <li key={i} className={`flex items-start gap-1.5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                          <span className='shrink-0'>•</span>
+                                          {doc}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+
+                                  {/* Disclaimer */}
+                                  {aiData.disclaimer && (
+                                    <p className={`text-xs italic leading-relaxed ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                      {aiData.disclaimer}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Concierge / human notes (non-failed) */}
+                              {!aiData && appr.status !== 'appraisal_failed' && appr.notes && (
+                                <p className={`text-xs mt-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                  {appr.notes}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Quick Actions */}
             <div className={`border rounded-2xl p-6 ${
@@ -2004,117 +2345,26 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   </div>
                 </div>
 
-                {/* Appraisal Type Selection */}
+                {/* Appraisal type — a single human (Concierge) appraisal.
+                    Standard/Comprehensive/Expedited/Insurance share one identical
+                    backend code path, so we surface just one human option. */}
                 <div className='mb-4 sm:mb-6'>
                   <label className={`block text-sm font-medium mb-3 ${
                     isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
-                    Select Appraisal Type
+                    Appraisal Type
                   </label>
-                  <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-                    <button
-                      type='button'
-                      onClick={() => setAppraisalType('standard')}
-                      className={`p-3 sm:p-4 rounded-xl border-2 text-left transition-all ${
-                        appraisalType === 'standard'
-                          ? 'border-[#F1CB68] bg-[#F1CB68]/10'
-                          : isDarkMode
-                          ? 'border-[#FFFFFF14] hover:border-[#F1CB68]/50 bg-white/5'
-                          : 'border-gray-300 hover:border-[#F1CB68]/50 bg-gray-50'
-                      }`}
-                    >
-                      <h4 className={`font-semibold mb-1 text-sm sm:text-base ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        Standard Appraisal
-                      </h4>
-                      <p className={`text-xs sm:text-sm mb-1.5 ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        Basic valuation report within 5-7 business days
-                      </p>
-                      <p className='text-[#F1CB68] font-semibold text-sm'>
-                        $500
-                      </p>
-                    </button>
-
-                    <button
-                      type='button'
-                      onClick={() => setAppraisalType('comprehensive')}
-                      className={`p-3 sm:p-4 rounded-xl border-2 text-left transition-all ${
-                        appraisalType === 'comprehensive'
-                          ? 'border-[#F1CB68] bg-[#F1CB68]/10'
-                          : isDarkMode
-                          ? 'border-[#FFFFFF14] hover:border-[#F1CB68]/50 bg-white/5'
-                          : 'border-gray-300 hover:border-[#F1CB68]/50 bg-gray-50'
-                      }`}
-                    >
-                      <h4 className={`font-semibold mb-1 text-sm sm:text-base ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        Comprehensive Appraisal
-                      </h4>
-                      <p className={`text-xs sm:text-sm mb-1.5 ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        Detailed valuation with market analysis
-                      </p>
-                      <p className='text-[#F1CB68] font-semibold text-sm'>
-                        $1,200
-                      </p>
-                    </button>
-
-                    <button
-                      type='button'
-                      onClick={() => setAppraisalType('expedited')}
-                      className={`p-3 sm:p-4 rounded-xl border-2 text-left transition-all ${
-                        appraisalType === 'expedited'
-                          ? 'border-[#F1CB68] bg-[#F1CB68]/10'
-                          : isDarkMode
-                          ? 'border-[#FFFFFF14] hover:border-[#F1CB68]/50 bg-white/5'
-                          : 'border-gray-300 hover:border-[#F1CB68]/50 bg-gray-50'
-                      }`}
-                    >
-                      <h4 className={`font-semibold mb-1 text-sm sm:text-base ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        Expedited Appraisal
-                      </h4>
-                      <p className={`text-xs sm:text-sm mb-1.5 ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        Fast-track service within 48 hours
-                      </p>
-                      <p className='text-[#F1CB68] font-semibold text-sm'>
-                        $850
-                      </p>
-                    </button>
-
-                    <button
-                      type='button'
-                      onClick={() => setAppraisalType('insurance')}
-                      className={`p-3 sm:p-4 rounded-xl border-2 text-left transition-all ${
-                        appraisalType === 'insurance'
-                          ? 'border-[#F1CB68] bg-[#F1CB68]/10'
-                          : isDarkMode
-                          ? 'border-[#FFFFFF14] hover:border-[#F1CB68]/50 bg-white/5'
-                          : 'border-gray-300 hover:border-[#F1CB68]/50 bg-gray-50'
-                      }`}
-                    >
-                      <h4 className={`font-semibold mb-1 text-sm sm:text-base ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        Insurance Appraisal
-                      </h4>
-                      <p className={`text-xs sm:text-sm mb-1.5 ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        Specialized for insurance purposes
-                      </p>
-                      <p className='text-[#F1CB68] font-semibold text-sm'>
-                        $750
-                      </p>
-                    </button>
+                  <div className='p-3 sm:p-4 rounded-xl border-2 border-[#F1CB68] bg-[#F1CB68]/10'>
+                    <h4 className={`font-semibold mb-1 text-sm sm:text-base ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Concierge Appraisal
+                    </h4>
+                    <p className={`text-xs sm:text-sm ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      A certified human expert reviews this asset and returns a detailed valuation report.
+                    </p>
                   </div>
                 </div>
 

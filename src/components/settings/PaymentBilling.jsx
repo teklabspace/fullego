@@ -1,15 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { getPaymentMethods, getPaymentHistory, listInvoices } from '@/utils/paymentsApi';
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-toastify';
+import {
+  getPaymentMethods,
+  getPaymentHistory,
+  listInvoices,
+  removePaymentMethod,
+} from '@/utils/paymentsApi';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useAuth } from '@/hooks/useAuth';
 import CurrentPlanCard from '@/components/settings/CurrentPlanCard';
 import PlanSelector from '@/components/settings/PlanSelector';
 import PlanFeatures from '@/components/settings/PlanFeatures';
 import SubscriptionHistory from '@/components/settings/SubscriptionHistory';
 import PlanChangeModal from '@/components/settings/PlanChangeModal';
+import AddPaymentMethodModal from '@/components/settings/AddPaymentMethodModal';
 
 export default function PaymentBilling({ isDarkMode }) {
+  const router = useRouter();
+  const { isAdmin, isAdvisor } = useAuth();
   const {
     current,
     plans,
@@ -33,42 +44,69 @@ export default function PaymentBilling({ isDarkMode }) {
 
   // Shared confirmation modal state.
   const [modal, setModal] = useState({ open: false, action: 'subscribe', plan: null, billingCycle: 'monthly', busy: false });
+  // Add-payment-method (Stripe Elements) modal + per-method delete state.
+  const [addPmOpen, setAddPmOpen] = useState(false);
+  const [deletingPm, setDeletingPm] = useState(null);
+
+  // Reload only the saved payment methods (after add/remove).
+  const refreshPaymentMethods = useCallback(async () => {
+    try {
+      const res = await getPaymentMethods();
+      setPaymentMethods(res.data || res.paymentMethods || []);
+    } catch (err) {
+      console.error('Error refreshing payment methods:', err);
+    }
+  }, []);
+
+  const fetchPayments = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [methodsRes, historyRes, invoicesRes] = await Promise.allSettled([
+        getPaymentMethods(),
+        getPaymentHistory(),
+        listInvoices(),
+      ]);
+      if (methodsRes.status === 'fulfilled') {
+        setPaymentMethods(methodsRes.value.data || methodsRes.value.paymentMethods || []);
+      }
+      if (historyRes.status === 'fulfilled') {
+        setPaymentHistory(historyRes.value.data || historyRes.value || []);
+      }
+      if (invoicesRes.status === 'fulfilled') {
+        setInvoices(invoicesRes.value.data || invoicesRes.value || []);
+      }
+      if (
+        methodsRes.status === 'rejected' &&
+        historyRes.status === 'rejected' &&
+        invoicesRes.status === 'rejected'
+      ) {
+        setError('Failed to load payment and billing data.');
+      }
+    } catch (err) {
+      console.error('Error loading payment & billing:', err);
+      setError(err.message || 'Failed to load payment and billing data.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchPayments = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const [methodsRes, historyRes, invoicesRes] = await Promise.allSettled([
-          getPaymentMethods(),
-          getPaymentHistory(),
-          listInvoices(),
-        ]);
-        if (methodsRes.status === 'fulfilled') {
-          setPaymentMethods(methodsRes.value.data || methodsRes.value.paymentMethods || []);
-        }
-        if (historyRes.status === 'fulfilled') {
-          setPaymentHistory(historyRes.value.data || historyRes.value || []);
-        }
-        if (invoicesRes.status === 'fulfilled') {
-          setInvoices(invoicesRes.value.data || invoicesRes.value || []);
-        }
-        if (
-          methodsRes.status === 'rejected' &&
-          historyRes.status === 'rejected' &&
-          invoicesRes.status === 'rejected'
-        ) {
-          setError('Failed to load payment and billing data.');
-        }
-      } catch (err) {
-        console.error('Error loading payment & billing:', err);
-        setError(err.message || 'Failed to load payment and billing data.');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchPayments();
-  }, []);
+  }, [fetchPayments]);
+
+  const handleRemovePaymentMethod = async (methodId) => {
+    setDeletingPm(methodId);
+    try {
+      await removePaymentMethod(methodId);
+      toast.success('Payment method removed');
+      await refreshPaymentMethods();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to remove payment method');
+    } finally {
+      setDeletingPm(null);
+    }
+  };
 
   const openModal = (action, plan, billingCycle = 'monthly') =>
     setModal({ open: true, action, plan, billingCycle, busy: false });
@@ -86,6 +124,34 @@ export default function PaymentBilling({ isDarkMode }) {
     else if (action === 'renew') ok = await renew();
     setModal((m) => ({ ...m, busy: false, open: ok ? false : m.open }));
   };
+
+  if (isAdmin || isAdvisor) {
+    return (
+      <div className="space-y-6">
+        <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Billing</h2>
+        <div className={`rounded-2xl p-6 border ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`}>
+          <div className="flex items-start gap-4">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isDarkMode ? 'bg-[#F1CB68]/10' : 'bg-[#F1CB68]/10'}`}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#F1CB68]">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <div>
+              <p className={`text-base font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                No subscription required
+              </p>
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                {isAdmin ? 'Admin' : 'Advisor'} accounts have full platform access and do not require a subscription plan.
+                Subscriptions apply to investor accounts only.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -111,7 +177,9 @@ export default function PaymentBilling({ isDarkMode }) {
         plans={plans}
         current={current}
         loading={subLoading}
-        onSelectPlan={(plan, billingCycle, action) => openModal(action, plan, billingCycle)}
+        onSelectPlan={(plan, billingCycle, action) =>
+          action === 'contact' ? router.push('/contact') : openModal(action, plan, billingCycle)
+        }
         isDarkMode={isDarkMode}
       />
 
@@ -150,6 +218,7 @@ export default function PaymentBilling({ isDarkMode }) {
               </p>
             </div>
             <button
+              onClick={() => router.push('/dashboard/settings?tab=profile')}
               className={`w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all ${
                 isDarkMode ? 'bg-[#F1CB68]/10 text-[#F1CB68] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20' : 'bg-[#F1CB68]/10 text-[#BF9B30] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20'
               }`}
@@ -182,7 +251,7 @@ export default function PaymentBilling({ isDarkMode }) {
               ) : (
                 <div className="space-y-2">
                   {paymentMethods.map((method) => (
-                    <div key={method.id} className="flex items-center justify-between">
+                    <div key={method.id} className="flex items-center justify-between gap-2">
                       <div>
                         <p className={`text-base font-semibold mb-1 tracking-wider ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                           {method.type === 'card' && method.card ? `•••• •••• •••• ${method.card.last4}` : method.type}
@@ -191,12 +260,30 @@ export default function PaymentBilling({ isDarkMode }) {
                           {method.type === 'card' && method.card ? method.card.brand : method.type}
                         </span>
                       </div>
-                      <div
-                        className={`px-2 py-1 rounded text-xs font-medium ${
-                          method.isDefault || method.is_default ? 'bg-green-500/20 text-green-400' : isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-700'
-                        }`}
-                      >
-                        {method.isDefault || method.is_default ? 'Default' : 'Saved'}
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            method.isDefault || method.is_default ? 'bg-green-500/20 text-green-400' : isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {method.isDefault || method.is_default ? 'Default' : 'Saved'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePaymentMethod(method.id)}
+                          disabled={deletingPm === method.id}
+                          aria-label="Remove payment method"
+                          className="p-1.5 rounded-md text-red-400 hover:bg-red-500/15 transition-colors disabled:opacity-50"
+                        >
+                          {deletingPm === method.id ? (
+                            <span className="text-xs">…</span>
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          )}
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -204,11 +291,12 @@ export default function PaymentBilling({ isDarkMode }) {
               )}
             </div>
             <button
+              onClick={() => setAddPmOpen(true)}
               className={`w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all ${
                 isDarkMode ? 'bg-[#F1CB68]/10 text-[#F1CB68] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20' : 'bg-[#F1CB68]/10 text-[#BF9B30] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20'
               }`}
             >
-              Manage payment methods
+              Add payment method
             </button>
           </div>
         </div>
@@ -325,6 +413,13 @@ export default function PaymentBilling({ isDarkMode }) {
         billingCycle={modal.billingCycle}
         busy={modal.busy}
         onConfirm={handleConfirm}
+        isDarkMode={isDarkMode}
+      />
+
+      <AddPaymentMethodModal
+        isOpen={addPmOpen}
+        setIsOpen={setAddPmOpen}
+        onAdded={refreshPaymentMethods}
         isDarkMode={isDarkMode}
       />
     </div>
