@@ -1019,6 +1019,7 @@ function AppraisalDetailModal({
   const [thread, setThread] = useState([]);
   const [loadingThread, setLoadingThread] = useState(true);
   const [posting, setPosting] = useState(false);
+  const chatScrollRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1033,6 +1034,13 @@ function AppraisalDetailModal({
       .finally(() => { if (!cancelled) setLoadingThread(false); });
     return () => { cancelled = true; };
   }, [appraisal.id]);
+
+  // Keep the chat pinned to the latest message (bottom) — on load and on every
+  // new message. Scroll up to see older ones.
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [thread, loadingThread]);
 
   // Progress timeline steps
   const timelineSteps = [
@@ -1361,7 +1369,7 @@ function AppraisalDetailModal({
                   ))}
                 </div>
               ) : notes.length > 0 ? (
-                <div className='h-full overflow-y-auto p-3 space-y-3 concierge-modal-scrollbar'>
+                <div ref={chatScrollRef} className='h-full overflow-y-auto p-3 space-y-3 concierge-modal-scrollbar'>
                   {notes.map((note, idx) => {
                     // "Mine" = the current viewer's own messages → right (yellow).
                     // Everything else → left, labelled with the sender's name.

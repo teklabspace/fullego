@@ -1,6 +1,7 @@
 'use client';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
 import { toast } from 'react-toastify';
 import {
@@ -11,28 +12,64 @@ import {
   deleteNotification,
 } from '@/utils/notificationsApi';
 
+// "nadia nazar" / "NADIA NAZAR" → "Nadia Nazar"
+const titleCase = (s) =>
+  (s || '').toString().toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
 export default function NotificationsPage() {
   const { isDarkMode } = useTheme();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('all');
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [markingAll, setMarkingAll] = useState(false);
 
-  // Fetch notifications and unread count
+  // Initial load only — no polling. Live updates arrive over the socket below
+  // (so the page never re-fetches and flashes the skeleton on its own).
   useEffect(() => {
     fetchNotifications();
     fetchUnreadCount();
-
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(() => {
-      fetchUnreadCount();
-      if (activeTab === 'all') {
-        fetchNotifications();
-      }
-    }, 30000);
-
-    return () => clearInterval(interval);
   }, [activeTab]);
+
+  // Prepend new notifications pushed over the WebSocket (broadcast by
+  // RealtimeNotifications) instantly — no API recall, no skeleton.
+  useEffect(() => {
+    const onNew = (e) => {
+      const msg = e.detail;
+      if (!msg) return;
+      console.log('[notifications page] live update', msg.type, msg.notification_id);
+      const code = msg.asset_code ? ` on ${msg.asset_code}` : '';
+      const title =
+        msg.type === 'appraisal_created'
+          ? `New appraisal request${code}`
+          : `New message${code}`;
+      const realId = msg.notification_id;
+      const item = {
+        id: realId || `live-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+        notificationId: realId,
+        type: msg.type,
+        title,
+        preview: msg.preview,
+        author_name: msg.author_name,
+        asset_code: msg.asset_code,
+        asset_name: msg.asset_name,
+        appraisal_id: msg.appraisal_id,
+        created_at: msg.created_at || new Date().toISOString(),
+        read: false,
+        isRead: false,
+      };
+      setNotifications((prev) => {
+        if (realId && prev.some((n) => (n.id || n.notificationId) === realId)) {
+          return prev; // already in the list
+        }
+        return [item, ...prev];
+      });
+      setUnreadCount((prev) => prev + 1);
+    };
+    window.addEventListener('app:notification', onNew);
+    return () => window.removeEventListener('app:notification', onNew);
+  }, []);
 
   const fetchNotifications = async () => {
     try {
@@ -72,13 +109,28 @@ export default function NotificationsPage() {
   };
 
   const handleMarkAllAsRead = async () => {
+    if (markingAll) return;
+    setMarkingAll(true);
+    // Optimistically flip everything to read — the per-item CSS transition fades
+    // the unread highlight out. This animation IS the loading (no skeleton); we
+    // load fresh data in the background while it plays.
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true, read: true })));
     try {
       await markAllAsRead();
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      // Let the fade animation play, then refresh quietly (no `loading`/skeleton).
+      await new Promise(r => setTimeout(r, 700));
+      try {
+        const response = await getNotifications({ unreadOnly: activeTab === 'unread' });
+        setNotifications(response.data || response || []);
+      } catch {
+        /* keep the optimistic read state */
+      }
       setUnreadCount(0);
       toast.success('All notifications marked as read');
     } catch (error) {
       toast.error('Failed to mark all as read');
+    } finally {
+      setMarkingAll(false);
     }
   };
 
@@ -175,17 +227,22 @@ export default function NotificationsPage() {
         </div>
 
         {/* Mark All as Read Button */}
-        {notifications.length > 0 && unreadCount > 0 && (
+        {notifications.length > 0 && (unreadCount > 0 || markingAll) && (
           <div className='mb-4 flex justify-end'>
             <button
               onClick={handleMarkAllAsRead}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 ${
+              disabled={markingAll}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                markingAll
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:opacity-90'
+              } ${
                 isDarkMode
                   ? 'bg-white/10 text-white hover:bg-white/20'
                   : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
               }`}
             >
-              Mark All as Read
+              {markingAll ? 'Marking…' : 'Mark All as Read'}
             </button>
           </div>
         )}
@@ -230,82 +287,99 @@ export default function NotificationsPage() {
               ))}
             </>
           ) : filteredNotifications.length > 0 ? (
-            filteredNotifications.map(notification => {
-              const notificationType = getNotificationType(notification.notificationType || notification.notification_type);
+            filteredNotifications.map((notification, idx) => {
+              const authorName = notification.authorName ?? notification.author_name;
+              const assetCode = notification.assetCode ?? notification.asset_code;
+              const appraisalId = notification.appraisalId ?? notification.appraisal_id;
+              const isRead = notification.isRead ?? notification.read ?? false;
+              const message =
+                notification.preview ??
+                notification.message ??
+                notification.description ??
+                '';
+              const openThread = (e) => {
+                e.stopPropagation();
+                if (!isRead) handleMarkAsRead(notification.id);
+                if (appraisalId) {
+                  router.push(`/dashboard/concierge?appraisal=${appraisalId}`);
+                }
+              };
               return (
                 <div
                   key={notification.id}
-                  className='rounded-2xl p-6 hover:scale-[1.01] transition-transform cursor-pointer'
+                  className='rounded-2xl p-4 transition-colors cursor-pointer'
                   style={{
                     background:
                       'linear-gradient(135deg, rgba(30, 30, 35, 0.8) 0%, rgba(20, 20, 25, 0.9) 100%)',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                   }}
                   onClick={() => {
-                    if (!notification.isRead) {
-                      handleMarkAsRead(notification.id);
-                    }
+                    if (!isRead) handleMarkAsRead(notification.id);
                   }}
                 >
-                  <div className='flex items-start gap-4'>
-                    {/* Bell Icon */}
-                    <div
-                      className='w-12 h-12 rounded-full flex items-center justify-center shrink-0'
-                      style={{
-                        background: 'rgba(241, 203, 104, 0.2)',
-                      }}
-                    >
-                      <Image src='/Bell.svg' alt='Bell' width={24} height={24} />
-                    </div>
+                  <div className='flex items-start gap-3'>
+                    {/* Larger bell icon (with its built-in dot) */}
+                    <Image src='/icons/bell.svg' alt='' width={44} height={44} className='shrink-0' />
 
                     {/* Content */}
-                    <div className='flex-1'>
-                      <div className='flex items-start gap-2 mb-2'>
-                        {notificationType === 'warning' ? (
-                          <Image
-                            src='/icons/warning.svg'
-                            alt='Warning'
-                            width={18}
-                            height={18}
-                          />
-                        ) : (
-                          <Image
-                            src='/icons/check-circle.svg'
-                            alt='Success'
-                            width={18}
-                            height={18}
-                          />
-                        )}
-                        <p className={`font-medium flex-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {notification.title || notification.message || 'Notification'}
-                        </p>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(notification.id);
-                          }}
-                          className='text-gray-400 hover:text-red-400 transition-colors'
-                        >
-                          <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
-                            <path d='M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' />
-                          </svg>
-                        </button>
+                    <div className='flex-1 min-w-0'>
+                      {/* Top row: tag + code, then time + delete */}
+                      <div className='flex items-center justify-between gap-2 mb-1.5'>
+                        <div className='flex items-center gap-2 min-w-0'>
+                          {authorName && (
+                            <span className='text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#F1CB68]/15 text-[#F1CB68] truncate max-w-[180px]'>
+                              {titleCase(authorName)}
+                            </span>
+                          )}
+                          {assetCode && (
+                            <span className='text-[11px] font-mono text-gray-400 shrink-0'>
+                              {assetCode}
+                            </span>
+                          )}
+                        </div>
+                        <div className='flex items-center gap-2 shrink-0'>
+                          <span className='text-[11px] text-gray-400'>
+                            {formatTimeAgo(notification.createdAt || notification.created_at)}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(notification.id);
+                            }}
+                            aria-label='Delete'
+                            className='text-gray-400 hover:text-red-400 transition-colors'
+                          >
+                            <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                              <path d='M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
-                      <p className='text-gray-400 text-sm mb-2'>
-                        {notification.message || notification.description || ''}
-                      </p>
-                      <p className='text-gray-500 text-xs'>
-                        {formatTimeAgo(notification.createdAt || notification.created_at)}
-                      </p>
-                    </div>
 
-                    {/* Unread Indicator */}
-                    {!notification.isRead && (
-                      <div
-                        className='w-3 h-3 rounded-full shrink-0'
-                        style={{ background: '#F1CB68' }}
-                      />
-                    )}
+                      {notification.title && (
+                        <p className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {notification.title}
+                        </p>
+                      )}
+
+                      {/* Message in a background box; click opens the thread */}
+                      <button
+                        onClick={openThread}
+                        style={{ transitionDelay: markingAll ? `${idx * 70}ms` : '0ms' }}
+                        className={`inline-flex max-w-full text-left items-center gap-2 rounded-xl px-3 py-1.5 transition-colors duration-500 ${
+                          !isRead ? 'bg-[#F1CB68]/10 hover:bg-[#F1CB68]/15' : 'bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <span className={`min-w-0 text-sm line-clamp-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} ${!isRead ? 'font-medium' : ''}`}>
+                          {message}
+                        </span>
+                        {appraisalId && (
+                          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='shrink-0 text-gray-400'>
+                            <path d='M9 18l6-6-6-6' />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

@@ -15,6 +15,10 @@ const POLL_INTERVAL_MS = 45 * 1000; // 45 seconds
 const UNREAD_COUNT_KEY = 'notifications-unread-count';
 const NOTIFICATIONS_LIST_KEY = 'notifications-list';
 
+// "nadia nazar" / "NADIA NAZAR" → "Nadia Nazar"
+const titleCase = (s) =>
+  (s || '').toString().toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
 function useUnreadCount() {
   const { data, mutate, error } = useSWR(
     UNREAD_COUNT_KEY,
@@ -124,14 +128,9 @@ export default function NotificationDropdown() {
       <div className="relative">
         <button
           type="button"
-          className="flex items-center justify-center rounded-full relative cursor-pointer hover:opacity-80 transition-opacity"
+          className="flex items-center justify-center rounded-full relative cursor-pointer hover:opacity-80 transition-opacity w-11 h-11 md:w-14 md:h-14"
         >
-          <Image
-            src="/icons/bell.svg"
-            alt="Notifications"
-            width={55}
-            height={55}
-          />
+          <Image src="/icons/bell.svg" alt="Notifications" width={56} height={56} />
         </button>
       </div>
     );
@@ -142,18 +141,19 @@ export default function NotificationDropdown() {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-center rounded-full relative cursor-pointer hover:opacity-80 transition-opacity"
+        className="flex items-center justify-center rounded-full relative cursor-pointer hover:opacity-80 transition-opacity w-11 h-11 md:w-14 md:h-14"
       >
-        <Image src={bellIconSrc} alt="Notifications" width={55} height={55} />
+        {/* Rounded bell icon (matches the message icon) */}
+        <Image src={bellIconSrc} alt="Notifications" width={56} height={56} />
+        {/* Conditional dot — only when there is something unread */}
         {unreadCount > 0 && (
           <span
-            className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-bold text-black"
+            className="absolute top-2 right-2.5 md:top-2.5 md:right-3 w-2.5 h-2.5 rounded-full"
             style={{
-              background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
+              background: '#F1CB68',
+              boxShadow: `0 0 0 2px ${isDarkMode ? '#101014' : '#ffffff'}`,
             }}
-          >
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
+          />
         )}
       </button>
 
@@ -164,7 +164,7 @@ export default function NotificationDropdown() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="absolute -right-15 md:right-0 mt-3 w-[calc(100vw-2rem)] md:w-[400px] max-w-[400px] rounded-2xl overflow-hidden shadow-2xl z-50"
+            className="absolute -right-15 md:right-0 mt-3 w-[calc(100vw-2rem)] md:w-[400px] max-w-[400px] max-h-[80vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl z-50"
             style={{
               background: isDarkMode
                 ? 'linear-gradient(135deg, rgba(30, 30, 35, 0.98) 0%, rgba(20, 20, 25, 0.98) 100%)'
@@ -176,7 +176,7 @@ export default function NotificationDropdown() {
             }}
           >
             <div
-              className={`flex items-center justify-between p-6 border-b ${
+              className={`shrink-0 flex items-center justify-between p-6 border-b ${
                 isDarkMode ? 'border-white/10' : 'border-gray-200'
               }`}
             >
@@ -213,7 +213,7 @@ export default function NotificationDropdown() {
               </button>
             </div>
 
-            <div className="flex items-center gap-3 px-6 pt-4">
+            <div className="shrink-0 flex items-center gap-3 px-6 pt-4">
               <button
                 type="button"
                 onClick={() => setActiveTab('all')}
@@ -268,7 +268,7 @@ export default function NotificationDropdown() {
               </span>
             </div>
 
-            <div className="py-4 max-h-[400px] overflow-y-auto custom-scrollbar">
+            <div className="flex-1 min-h-0 py-2 overflow-y-auto custom-scrollbar">
               {isLoading ? (
                 <div className="px-6 py-8 text-center">
                   <p
@@ -283,20 +283,32 @@ export default function NotificationDropdown() {
                 filteredNotifications.map((notification) => {
                   const id = notification.id ?? notification.notificationId;
                   const message =
+                    notification.preview ??
                     notification.message ??
                     notification.title ??
                     notification.body ??
                     '';
+                  const authorName =
+                    notification.authorName ?? notification.author_name;
+                  const appraisalId =
+                    notification.appraisalId ?? notification.appraisal_id;
+                  const assetCode =
+                    notification.assetCode ?? notification.asset_code;
                   const isUnread = !notification.read;
                   const time =
                     notification.time ??
                     formatNotificationTime(
                       notification.createdAt ?? notification.created_at
                     );
-                  const isWarning =
-                    notification.type === 'warning' ||
-                    notification.category === 'warning' ||
-                    notification.priority === 'high';
+
+                  const openThread = (e) => {
+                    e.stopPropagation();
+                    if (isUnread) handleMarkAsRead(notification);
+                    setIsOpen(false);
+                    if (appraisalId) {
+                      router.push(`/dashboard/concierge?appraisal=${appraisalId}`);
+                    }
+                  };
 
                   return (
                     <div
@@ -307,58 +319,63 @@ export default function NotificationDropdown() {
                         if (isUnread) handleMarkAsRead(notification);
                       }}
                       onKeyDown={(e) => {
-                        if (
-                          (e.key === 'Enter' || e.key === ' ') &&
-                          isUnread
-                        ) {
+                        if ((e.key === 'Enter' || e.key === ' ') && isUnread) {
                           e.preventDefault();
                           handleMarkAsRead(notification);
                         }
                       }}
-                      className={`flex items-start gap-4 px-6 py-4 transition-colors cursor-pointer border-b ${
-                        isDarkMode
-                          ? 'hover:bg-white/5 border-white/5'
-                          : 'hover:bg-gray-100 border-gray-200'
-                      } ${isUnread ? (isDarkMode ? 'bg-white/5' : 'bg-gray-50/50') : ''}`}
+                      className={`flex items-start gap-3 px-4 py-3 transition-colors cursor-pointer ${
+                        isDarkMode ? 'hover:bg-white/5' : 'hover:bg-gray-100'
+                      }`}
                     >
-                      <div className="flex items-center justify-center shrink-0">
-                        <Image
-                          src={bellIconSrc}
-                          alt=""
-                          width={20}
-                          height={20}
-                        />
-                      </div>
+                      {/* Larger bell icon (with its built-in dot) */}
+                      <Image src={bellIconSrc} alt="" width={40} height={40} className="shrink-0" />
+
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start gap-2">
-                          {isWarning ? (
-                            <Image
-                              src="/icons/warning.svg"
-                              alt=""
-                              width={16}
-                              height={16}
-                              className="shrink-0"
-                            />
-                          ) : (
-                            <Image
-                              src="/icons/check-circle.svg"
-                              alt=""
-                              width={16}
-                              height={16}
-                              className="shrink-0"
-                            />
+                        {/* Top row: username tag + code, time on the right */}
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {authorName && (
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#F1CB68]/15 text-[#F1CB68] truncate max-w-[130px]">
+                                {titleCase(authorName)}
+                              </span>
+                            )}
+                            {assetCode && (
+                              <span className="text-[11px] font-mono text-gray-400 shrink-0">
+                                {assetCode}
+                              </span>
+                            )}
+                          </div>
+                          {time && (
+                            <span className="text-[10px] text-gray-400 shrink-0">{time}</span>
                           )}
-                          <p
-                            className={`text-sm flex-1 ${
-                              isDarkMode ? 'text-white' : 'text-gray-900'
+                        </div>
+
+                        {/* Message in a background box; click opens the thread */}
+                        <button
+                          type="button"
+                          onClick={openThread}
+                          className={`inline-flex max-w-full text-left items-center gap-2 rounded-xl px-3 py-1.5 transition-colors ${
+                            isUnread
+                              ? 'bg-[#F1CB68]/10 hover:bg-[#F1CB68]/15'
+                              : isDarkMode
+                              ? 'bg-white/5 hover:bg-white/10'
+                              : 'bg-gray-100 hover:bg-gray-200'
+                          }`}
+                        >
+                          <span
+                            className={`min-w-0 text-sm line-clamp-2 ${
+                              isDarkMode ? 'text-gray-200' : 'text-gray-800'
                             } ${isUnread ? 'font-medium' : ''}`}
                           >
                             {message}
-                          </p>
-                        </div>
-                        {time && (
-                          <p className="text-gray-400 text-xs mt-2">{time}</p>
-                        )}
+                          </span>
+                          {appraisalId && (
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              <path d="M9 18l6-6-6-6" />
+                            </svg>
+                          )}
+                        </button>
                       </div>
                     </div>
                   );
@@ -377,7 +394,7 @@ export default function NotificationDropdown() {
             </div>
 
             <div
-              className={`p-4 border-t ${
+              className={`shrink-0 p-4 border-t ${
                 isDarkMode ? 'border-white/10' : 'border-gray-200'
               }`}
             >
