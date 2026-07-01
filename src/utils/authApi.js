@@ -153,6 +153,18 @@ export const resetPassword = async (email, otpCode, newPassword) => {
 };
 
 /**
+ * Set password via an invite/reset token (token-based, same endpoint as reset).
+ * Used by the advisor-invite "set your password" link (?token=...).
+ * POST /api/v1/auth/reset-password  { token, new_password }
+ */
+export const setPasswordWithToken = async (token, newPassword) => {
+  return await apiPost(API_ENDPOINTS.AUTH.RESET_PASSWORD, {
+    token,
+    new_password: newPassword,
+  });
+};
+
+/**
  * 8. Verify Email
  * POST /api/v1/auth/verify-email
  */

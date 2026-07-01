@@ -105,18 +105,22 @@ const matchesCurrent = (plan, current) => {
   return currentKeys.some((a) => planKeys.some((b) => a === b));
 };
 
-// Decide the CTA for a plan relative to the user's current subscription.
-const ctaFor = (plan, current) => {
+// Decide the CTA for a plan relative to the user's current subscription, gated by
+// the backend capability flags (can_subscribe / can_upgrade).
+const ctaFor = (plan, current, caps) => {
   if (current && matchesCurrent(plan, current)) return { action: 'current', label: 'Current plan', disabled: true };
   if (isCustomPlan(plan)) return { action: 'contact', label: 'Contact Sales', disabled: false };
-  if (!current) return { action: 'subscribe', label: 'Subscribe', disabled: false };
+  if (!current) {
+    return { action: 'subscribe', label: 'Subscribe', disabled: caps ? !caps.canSubscribe : false };
+  }
   const currentPrice = Number(current?.amount ?? current?.price ?? 0);
+  const disabled = caps ? !caps.canUpgrade : false;
   return planPrice(plan) >= currentPrice
-    ? { action: 'upgrade', label: 'Upgrade', disabled: false }
-    : { action: 'downgrade', label: 'Downgrade', disabled: false };
+    ? { action: 'upgrade', label: 'Upgrade', disabled }
+    : { action: 'downgrade', label: 'Downgrade', disabled };
 };
 
-export default function PlanSelector({ plans, current, loading, onSelectPlan, isDarkMode }) {
+export default function PlanSelector({ plans, current, capabilities, loading, onSelectPlan, isDarkMode }) {
   const [billingCycle, setBillingCycle] = useState('monthly');
 
   const displayPlans = plans.length > 0 ? plans : FALLBACK_PLANS;
@@ -167,6 +171,12 @@ export default function PlanSelector({ plans, current, loading, onSelectPlan, is
         </div>
       </div>
 
+      {!current && capabilities && !capabilities.canSubscribe && capabilities.reason && (
+        <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+          {capabilities.reason}
+        </div>
+      )}
+
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[0, 1, 2, 3].map((i) => (
@@ -176,7 +186,7 @@ export default function PlanSelector({ plans, current, loading, onSelectPlan, is
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {displayPlans.map((plan) => {
-            const cta = ctaFor(plan, current);
+            const cta = ctaFor(plan, current, capabilities);
             const name = plan.name || plan.planName || plan.plan_name;
             return (
               <div

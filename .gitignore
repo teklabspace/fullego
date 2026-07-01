@@ -43,3 +43,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# playwright test artifacts (console logs, page snapshots, screenshots)
+/.playwright-mcp/
+
+# generated PDFs
+*.pdf

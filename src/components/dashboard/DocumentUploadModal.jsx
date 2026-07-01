@@ -51,11 +51,11 @@ export default function DocumentUploadModal({
       if (uploadFn) {
         // Real upload with live progress.
         await uploadFn(files, p => setProgress(p), { heading });
-      } else {
-        // Legacy fallback (parent handles the actual upload in onUpload).
-        await new Promise(r => setTimeout(r, 600));
       }
-      onUpload({
+      // Legacy fallback: the parent's onUpload performs the actual upload
+      // (or, when uploadFn already did, a follow-up refresh). Await it either
+      // way so `uploading` reflects the real request, not a fixed delay.
+      await onUpload({
         files: files.map(file => ({
           name: file.name,
           size: file.size,

@@ -145,11 +145,39 @@ export const deleteListing = async (listingId) => {
 export const approveListing = async (listingId) => {
   const endpoint = API_ENDPOINTS.MARKETPLACE.APPROVE_LISTING(listingId);
   const response = await apiPost(endpoint, {});
-  
+
   if (response.data) {
     response.data = transformKeys(response.data);
   }
-  
+
+  return response;
+};
+
+/**
+ * Reject a listing (admin / assigned advisor). Reason is required and is shown
+ * to the investor, admin and advisor. POST /marketplace/listings/{id}/reject
+ */
+export const rejectListing = async (listingId, reason) => {
+  const endpoint = API_ENDPOINTS.MARKETPLACE.REJECT_LISTING(listingId);
+  const response = await apiPost(endpoint, { reason });
+  if (response && response.data) {
+    response.data = transformKeys(response.data);
+  }
+  return response;
+};
+
+/**
+ * Moderation queue — pending listings (admin: all; advisor: their clients').
+ * GET /marketplace/approval-queue?page=&limit=
+ */
+export const getApprovalQueue = async ({ page = 1, limit = 50 } = {}) => {
+  const q = new URLSearchParams();
+  q.append('page', String(page));
+  q.append('limit', String(limit));
+  const response = await apiGet(`${API_ENDPOINTS.MARKETPLACE.APPROVAL_QUEUE}?${q.toString()}`);
+  if (response && response.data) {
+    response.data = transformKeys(response.data);
+  }
   return response;
 };
 

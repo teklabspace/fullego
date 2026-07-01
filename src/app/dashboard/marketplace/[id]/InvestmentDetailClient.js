@@ -123,7 +123,14 @@ export default function InvestmentDetailClient() {
               ? 'Pending Approval'
               : listing.status === 'approved'
                 ? 'Approved'
-                : 'Closed',
+                : listing.status === 'rejected'
+                  ? 'Rejected'
+                  : listing.status === 'sold'
+                    ? 'Sold'
+                    : listing.status === 'cancelled'
+                      ? 'Cancelled'
+                      : 'Closed',
+        rejectionReason: listing.rejectionReason || listing.rejection_reason || '',
         minimum: listing.askingPrice
           ? `$${listing.askingPrice.toLocaleString()}`
           : '$0',
@@ -321,11 +328,37 @@ export default function InvestmentDetailClient() {
 
               {/* Status */}
               <div className='flex items-center gap-2'>
-                <div className='w-2 h-2 bg-green-500 rounded-full' />
-                <span className='text-green-500 text-sm font-medium'>
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    listingStatus === 'rejected' || listingStatus === 'cancelled'
+                      ? 'bg-red-500'
+                      : listingStatus === 'pending_approval'
+                        ? 'bg-yellow-500'
+                        : 'bg-green-500'
+                  }`}
+                />
+                <span
+                  className={`text-sm font-medium ${
+                    listingStatus === 'rejected' || listingStatus === 'cancelled'
+                      ? 'text-red-500'
+                      : listingStatus === 'pending_approval'
+                        ? 'text-yellow-500'
+                        : 'text-green-500'
+                  }`}
+                >
                   {investment.status}
                 </span>
               </div>
+
+              {/* Rejection reason */}
+              {listingStatus === 'rejected' && investment.rejectionReason && (
+                <div className='mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-4'>
+                  <p className='text-sm font-semibold text-red-400 mb-1'>Rejection reason</p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {investment.rejectionReason}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Stats Section */}

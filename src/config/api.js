@@ -269,6 +269,8 @@ export const API_ENDPOINTS = {
     UPDATE_LISTING: (id) => `/marketplace/listings/${id}`,
     DELETE_LISTING: (id) => `/marketplace/listings/${id}`,
     APPROVE_LISTING: (id) => `/marketplace/listings/${id}/approve`,
+    REJECT_LISTING: (id) => `/marketplace/listings/${id}/reject`,
+    APPROVAL_QUEUE: '/marketplace/approval-queue',
     ACTIVATE_LISTING: (id) => `/marketplace/listings/${id}/activate`,
     PAY_LISTING_FEE: (id) => `/marketplace/listings/${id}/pay-fee`,
     GET_LISTING_OFFERS: (id) => `/marketplace/listings/${id}/offers`,
@@ -415,6 +417,10 @@ export const API_ENDPOINTS = {
     TICKET_COMMENTS: (id) => `/support/tickets/${id}/comments`,
     TICKET_HISTORY: (id) => `/support/tickets/${id}/history`,
     STATISTICS: '/support/statistics',
+    // CSAT rating, posted by the ticket owner once it's resolved/closed.
+    TICKET_RATING: (id) => `/support/tickets/${id}/rating`,
+    // Role-scoped Reports tab data (admin: all, advisor: assigned, investor: own).
+    ANALYTICS: '/support/analytics',
   },
   // Concierge/Appraisals endpoints (CRM Dashboard)
   CONCIERGE: {
@@ -515,8 +521,13 @@ export const API_ENDPOINTS = {
     DASHBOARD: '/admin/dashboard',
     // Users
     LIST_USERS: '/admin/users',
+    CREATE_USER: '/admin/users', // admin creates an advisor (role set server-side)
     GET_USER: (id) => `/admin/users/${id}`,
     UPDATE_USER_ROLE: (id) => `/admin/users/${id}/role`,
+    APPROVE_USER_KYC: (id) => `/admin/users/${id}/kyc/approve`,
+    // Advisor ↔ investor client assignment (auto-creates a chat).
+    ADVISOR_CLIENTS: (advisorId) => `/admin/advisors/${advisorId}/clients`,
+    UNASSIGN_ADVISOR_CLIENT: (advisorId, investorId) => `/admin/advisors/${advisorId}/clients/${investorId}`,
     DEACTIVATE_USER: (id) => `/admin/users/${id}/deactivate`,
     ACTIVATE_USER: (id) => `/admin/users/${id}/activate`,
     // Subscriptions
@@ -537,6 +548,17 @@ export const API_ENDPOINTS = {
     // GET_ASSET_BY_CODE looks up by asset code (e.g. AK-01). Both attach `owner`.
     LIST_ASSETS: '/admin/assets',
     GET_ASSET_BY_CODE: (code) => `/admin/assets/${code}`,
+    // Support Dashboard (admin-only, dedicated endpoints)
+    SUPPORT_TICKETS: '/admin/support/tickets',
+    ASSET_REQUESTS: '/admin/asset-requests',
+    ASSIGN_ASSET_REQUEST: (type, id) => `/admin/asset-requests/${type}/${id}/assign`,
+    SUPPORT_CONVERSATIONS: '/admin/support/conversations',
+    SUPPORT_CONVERSATION_MESSAGES: (id) => `/admin/support/conversations/${id}/messages`,
+    SUPPORT_ANALYTICS: '/admin/support/analytics',
+  },
+  // Advisor (self) endpoints
+  ADVISOR: {
+    CLIENTS: '/advisor/clients',
   },
   // Notifications endpoints
   NOTIFICATIONS: {

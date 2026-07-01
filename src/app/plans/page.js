@@ -5,6 +5,7 @@ import Navbar from '@/components/layout/Navbar';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { hasActiveSubscription } from '@/utils/onboarding';
 
 const plans = [
   {
@@ -52,45 +53,57 @@ const plans = [
     ],
     popular: false,
   },
-  {
-    name: 'Concierge',
-    monthlyCost: 'Custom ($1,000+/mo)',
-    annualCost: 'Custom ($10,000+/yr)',
-    idealUser:
-      'High-net-worth individuals, family offices, institutional clients',
-    features: [
-      'All Premium features + bespoke wealth strategy design',
-      'Private Marketplace access to exclusive deals & off-market assets',
-      'Real-time valuation feeds for properties, art, and collectibles',
-      'Dedicated wealth manager & research analyst',
-      'Family office tools: delegated access, secure document sharing, escrow integration',
-      'Priority onboarding, white-glove 24/7 concierge support',
-    ],
-    popular: false,
-    isCustom: true,
-  },
 ];
 
 export default function Plans() {
   const [billingCycle, setBillingCycle] = useState('monthly');
   const router = useRouter();
 
-  const handleGetStarted = (plan) => {
+  const handleGetStarted = async (plan) => {
     if (plan.isCustom) {
       router.push('/contact');
       return;
     }
     if (typeof window !== 'undefined') {
+      // Remember the chosen plan + billing cycle so it survives the whole
+      // signup → email verify → KYC/KYB chain and lands the user on /checkout.
+      try {
+        localStorage.setItem(
+          'pendingPlan',
+          JSON.stringify({ name: plan.name, billingCycle }),
+        );
+      } catch {}
+
       const token = localStorage.getItem('access_token');
       if (token) {
+        let user = {};
         try {
-          const user = JSON.parse(localStorage.getItem('user_info') || '{}');
-          if (user.role === 'admin' || user.role === 'advisor') return;
+          user = JSON.parse(localStorage.getItem('user_info') || '{}');
         } catch {}
-        router.push('/dashboard/settings');
+        // Staff don't subscribe; nothing to do for them.
+        if (user.role === 'admin' || user.role === 'advisor') return;
+        // Send them through the onboarding gates in order — a chosen plan is
+        // remembered (pendingPlan) and carries through to checkout once they're
+        // email- and KYC-verified.
+        if (!user.is_email_verified) {
+          router.push('/signup');
+          return;
+        }
+        if (!user.is_kyc_verified) {
+          router.push('/choose-profile');
+          return;
+        }
+        // Existing subscriber → manage/upgrade in settings. Re-running checkout
+        // would overwrite their subscription and charge full price again.
+        if (await hasActiveSubscription()) {
+          router.push('/dashboard/settings?tab=payment');
+          return;
+        }
+        router.push('/checkout');
         return;
       }
     }
+    // New visitor → create account first; pendingPlan carries through onboarding.
     router.push('/signup');
   };
 

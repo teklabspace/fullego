@@ -109,10 +109,18 @@ export default function Sidebar({ isOpen, onClose }) {
             hasSubmenu: true,
             submenu: [
               { id: 'active-offers', label: 'Active Offers', href: '/dashboard/marketplace/active-offers', roles: ALL_ROLES },
-              // Approving listings requires `approve:marketplace_listings` (admin only).
-              { id: 'approve-listings', label: 'Approve Listings', href: '/dashboard/marketplace/approve', roles: ['admin'] },
+              // Approving listings requires `approve:marketplace_listings` (admin + advisor).
+              { id: 'approve-listings', label: 'Approve Listings', href: '/dashboard/marketplace/approve', roles: ['admin', 'advisor'] },
             ],
           },
+        ],
+      },
+      // Advisor-only: their assigned investor clients + chat.
+      {
+        title: 'Clients',
+        roles: ['advisor'],
+        items: [
+          { id: 'my-clients', label: 'My Clients', icon: 'Grid', href: '/dashboard/advisor/clients', roles: ['advisor'] },
         ],
       },
       // Advisors get analytics/CRM in their own section. Admins see the same CRM

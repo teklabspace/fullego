@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { resetPassword } from '@/utils/authApi';
+import { resetPassword, setPasswordWithToken } from '@/utils/authApi';
 
 const carouselSlides = [
   {
@@ -34,6 +34,9 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState('');
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
+  // Invite/reset token (advisor invite link: /reset-password?token=...). When
+  // present we use the token flow instead of the email+OTP flow.
+  const [token, setToken] = useState('');
 
   // Auto-rotate carousel
   useEffect(() => {
@@ -44,19 +47,23 @@ export default function ResetPasswordPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Get email and OTP from sessionStorage (set after OTP verification in forgot-password)
+  // Prefer a token from the URL (advisor invite / reset link). Otherwise fall
+  // back to the email+OTP carried over from the forgot-password flow.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedEmail = sessionStorage.getItem('reset_password_email');
-      const storedOtp = sessionStorage.getItem('reset_password_otp');
-      
-      if (storedEmail && storedOtp) {
-        setEmail(storedEmail);
-        setOtpCode(storedOtp);
-      } else {
-        // If no email/OTP found, redirect to forgot-password
-        window.location.href = '/forgot-password';
-      }
+    if (typeof window === 'undefined') return;
+    const urlToken = new URLSearchParams(window.location.search).get('token');
+    if (urlToken) {
+      setToken(urlToken);
+      return;
+    }
+    const storedEmail = sessionStorage.getItem('reset_password_email');
+    const storedOtp = sessionStorage.getItem('reset_password_otp');
+    if (storedEmail && storedOtp) {
+      setEmail(storedEmail);
+      setOtpCode(storedOtp);
+    } else {
+      // No token and no OTP session → nothing to reset against.
+      window.location.href = '/forgot-password';
     }
   }, []);
 
@@ -80,7 +87,7 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (!email || !otpCode) {
+    if (!token && (!email || !otpCode)) {
       setError('Session expired. Please request a new password reset.');
       if (typeof window !== 'undefined') {
         window.location.href = '/forgot-password';
@@ -91,16 +98,20 @@ export default function ResetPasswordPage() {
     setIsLoading(true);
 
     try {
-      await resetPassword(email, otpCode, password);
-      // Clear stored email and OTP
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('reset_password_email');
-        sessionStorage.removeItem('reset_password_otp');
+      if (token) {
+        // Invite / token-based set-password.
+        await setPasswordWithToken(token, password);
+      } else {
+        await resetPassword(email, otpCode, password);
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('reset_password_email');
+          sessionStorage.removeItem('reset_password_otp');
+        }
       }
       // Only redirect on success
       window.location.href = '/login';
     } catch (err) {
-      setError(err.data?.detail || err.message || 'Password reset failed');
+      setError(err.message || err.data?.detail || 'Password reset failed');
     } finally {
       setIsLoading(false);
     }
@@ -122,10 +133,12 @@ export default function ResetPasswordPage() {
           {/* Form Header */}
           <div className='mb-8'>
             <h1 className='text-white text-3xl lg:text-4xl font-semibold mb-2'>
-              Reset Password
+              {token ? 'Set your password' : 'Reset Password'}
             </h1>
             <p className='text-gray-400 text-sm'>
-              Create a new password for your account
+              {token
+                ? 'Create a password to activate your account'
+                : 'Create a new password for your account'}
             </p>
           </div>
 
@@ -248,10 +261,10 @@ export default function ResetPasswordPage() {
             {/* Reset Button */}
             <button
               type='submit'
-              disabled={isLoading || !email || !otpCode}
+              disabled={isLoading || (!token && (!email || !otpCode))}
               className='w-full bg-[#F1CB68] hover:bg-[#D6A738] disabled:opacity-50 disabled:cursor-not-allowed text-[#0B0D12] font-semibold py-3 rounded-full transition-colors'
             >
-              {isLoading ? 'Resetting Password...' : 'Reset Password'}
+              {isLoading ? 'Saving...' : token ? 'Set Password' : 'Reset Password'}
             </button>
 
             <div className='text-center'>

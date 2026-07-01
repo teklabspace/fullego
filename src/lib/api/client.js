@@ -100,7 +100,12 @@ const refreshAccessToken = () => {
     })
       .then(async (res) => {
         if (!res.ok) return false;
-        const data = await res.json().catch(() => null);
+        const body = await res.json().catch(() => null);
+        // /auth/refresh is enveloped too — unwrap `data` if present.
+        const data =
+          body && typeof body === 'object' && typeof body.success === 'boolean' && 'data' in body
+            ? body.data
+            : body;
         if (data?.access_token) {
           localStorage.setItem('access_token', data.access_token);
           if (data.refresh_token) {
@@ -116,6 +121,31 @@ const refreshAccessToken = () => {
       });
   }
   return inFlightRefresh;
+};
+
+// ─── Standardized response envelope ───────────────────────────────────────────
+// Every JSON endpoint returns:
+//   success: { success: true,  status_code, message, data }
+//   error:   { success: false, status_code, message, error: { code, details } }
+// We detect it by the `success` boolean + `status_code` (so legacy/excluded
+// shapes — binary downloads, /health — are left untouched), unwrap `data` on
+// success, and normalize errors into a thrown Error with .status/.code/.details.
+const isEnvelope = (b) =>
+  b && typeof b === 'object' && typeof b.success === 'boolean' && 'status_code' in b;
+
+// Flatten a legacy FastAPI `detail` (string or [{loc,msg,type}]) to a message.
+const flattenLegacyDetail = (detail) => {
+  if (Array.isArray(detail)) {
+    return detail
+      .map((err) => {
+        if (typeof err === 'string') return err;
+        if (err?.msg && err?.loc) return `${err.loc.join('.')}: ${err.msg}`;
+        if (err?.msg) return err.msg;
+        return JSON.stringify(err);
+      })
+      .join('; ');
+  }
+  return typeof detail === 'string' ? detail : JSON.stringify(detail);
 };
 
 /**
@@ -215,37 +245,36 @@ export const apiRequest = async (endpoint, options = {}) => {
       );
 
       // Check if this is a 404 for asset details (expected when asset doesn't exist in backend)
+      const notFoundText =
+        (responseData && typeof responseData === 'object' && (responseData.detail || responseData.message)) || '';
       const is404AssetDetails = response.status === 404 && (
         endpoint.includes('/trade-engine/assets/') ||
-        (endpoint.includes('/assets/') && responseData?.detail?.includes('not found'))
+        (endpoint.includes('/assets/') && typeof notFoundText === 'string' && notFoundText.toLowerCase().includes('not found'))
       );
 
-      // Extract error message from response
-      let errorMessage = 'API request failed';
+      // Extract a user-friendly message + stable code. Prefer the standardized
+      // envelope; fall back to legacy `detail`/`message`/`error` shapes for any
+      // non-migrated or excluded endpoint.
+      let errorMessage = 'Something went wrong. Please try again.';
+      let errorCode = null;
+      let errorDetails = null;
 
       if (responseData) {
         if (typeof responseData === 'string') {
-          errorMessage = responseData;
+          errorMessage = responseData || errorMessage;
+        } else if (isEnvelope(responseData)) {
+          errorMessage = responseData.message || errorMessage;
+          errorCode = responseData.error?.code || null;
+          errorDetails = responseData.error?.details || null;
         } else if (responseData.detail) {
-          if (Array.isArray(responseData.detail)) {
-            const errorMessages = responseData.detail.map(err => {
-              if (typeof err === 'string') return err;
-              if (err.msg && err.loc) {
-                return `${err.loc.join('.')}: ${err.msg}`;
-              }
-              if (err.msg) return err.msg;
-              return JSON.stringify(err);
-            });
-            errorMessage = errorMessages.join('; ');
-          } else if (typeof responseData.detail === 'string') {
-            errorMessage = responseData.detail;
-          } else {
-            errorMessage = JSON.stringify(responseData.detail);
-          }
+          errorMessage = flattenLegacyDetail(responseData.detail);
         } else if (responseData.message) {
           errorMessage = responseData.message;
         } else if (responseData.error) {
-          errorMessage = responseData.error;
+          errorMessage =
+            typeof responseData.error === 'string'
+              ? responseData.error
+              : responseData.error.message || JSON.stringify(responseData.error);
         } else {
           errorMessage = JSON.stringify(responseData);
         }
@@ -268,14 +297,48 @@ export const apiRequest = async (endpoint, options = {}) => {
         console.error('[API ERROR RESPONSE]', method, endpoint, response.status, responseData);
       }
       
+      // Server-enforced KYC gate: a guarded resource needs an approved KYC. Send
+      // the user into the verification flow (unless they're already on an auth /
+      // verification page, to avoid redirect loops).
+      if (errorCode === 'KYC_REQUIRED' && typeof window !== 'undefined') {
+        const path = window.location.pathname;
+        const exempt = [
+          '/choose-profile', '/kyc-verification', '/identity-verification',
+          '/document-verification', '/kyc', '/verification-success',
+          '/login', '/signup', '/reset-password', '/forgot-password', '/verify-email',
+        ];
+        if (!exempt.some((p) => path.startsWith(p))) {
+          window.location.href = '/choose-profile';
+        }
+      }
+
       // Create error object with backend error details
       const error = new Error(errorMessage);
       error.status = response.status;
+      error.statusCode = (isEnvelope(responseData) && responseData.status_code) || response.status;
       error.data = responseData;
+      if (errorCode) error.code = errorCode;
+      if (errorDetails) error.details = errorDetails;
       if (isKycPersonaHostedRequired) {
         error.isPersonaHostedFlowRequired = true;
       }
       throw error;
+    }
+
+    // Unwrap the success envelope so callers receive the payload directly. Non-
+    // enveloped bodies (binary downloads, /health, plain text) pass through.
+    if (isEnvelope(responseData)) {
+      if (responseData.success === false) {
+        // Defensive: success:false arriving with a 2xx — still an error.
+        const error = new Error(responseData.message || 'Request failed');
+        error.status = response.status;
+        error.statusCode = responseData.status_code || response.status;
+        error.data = responseData;
+        if (responseData.error?.code) error.code = responseData.error.code;
+        if (responseData.error?.details) error.details = responseData.error.details;
+        throw error;
+      }
+      return 'data' in responseData ? responseData.data : responseData;
     }
 
     return responseData;

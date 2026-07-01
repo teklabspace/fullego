@@ -117,8 +117,6 @@ export default function NotificationsPage() {
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true, read: true })));
     try {
       await markAllAsRead();
-      // Let the fade animation play, then refresh quietly (no `loading`/skeleton).
-      await new Promise(r => setTimeout(r, 700));
       try {
         const response = await getNotifications({ unreadOnly: activeTab === 'unread' });
         setNotifications(response.data || response || []);

@@ -23,10 +23,14 @@ export function useAuth() {
     // If we have a session but no stored role, recover it from /users/me.
     const hasToken =
       typeof window !== 'undefined' && !!localStorage.getItem('access_token');
-    if (hasToken && !stored?.role) {
+    // Re-fetch /users/me when we're missing the role, OR when KYC isn't verified
+    // yet — the latter catches a server-side change (e.g. admin manually approved
+    // KYC) so the user isn't stuck behind the KYC gate until they re-login.
+    const needsFreshProfile = hasToken && (!stored?.role || !stored?.is_kyc_verified);
+    if (needsFreshProfile) {
       getUserProfile()
         .then((profile) => {
-          if (profile?.role) {
+          if (profile && (profile.role || 'is_kyc_verified' in profile)) {
             const merged = { ...(stored || {}), ...profile };
             localStorage.setItem('user_info', JSON.stringify(merged));
             setUser(merged);

@@ -24,11 +24,12 @@ const formatMoney = (value, currency = 'USD') => {
   }
 };
 
-export default function CurrentPlanCard({ current, loading, onCancel, onRenew, isDarkMode }) {
-  const planName = current?.plan || current?.planName || current?.plan_name;
+export default function CurrentPlanCard({ current, capabilities, loading, onCancel, onRenew, isDarkMode }) {
+  const planName = current?.planName || current?.plan_name || current?.plan;
   const status = current?.status;
   const currency = current?.currency || 'USD';
   const billingCycle = current?.billingCycle || current?.billing_cycle;
+  const cancelAtPeriodEnd = current?.cancelAtPeriodEnd ?? current?.cancel_at_period_end;
   // Subscriptions may carry separate monthly_price/annual_price (camelCased by
   // the transform) plus a billing_cycle, or a flat amount/price. Prefer the
   // cycle-matched price, then fall back to any flat field.
@@ -40,6 +41,9 @@ export default function CurrentPlanCard({ current, loading, onCancel, onRenew, i
   const cycleSuffix = billingCycle ? ` (${billingCycle})` : '';
   const nextPayment = formatDate(current?.currentPeriodEnd || current?.current_period_end);
   const active = isActiveStatus(status);
+  // Prefer the backend capability flag; fall back to status if flags are absent.
+  const showCancel = capabilities ? !!capabilities.canCancel : active;
+  const showRenew = !showCancel && !!current && !active;
 
   return (
     <div
@@ -71,8 +75,13 @@ export default function CurrentPlanCard({ current, loading, onCancel, onRenew, i
           <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             {amount != null ? `${amount}${cycleSuffix}` : '—'} · Next payment {nextPayment}
           </p>
+          {cancelAtPeriodEnd && (
+            <p className="text-xs text-amber-400 mb-4">
+              Scheduled to cancel — your plan stays active until {nextPayment}.
+            </p>
+          )}
           <div className="flex gap-3">
-            {active ? (
+            {showCancel ? (
               <button
                 type="button"
                 onClick={onCancel}
@@ -80,7 +89,7 @@ export default function CurrentPlanCard({ current, loading, onCancel, onRenew, i
               >
                 Cancel subscription
               </button>
-            ) : (
+            ) : showRenew ? (
               <button
                 type="button"
                 onClick={onRenew}
@@ -88,7 +97,7 @@ export default function CurrentPlanCard({ current, loading, onCancel, onRenew, i
               >
                 Renew subscription
               </button>
-            )}
+            ) : null}
           </div>
         </>
       ) : (

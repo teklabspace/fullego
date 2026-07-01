@@ -23,6 +23,7 @@ export default function PaymentBilling({ isDarkMode }) {
   const { isAdmin, isAdvisor } = useAuth();
   const {
     current,
+    capabilities,
     plans,
     limits,
     permissions,
@@ -166,6 +167,7 @@ export default function PaymentBilling({ isDarkMode }) {
       {/* 1. Current plan */}
       <CurrentPlanCard
         current={current}
+        capabilities={capabilities}
         loading={subLoading}
         onCancel={() => openModal('cancel', null)}
         onRenew={() => openModal('renew', null)}
@@ -176,6 +178,7 @@ export default function PaymentBilling({ isDarkMode }) {
       <PlanSelector
         plans={plans}
         current={current}
+        capabilities={capabilities}
         loading={subLoading}
         onSelectPlan={(plan, billingCycle, action) =>
           action === 'contact' ? router.push('/contact') : openModal(action, plan, billingCycle)
