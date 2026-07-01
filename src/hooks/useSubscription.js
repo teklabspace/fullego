@@ -25,6 +25,9 @@ const pick = (res, key, fallback = null) => {
 
 export function useSubscription() {
   const [current, setCurrent] = useState(null);
+  // Capability flags + reason from GET /subscriptions' wrapper; drive the
+  // Subscribe / Cancel / Upgrade buttons off these rather than guessing.
+  const [capabilities, setCapabilities] = useState(null);
   const [plans, setPlans] = useState([]);
   const [limits, setLimits] = useState(null);
   const [permissions, setPermissions] = useState(null);
@@ -43,7 +46,18 @@ export function useSubscription() {
       getSubscriptionHistory(),
     ]);
 
-    if (cur.status === 'fulfilled') setCurrent(pick(cur.value, 'subscription'));
+    if (cur.status === 'fulfilled') {
+      // New shape: a wrapper carrying the subscription + capability flags.
+      const w = cur.value && typeof cur.value === 'object' ? (cur.value.data ?? cur.value) : {};
+      setCurrent(w?.subscription ?? null);
+      setCapabilities({
+        subscriptionRequired: w?.subscriptionRequired ?? w?.subscription_required ?? true,
+        canSubscribe: w?.canSubscribe ?? w?.can_subscribe ?? false,
+        canCancel: w?.canCancel ?? w?.can_cancel ?? false,
+        canUpgrade: w?.canUpgrade ?? w?.can_upgrade ?? false,
+        reason: w?.reason ?? null,
+      });
+    }
     if (pl.status === 'fulfilled') {
       const p = pick(pl.value, 'plans', []);
       setPlans(Array.isArray(p) ? p : []);
@@ -119,14 +133,16 @@ export function useSubscription() {
       'Failed to update plan',
     );
 
-  const cancel = () =>
-    runMutation(() => cancelSubscription(), 'Subscription cancelled', 'Failed to cancel subscription');
+  // Defaults to cancel-at-period-end; pass { cancelImmediately: true } to end now.
+  const cancel = (opts) =>
+    runMutation(() => cancelSubscription(opts), 'Subscription cancelled', 'Failed to cancel subscription');
 
   const renew = () =>
     runMutation(() => renewSubscription(), 'Subscription renewed', 'Failed to renew subscription');
 
   return {
     current,
+    capabilities,
     plans,
     limits,
     permissions,

@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { login } from '@/utils/authApi';
+import { resolveOnboardingRoute } from '@/utils/onboarding';
 import { toast } from 'react-toastify';
 import { API_BASE_URL, API_BASE_PATH } from '@/config/api';
 
@@ -141,34 +142,29 @@ export default function LoginPage() {
 
   // Handle successful login (common logic for both 2FA and non-2FA)
   const handleLoginSuccess = async (response) => {
-    // Get user verification status from response
     const user = response.user || {};
-    const isEmailVerified = user.is_email_verified || false;
-    const isKYCVerified = user.is_kyc_verified || false;
-    const isVerified = user.is_verified || false;
-    
-    console.log('User verification status:', {
-      isEmailVerified,
-      isKYCVerified,
-      isVerified,
-      role: user.role,
-    });
-    
-    // Redirect based on verification status
-    if (isEmailVerified && isKYCVerified) {
-      // Both verified - go to dashboard
+
+    // Single onboarding gate decides the next step:
+    //   email → KYC → subscription → dashboard
+    // Returns null when the user is fully onboarded.
+    const dest = await resolveOnboardingRoute(user);
+
+    if (!dest || dest === '/dashboard') {
       toast.success('Welcome back!');
       router.push('/dashboard');
-    } else if (isEmailVerified && !isKYCVerified) {
-      // Email verified but KYC not - go to profile selection and Persona verification
-      toast.info('Please complete your KYC verification');
-      router.push('/choose-profile');
-    } else {
-      // Neither verified - redirect to signup to complete account setup
+    } else if (dest === '/signup') {
       toast.warning('Please verify your email and complete account setup');
       router.push('/signup');
+    } else if (dest === '/choose-profile') {
+      toast.info('Please complete your KYC verification');
+      router.push('/choose-profile');
+    } else if (dest === '/select-plan' || dest === '/checkout') {
+      toast.info('Please choose a plan to activate your account');
+      router.push(dest);
+    } else {
+      router.push(dest);
     }
-    
+
     setIsLoading(false);
   };
 

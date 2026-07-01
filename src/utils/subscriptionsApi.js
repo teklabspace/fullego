@@ -85,11 +85,11 @@ export const getCurrentSubscription = async () => {
   const endpoint = API_ENDPOINTS.SUBSCRIPTIONS.GET_CURRENT;
   const response = await apiGet(endpoint);
 
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-
-  return response;
+  // The client unwraps the envelope, so `response` is the capability wrapper:
+  //   { subscription: {...}|null, subscription_required, can_subscribe,
+  //     can_cancel, can_upgrade, reason }
+  // camelCase the whole thing (incl. the nested subscription) for the UI.
+  return response ? transformKeys(response) : response;
 };
 
 /**
@@ -112,11 +112,14 @@ export const createSubscription = async (subscriptionData) => {
  * Cancel Subscription
  * POST /api/v1/subscriptions/cancel
  */
-export const cancelSubscription = async () => {
+export const cancelSubscription = async ({ cancelImmediately = false } = {}) => {
   const endpoint = API_ENDPOINTS.SUBSCRIPTIONS.CANCEL;
-  const response = await apiPost(endpoint);
+  // Default: cancel at period end (stays active until current_period_end).
+  // Pass { cancelImmediately: true } to end the subscription right away.
+  const body = cancelImmediately ? { cancel_immediately: true } : {};
+  const response = await apiPost(endpoint, body);
 
-  if (response.data) {
+  if (response && response.data) {
     response.data = transformKeys(response.data);
   }
 

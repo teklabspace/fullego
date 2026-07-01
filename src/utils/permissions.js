@@ -29,6 +29,8 @@ const PERMISSIONS = {
     'read:portfolio',
     'write:portfolio',
     'place:trades',
+    'create:marketplace_listings',
+    'approve:marketplace_listings',
     'view:analytics',
     'manage:support',
     'reply:tickets',

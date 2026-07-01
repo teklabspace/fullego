@@ -67,6 +67,10 @@ export default function RealtimeNotifications() {
     removePopup(p.key);
     if (p.appraisalId) {
       router.push(`/dashboard/concierge?appraisal=${p.appraisalId}`);
+    } else if (p.listingId) {
+      router.push(`/dashboard/marketplace/${p.listingId}`);
+    } else if (p.conversationId) {
+      router.push('/dashboard/support-dashboard');
     }
   };
 
@@ -101,14 +105,19 @@ export default function RealtimeNotifications() {
         window.dispatchEvent(new CustomEvent('app:notification', { detail: msg }));
       }
       const key = nid || `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+      const fallbackPreview = {
+        appraisal_created: 'New appraisal request',
+        client_assigned: 'You have a new client assignment',
+        listing_approved: 'A listing was approved',
+      }[msg.type] || msg.title || 'New notification';
       const popup = {
         key,
         assetCode: msg.asset_code,
         authorName: msg.author_name,
-        preview:
-          msg.preview ||
-          (msg.type === 'appraisal_created' ? 'New appraisal request' : 'New message'),
+        preview: msg.preview || msg.message || fallbackPreview,
         appraisalId: msg.appraisal_id,
+        listingId: msg.listing_id,
+        conversationId: msg.conversation_id,
       };
       // Keep at most the last 3 popups stacked.
       setPopups((prev) => [...prev.slice(-2), popup]);
@@ -147,10 +156,9 @@ export default function RealtimeNotifications() {
           return;
         }
         if (!msg) return;
-        if (msg.type === 'appraisal_message' || msg.type === 'appraisal_created') {
-          handleEvent(msg);
-        }
-        // ping/pong/connected are ignored (channel is push-only).
+        // Control frames (connection ack / keepalive) carry no notification payload.
+        if (msg.type === 'connected' || msg.type === 'ping' || msg.type === 'pong') return;
+        handleEvent(msg);
       };
 
       ws.onclose = (ev) => {

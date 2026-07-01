@@ -5,7 +5,7 @@
  */
 
 import { API_ENDPOINTS } from '@/config/api';
-import { apiGet, apiPost, apiPatch } from '@/lib/api/client';
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api/client';
 
 const buildQuery = (params) => {
   const clean = Object.fromEntries(
@@ -31,6 +31,35 @@ export const getAdminUser = (userId) =>
 export const updateUserRole = (userId, role) =>
   apiPatch(API_ENDPOINTS.ADMIN.UPDATE_USER_ROLE(userId), { role });
 
+// Create an advisor. The backend always assigns role "advisor" (do NOT send a
+// role) and pre-verifies the email. Password modes:
+//  - password provided → admin sets it; advisor can log in immediately (no invite).
+//  - password omitted   → advisor is emailed a set-password invite link.
+export const createAdvisor = ({ email, firstName, lastName, phone, password } = {}) =>
+  apiPost(API_ENDPOINTS.ADMIN.CREATE_USER, {
+    email,
+    first_name: firstName,
+    last_name: lastName,
+    ...(phone ? { phone } : {}),
+    ...(password ? { password } : {}),
+  });
+
+// Manually approve a user's KYC (fallback when Persona doesn't succeed). Admin
+// only; rejected for admin targets / already-approved KYC.
+export const approveUserKyc = (userId) =>
+  apiPost(API_ENDPOINTS.ADMIN.APPROVE_USER_KYC(userId), {});
+
+// ── Advisor ↔ client assignment ──────────────────────────────────────────────
+// Assign an investor to an advisor (auto-creates their chat + notifies both).
+export const assignAdvisorClient = (advisorId, investorId) =>
+  apiPost(API_ENDPOINTS.ADMIN.ADVISOR_CLIENTS(advisorId), { investor_id: investorId });
+
+export const listAdvisorClients = (advisorId) =>
+  apiGet(API_ENDPOINTS.ADMIN.ADVISOR_CLIENTS(advisorId));
+
+export const unassignAdvisorClient = (advisorId, investorId) =>
+  apiDelete(API_ENDPOINTS.ADMIN.UNASSIGN_ADVISOR_CLIENT(advisorId, investorId));
+
 export const deactivateUser = (userId) =>
   apiPatch(API_ENDPOINTS.ADMIN.DEACTIVATE_USER(userId), {});
 
@@ -45,8 +74,16 @@ export const listAdminSubscriptions = (params = {}) =>
 export const cancelSubscription = (id) =>
   apiPatch(API_ENDPOINTS.ADMIN.CANCEL_SUBSCRIPTION(id), {});
 
-export const updateSubscriptionPlan = (id, plan, reason = '') =>
-  apiPatch(API_ENDPOINTS.ADMIN.UPDATE_SUBSCRIPTION_PLAN(id), { plan, ...(reason ? { reason } : {}) });
+// Change a user's subscription to a tier (starter | pro | premium) + billing
+// cycle. Sends both `plan_id` and `plan` (back-compat) plus `billing_cycle` so
+// the backend can apply the change to the user's live subscription.
+export const updateSubscriptionPlan = (id, { planId, billingCycle, reason } = {}) =>
+  apiPatch(API_ENDPOINTS.ADMIN.UPDATE_SUBSCRIPTION_PLAN(id), {
+    plan_id: planId,
+    plan: planId,
+    ...(billingCycle ? { billing_cycle: billingCycle } : {}),
+    ...(reason ? { reason } : {}),
+  });
 
 // ── Verifications ──────────────────────────────────────────────────────────
 

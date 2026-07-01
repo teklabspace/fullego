@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { isAuthenticated } from '@/utils/authApi';
 import { getStoredRole, getStoredUser } from '@/utils/permissions';
+import { resolveOnboardingRoute } from '@/utils/onboarding';
 import { toast } from 'react-toastify';
 
 /**
@@ -20,7 +21,9 @@ export default function SecureRoute({ children, allowedRoles }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = () => {
+    let cancelled = false;
+
+    const checkAuth = async () => {
       if (typeof window === 'undefined') return;
 
       // 1. Must be logged in
@@ -30,16 +33,16 @@ export default function SecureRoute({ children, allowedRoles }) {
         return;
       }
 
-      // 2. Check email + KYC verification for all /dashboard routes
+      // 2. Enforce the onboarding order (email → KYC → subscription) for all
+      // /dashboard routes. resolveOnboardingRoute returns the step the user still
+      // needs, or null when they're fully onboarded.
       if (pathname.startsWith('/dashboard')) {
         const user = getStoredUser();
         if (user) {
-          if (!user.is_email_verified) {
-            router.push('/signup');
-            return;
-          }
-          if (!user.is_kyc_verified) {
-            router.push('/choose-profile');
+          const dest = await resolveOnboardingRoute(user);
+          if (cancelled) return;
+          if (dest && dest !== pathname) {
+            router.push(dest);
             return;
           }
         }
@@ -56,11 +59,15 @@ export default function SecureRoute({ children, allowedRoles }) {
         }
       }
 
+      if (cancelled) return;
       setIsAuthorized(true);
       setIsLoading(false);
     };
 
     checkAuth();
+    return () => {
+      cancelled = true;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, pathname, JSON.stringify(allowedRoles)]);
 

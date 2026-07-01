@@ -6,6 +6,7 @@ import { register } from '@/utils/authApi';
 import Image from 'next/image';
 import { toast } from 'react-toastify';
 import { API_BASE_URL, API_BASE_PATH } from '@/config/api';
+import { isValidationError, fieldErrorsFromError } from '@/utils/apiError';
 
 const carouselSlides = [
   {
@@ -41,6 +42,17 @@ export default function SignupClient() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  // Per-field messages from a 422 validation envelope, keyed by backend field
+  // name (snake_case: first_name, last_name, email, phone, password).
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  const inputClass = (hasError) =>
+    `w-full bg-transparent border ${
+      hasError ? 'border-red-500' : 'border-gray-700'
+    } rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors`;
+
+  const clearFieldError = (key) =>
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
 
   useEffect(() => {
     const emailParam = searchParams.get('email');
@@ -67,6 +79,7 @@ export default function SignupClient() {
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
     setIsLoading(true);
 
     if (!firstName.trim() || !lastName.trim()) {
@@ -106,26 +119,23 @@ export default function SignupClient() {
 
       window.location.href = '/forgot-password?verify=true';
     } catch (err) {
-      let errorMessage = 'Registration failed. Please try again.';
+      // Field-level validation → show messages inline under each input.
+      if (isValidationError(err)) {
+        const fe = fieldErrorsFromError(err);
+        if (Object.keys(fe).length) setFieldErrors(fe);
+      }
+
+      // Top banner — the backend message is now user-friendly; only special-case
+      // the conflict and network cases for clearer guidance.
+      let errorMessage;
       if (err.status === 409) {
         errorMessage =
           'An account with this email already exists. Please login instead.';
-      } else if (err.status === 400) {
-        errorMessage =
-          err.data?.detail ||
-          'Invalid information provided. Please check your details.';
-      } else if (err.status === 422) {
-        errorMessage =
-          err.data?.detail || 'Please provide valid information.';
-      } else if (err.status === 500) {
-        errorMessage = 'Server error. Please try again later.';
-      } else if (err.status === 0 || err.message === 'Failed to fetch') {
+      } else if (err.isNetworkError || err.message === 'Failed to fetch') {
         errorMessage =
           'Network error. Please check your connection and try again.';
-      } else if (err.data?.detail) {
-        errorMessage = err.data.detail;
-      } else if (err.message) {
-        errorMessage = err.message;
+      } else {
+        errorMessage = err.message || 'Registration failed. Please try again.';
       }
       setError(errorMessage);
     } finally {
@@ -187,11 +197,14 @@ export default function SignupClient() {
                 type='text'
                 id='firstName'
                 value={firstName}
-                onChange={e => setFirstName(e.target.value)}
+                onChange={e => { setFirstName(e.target.value); clearFieldError('first_name'); }}
                 placeholder='John'
                 required
-                className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+                className={inputClass(fieldErrors.first_name)}
               />
+              {fieldErrors.first_name && (
+                <p className='text-xs text-red-400 mt-1'>{fieldErrors.first_name}</p>
+              )}
             </div>
 
             <div>
@@ -205,11 +218,14 @@ export default function SignupClient() {
                 type='text'
                 id='lastName'
                 value={lastName}
-                onChange={e => setLastName(e.target.value)}
+                onChange={e => { setLastName(e.target.value); clearFieldError('last_name'); }}
                 placeholder='Doe'
                 required
-                className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+                className={inputClass(fieldErrors.last_name)}
               />
+              {fieldErrors.last_name && (
+                <p className='text-xs text-red-400 mt-1'>{fieldErrors.last_name}</p>
+              )}
             </div>
 
             <div>
@@ -220,10 +236,13 @@ export default function SignupClient() {
                 type='email'
                 id='email'
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={e => { setEmail(e.target.value); clearFieldError('email'); }}
                 placeholder='you@example.com'
-                className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+                className={inputClass(fieldErrors.email)}
               />
+              {fieldErrors.email && (
+                <p className='text-xs text-red-400 mt-1'>{fieldErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -237,10 +256,13 @@ export default function SignupClient() {
                 type='tel'
                 id='phone'
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
+                onChange={e => { setPhone(e.target.value); clearFieldError('phone'); }}
                 placeholder='+1 (555) 000-0000'
-                className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+                className={inputClass(fieldErrors.phone)}
               />
+              {fieldErrors.phone && (
+                <p className='text-xs text-red-400 mt-1'>{fieldErrors.phone}</p>
+              )}
             </div>
 
             <div>
@@ -255,9 +277,9 @@ export default function SignupClient() {
                   type={showPassword ? 'text' : 'password'}
                   id='password'
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  onChange={e => { setPassword(e.target.value); clearFieldError('password'); }}
                   placeholder='Enter your password'
-                  className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors pr-10'
+                  className={`${inputClass(fieldErrors.password)} pr-10`}
                 />
                 <button
                   type='button'
@@ -267,6 +289,9 @@ export default function SignupClient() {
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
+              {fieldErrors.password && (
+                <p className='text-xs text-red-400 mt-1'>{fieldErrors.password}</p>
+              )}
             </div>
 
             <div className='flex items-center'>

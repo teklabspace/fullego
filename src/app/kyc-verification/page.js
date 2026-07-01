@@ -13,6 +13,22 @@ import {
 import PersonaVerification from '@/components/verification/PersonaVerification';
 import { toast } from 'react-toastify';
 
+// After verification succeeds, decide the next onboarding step:
+//  - staff (admin/advisor) skip billing → dashboard
+//  - a pre-chosen plan (from the marketing page) → checkout
+//  - otherwise → the in-app plan picker, which then leads to checkout
+const postOnboardingDestination = () => {
+  if (typeof window === 'undefined') return '/dashboard';
+  try {
+    const user = JSON.parse(localStorage.getItem('user_info') || '{}');
+    if (user.role === 'admin' || user.role === 'advisor') return '/dashboard';
+    if (localStorage.getItem('pendingPlan')) return '/checkout';
+    return '/select-plan';
+  } catch {
+    return '/dashboard';
+  }
+};
+
 function KYCVerificationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -97,7 +113,7 @@ function KYCVerificationContent() {
                 },
               });
               if (started.outcome === 'redirected' || started.outcome === 'approved') {
-                if (started.outcome === 'approved') router.push('/dashboard');
+                if (started.outcome === 'approved') router.push(postOnboardingDestination());
                 return;
               }
               kycResponse = started.data;
@@ -114,7 +130,7 @@ function KYCVerificationContent() {
 
         const applyResponse = response => {
           if (response?.status === KYC_STATUS.APPROVED) {
-            router.push('/dashboard');
+            router.push(postOnboardingDestination());
             return 'done';
           }
           return handleKycStartResponse(response, {
@@ -148,7 +164,7 @@ function KYCVerificationContent() {
               },
             });
             if (started.outcome === 'approved') {
-              router.push('/dashboard');
+              router.push(postOnboardingDestination());
               return;
             }
             if (started.outcome === 'redirected' || started.outcome === 'embedded') {
@@ -192,11 +208,12 @@ function KYCVerificationContent() {
       console.log('KYC Submitted:', submitResponse);
       
       // Show success toast
-      toast.success('Verification completed successfully! Redirecting to dashboard...');
-      
-      // Small delay to show toast, then redirect directly to dashboard
+      toast.success('Verification completed successfully!');
+
+      // Small delay to show toast, then continue onboarding — checkout if a plan
+      // was chosen on /plans, otherwise the dashboard.
       setTimeout(() => {
-        router.push('/dashboard');
+        router.push(postOnboardingDestination());
       }, 1000);
     } catch (submitErr) {
       console.error('Failed to submit KYC:', submitErr);
@@ -256,7 +273,7 @@ function KYCVerificationContent() {
       });
 
       if (started.outcome === 'approved') {
-        router.push('/dashboard');
+        router.push(postOnboardingDestination());
         return;
       }
       if (started.outcome === 'redirected' || started.outcome === 'embedded') {

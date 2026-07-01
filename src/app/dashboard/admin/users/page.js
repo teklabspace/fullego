@@ -10,7 +10,13 @@ import {
   updateUserRole,
   deactivateUser,
   activateUser,
+  createAdvisor,
+  approveUserKyc,
+  listAdvisorClients,
+  assignAdvisorClient,
+  unassignAdvisorClient,
 } from '@/utils/adminApi';
+import { isValidationError, fieldErrorsFromError } from '@/utils/apiError';
 
 const ROLE_OPTIONS = ['investor', 'advisor', 'admin'];
 
@@ -51,6 +57,21 @@ export default function AdminUsersPage() {
 
   const [actionLoading, setActionLoading] = useState({});
 
+  // Create-advisor modal.
+  const EMPTY_ADVISOR = { email: '', firstName: '', lastName: '', phone: '', password: '' };
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState(EMPTY_ADVISOR);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createErrors, setCreateErrors] = useState({});
+
+  // Advisor → client assignment (shown in the advisor detail drawer).
+  const [advisorClients, setAdvisorClients] = useState([]);
+  const [advisorClientsLoading, setAdvisorClientsLoading] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [investorQuery, setInvestorQuery] = useState('');
+  const [investorResults, setInvestorResults] = useState([]);
+  const [assignBusy, setAssignBusy] = useState(false);
+
   useEffect(() => {
     if (mounted && !isAdmin) router.replace('/dashboard');
   }, [mounted, isAdmin, router]);
@@ -80,17 +101,138 @@ export default function AdminUsersPage() {
     if (mounted && isAdmin) fetchUsers();
   }, [fetchUsers, mounted, isAdmin]);
 
+  const loadAdvisorClients = async (advisorId) => {
+    setAdvisorClientsLoading(true);
+    try {
+      const res = await listAdvisorClients(advisorId);
+      setAdvisorClients(Array.isArray(res?.data) ? res.data : []);
+    } catch {
+      setAdvisorClients([]);
+    } finally {
+      setAdvisorClientsLoading(false);
+    }
+  };
+
   const openDrawer = async (user) => {
     setDrawerOpen(true);
     setSelectedUser(user);
+    setAdvisorClients([]);
     setDetailLoading(true);
     try {
       const res = await getAdminUser(user.id);
-      setSelectedUser(res.data || res);
+      const full = res.data || res;
+      setSelectedUser(full);
+      if ((full.role || user.role) === 'advisor') loadAdvisorClients(user.id);
     } catch {
       // keep basic row data
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const searchInvestors = async (q) => {
+    try {
+      const res = await listAdminUsers({ role: 'investor', search: q || undefined, page: 1, page_size: 8 });
+      setInvestorResults(res.data || []);
+    } catch {
+      setInvestorResults([]);
+    }
+  };
+
+  const handleAssignClient = async (investorId) => {
+    if (!selectedUser) return;
+    setAssignBusy(true);
+    try {
+      await assignAdvisorClient(selectedUser.id, investorId);
+      toast.success('Client assigned — their chat was created and both were notified.');
+      setAssignOpen(false);
+      setInvestorQuery('');
+      setInvestorResults([]);
+      loadAdvisorClients(selectedUser.id);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to assign client');
+    } finally {
+      setAssignBusy(false);
+    }
+  };
+
+  const handleUnassignClient = async (investorId) => {
+    if (!selectedUser) return;
+    try {
+      await unassignAdvisorClient(selectedUser.id, investorId);
+      toast.success('Client unassigned');
+      loadAdvisorClients(selectedUser.id);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to unassign client');
+    }
+  };
+
+  const handleCreateAdvisor = async (e) => {
+    e.preventDefault();
+    setCreateErrors({});
+    if (!createForm.email || !createForm.firstName.trim() || !createForm.lastName.trim()) {
+      setCreateErrors({ _form: 'Email, first name and last name are required.' });
+      return;
+    }
+    if (createForm.password && createForm.password.length < 8) {
+      setCreateErrors({ password: 'Password must be at least 8 characters.' });
+      return;
+    }
+    setCreateBusy(true);
+    try {
+      const res = await createAdvisor({
+        email: createForm.email.trim(),
+        firstName: createForm.firstName.trim(),
+        lastName: createForm.lastName.trim(),
+        phone: createForm.phone.trim(),
+        password: createForm.password || undefined,
+      });
+      // Tailor the message to the chosen password mode.
+      const d = res?.data ?? res ?? {};
+      const invited = d.invite_email_sent ?? !createForm.password;
+      toast.success(
+        invited
+          ? 'Advisor created — an invite to set their password has been emailed.'
+          : 'Advisor created — they can log in with the password you set.'
+      );
+      setCreateOpen(false);
+      setCreateForm(EMPTY_ADVISOR);
+      fetchUsers();
+    } catch (err) {
+      if (isValidationError(err)) {
+        const fe = fieldErrorsFromError(err);
+        if (Object.keys(fe).length) {
+          setCreateErrors(fe);
+          return;
+        }
+      }
+      if (err?.status === 409 || err?.code === 'CONFLICT') {
+        setCreateErrors({ email: 'A user with this email already exists.' });
+      } else {
+        toast.error(err?.message || 'Failed to create advisor');
+      }
+    } finally {
+      setCreateBusy(false);
+    }
+  };
+
+  const handleApproveKyc = async (userId) => {
+    setActionLoading((p) => ({ ...p, [userId + '_kyc']: true }));
+    try {
+      await approveUserKyc(userId);
+      toast.success('KYC approved');
+      // Refresh the open drawer + the list so the new status shows.
+      try {
+        const res = await getAdminUser(userId);
+        setSelectedUser(res.data || res);
+      } catch {
+        /* keep current */
+      }
+      fetchUsers();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to approve KYC');
+    } finally {
+      setActionLoading((p) => ({ ...p, [userId + '_kyc']: false }));
     }
   };
 
@@ -152,9 +294,17 @@ export default function AdminUsersPage() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className={`text-2xl font-bold mb-1 ${textMain}`}>Users & Roles</h1>
-        <p className={`text-sm ${textMuted}`}>Manage user accounts, roles, and access</p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className={`text-2xl font-bold mb-1 ${textMain}`}>Users & Roles</h1>
+          <p className={`text-sm ${textMuted}`}>Manage user accounts, roles, and access</p>
+        </div>
+        <button
+          onClick={() => { setCreateForm(EMPTY_ADVISOR); setCreateErrors({}); setCreateOpen(true); }}
+          className="shrink-0 px-4 py-2.5 rounded-lg text-sm font-semibold bg-[#F1CB68] hover:bg-[#BF9B30] text-[#101014] transition-colors"
+        >
+          + Create advisor
+        </button>
       </div>
 
       {/* Filters */}
@@ -372,6 +522,17 @@ export default function AdminUsersPage() {
                   <DetailRow label="Subscription Plan" value={selectedUser.subscription_plan || '—'} isDarkMode={isDarkMode} />
                   <DetailRow label="KYC Status" value={selectedUser.kyc_status || '—'} isDarkMode={isDarkMode} />
                   <DetailRow label="2FA Enabled" value={selectedUser.two_factor_auth_enabled ? 'Yes' : 'No'} isDarkMode={isDarkMode} />
+                  {selectedUser.role !== 'admin' &&
+                    String(selectedUser.kyc_status || '').toLowerCase() !== 'approved' &&
+                    !selectedUser.is_kyc_verified && (
+                      <button
+                        onClick={() => handleApproveKyc(selectedUser.id)}
+                        disabled={actionLoading[selectedUser.id + '_kyc']}
+                        className="mt-3 w-full px-3 py-2 rounded-lg text-xs font-semibold bg-green-500/15 text-green-400 border border-green-500/40 hover:bg-green-500/25 transition-colors disabled:opacity-60"
+                      >
+                        {actionLoading[selectedUser.id + '_kyc'] ? 'Approving…' : 'Approve KYC manually'}
+                      </button>
+                    )}
                 </div>
                 {/* Dates */}
                 <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
@@ -380,8 +541,188 @@ export default function AdminUsersPage() {
                   <DetailRow label="Last Login" value={fmt(selectedUser.last_login)} isDarkMode={isDarkMode} />
                   <DetailRow label="Email Verified" value={selectedUser.is_verified ? 'Yes' : 'No'} isDarkMode={isDarkMode} />
                 </div>
+
+                {/* Assigned clients (advisor only) */}
+                {selectedUser.role === 'advisor' && (
+                  <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className={`text-xs font-medium uppercase tracking-wider ${textMuted}`}>Assigned Clients</p>
+                      <button
+                        onClick={() => { setAssignOpen(true); setInvestorQuery(''); searchInvestors(''); }}
+                        className="text-xs px-2 py-1 rounded border border-[#F1CB68]/40 text-[#BF9B30] hover:bg-[#F1CB68]/10 transition-colors"
+                      >
+                        + Assign
+                      </button>
+                    </div>
+                    {advisorClientsLoading ? (
+                      <p className={`text-xs ${textMuted}`}>Loading…</p>
+                    ) : advisorClients.length === 0 ? (
+                      <p className={`text-xs ${textMuted}`}>No clients assigned.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {advisorClients.map((c) => (
+                          <div key={c.client_id} className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className={`text-sm font-medium truncate ${textMain}`}>{c.name}</p>
+                              <p className={`text-xs truncate ${textMuted}`}>{c.email}</p>
+                            </div>
+                            <button
+                              onClick={() => handleUnassignClient(c.client_id)}
+                              className="text-xs px-2 py-1 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                            >
+                              Unassign
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Create Advisor Modal */}
+      {createOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <form
+            onSubmit={handleCreateAdvisor}
+            className={`rounded-2xl border max-w-md w-full p-6 ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`}
+          >
+            <h3 className={`text-lg font-bold mb-1 ${textMain}`}>Create advisor</h3>
+            <p className={`text-xs mb-4 ${textMuted}`}>
+              They&apos;ll get an email invite to set their password, then complete KYC. Role is set to advisor automatically.
+            </p>
+
+            {createErrors._form && <p className="mb-3 text-xs text-red-400">{createErrors._form}</p>}
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-xs mb-1 ${textMuted}`}>First name</label>
+                  <input
+                    value={createForm.firstName}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, firstName: e.target.value }))}
+                    className={`w-full ${inputCls}`}
+                  />
+                  {createErrors.first_name && <p className="text-xs text-red-400 mt-1">{createErrors.first_name}</p>}
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1 ${textMuted}`}>Last name</label>
+                  <input
+                    value={createForm.lastName}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, lastName: e.target.value }))}
+                    className={`w-full ${inputCls}`}
+                  />
+                  {createErrors.last_name && <p className="text-xs text-red-400 mt-1">{createErrors.last_name}</p>}
+                </div>
+              </div>
+              <div>
+                <label className={`block text-xs mb-1 ${textMuted}`}>Email</label>
+                <input
+                  type="email"
+                  value={createForm.email}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                  className={`w-full ${inputCls}`}
+                />
+                {createErrors.email && <p className="text-xs text-red-400 mt-1">{createErrors.email}</p>}
+              </div>
+              <div>
+                <label className={`block text-xs mb-1 ${textMuted}`}>Phone (optional)</label>
+                <input
+                  type="tel"
+                  value={createForm.phone}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
+                  className={`w-full ${inputCls}`}
+                />
+                {createErrors.phone && <p className="text-xs text-red-400 mt-1">{createErrors.phone}</p>}
+              </div>
+              <div>
+                <label className={`block text-xs mb-1 ${textMuted}`}>Password (optional)</label>
+                <input
+                  type="password"
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                  placeholder="Leave blank to email a set-password invite"
+                  className={`w-full ${inputCls}`}
+                />
+                {createErrors.password && <p className="text-xs text-red-400 mt-1">{createErrors.password}</p>}
+                <p className={`text-[11px] mt-1 ${textMuted}`}>
+                  Set a password for immediate login, or leave blank to email them an invite link.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => { setCreateOpen(false); setCreateErrors({}); }}
+                className={`flex-1 py-2.5 rounded-lg font-semibold text-sm border transition-colors ${
+                  isDarkMode ? 'bg-white/5 border-[#FFFFFF14] text-white hover:bg-white/10' : 'bg-gray-100 border-gray-300 text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={createBusy}
+                className="flex-1 py-2.5 rounded-lg font-semibold text-sm bg-[#F1CB68] hover:bg-[#BF9B30] text-[#101014] transition-colors disabled:opacity-60"
+              >
+                {createBusy ? 'Creating…' : 'Create advisor'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Assign Client Modal */}
+      {assignOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className={`rounded-2xl border max-w-md w-full p-6 ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`}>
+            <h3 className={`text-lg font-bold mb-1 ${textMain}`}>Assign a client</h3>
+            <p className={`text-xs mb-4 ${textMuted}`}>
+              Assign an investor to {selectedUser?.first_name || 'this advisor'}. A chat is created automatically and both are notified.
+            </p>
+            <input
+              type="text"
+              value={investorQuery}
+              onChange={(e) => { setInvestorQuery(e.target.value); searchInvestors(e.target.value); }}
+              placeholder="Search investors by name or email…"
+              className={`w-full ${inputCls} mb-3`}
+            />
+            <div className="max-h-64 overflow-y-auto space-y-1">
+              {investorResults.length === 0 ? (
+                <p className={`text-xs py-4 text-center ${textMuted}`}>No investors found.</p>
+              ) : (
+                investorResults.map((inv) => (
+                  <button
+                    key={inv.id}
+                    onClick={() => handleAssignClient(inv.id)}
+                    disabled={assignBusy}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+                      isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <p className={`text-sm font-medium ${textMain}`}>
+                      {`${inv.first_name || ''} ${inv.last_name || ''}`.trim() || inv.email}
+                    </p>
+                    <p className={`text-xs ${textMuted}`}>{inv.email}</p>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => setAssignOpen(false)}
+                className={`px-4 py-2 rounded-lg font-semibold text-sm border transition-colors ${
+                  isDarkMode ? 'bg-white/5 border-[#FFFFFF14] text-white hover:bg-white/10' : 'bg-gray-100 border-gray-300 text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

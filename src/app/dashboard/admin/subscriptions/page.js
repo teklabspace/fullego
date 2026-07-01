@@ -10,15 +10,24 @@ import {
   updateSubscriptionPlan,
 } from '@/utils/adminApi';
 
-const PLAN_OPTIONS = ['free', 'monthly', 'annual'];
+const TIER_OPTIONS = [
+  { id: 'starter', name: 'Starter' },
+  { id: 'pro', name: 'Pro' },
+  { id: 'premium', name: 'Premium' },
+];
 
 const planBadge = (plan) => {
   const map = {
+    // Current tier ids
+    starter: 'bg-blue-500/20 text-blue-400',
+    pro: 'bg-[#F1CB68]/20 text-[#F1CB68]',
+    premium: 'bg-purple-500/20 text-purple-400',
+    // Legacy enums (kept for back-compat)
     free: 'bg-gray-500/20 text-gray-400',
     monthly: 'bg-blue-500/20 text-blue-400',
     annual: 'bg-[#F1CB68]/20 text-[#F1CB68]',
   };
-  return map[plan] || 'bg-gray-500/20 text-gray-400';
+  return map[String(plan || '').toLowerCase()] || 'bg-gray-500/20 text-gray-400';
 };
 
 const statusBadge = (status) => {
@@ -57,6 +66,7 @@ export default function AdminSubscriptionsPage() {
 
   const [changePlanTarget, setChangePlanTarget] = useState(null);
   const [newPlan, setNewPlan] = useState('');
+  const [newBillingCycle, setNewBillingCycle] = useState('monthly');
   const [planReason, setPlanReason] = useState('');
   const [changePlanLoading, setChangePlanLoading] = useState(false);
 
@@ -123,7 +133,11 @@ export default function AdminSubscriptionsPage() {
     if (!changePlanTarget || !newPlan) return;
     setChangePlanLoading(true);
     try {
-      await updateSubscriptionPlan(changePlanTarget.id, newPlan, planReason);
+      await updateSubscriptionPlan(changePlanTarget.id, {
+        planId: newPlan,
+        billingCycle: newBillingCycle,
+        reason: planReason,
+      });
       toast.success('Plan updated');
       setChangePlanTarget(null);
       setNewPlan('');
@@ -181,9 +195,9 @@ export default function AdminSubscriptionsPage() {
         />
         <select value={planFilter} onChange={(e) => { setPlanFilter(e.target.value); setPage(1); }} className={inputCls}>
           <option value="">All Plans</option>
-          <option value="free">Free</option>
-          <option value="monthly">Monthly</option>
-          <option value="annual">Annual</option>
+          <option value="starter">Starter</option>
+          <option value="pro">Pro</option>
+          <option value="premium">Premium</option>
         </select>
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className={inputCls}>
           <option value="">All Status</option>
@@ -228,8 +242,8 @@ export default function AdminSubscriptionsPage() {
                       <p className={`text-xs ${textMuted}`}>{sub.user_email}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${planBadge(sub.plan)}`}>
-                        {sub.plan}
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${planBadge(sub.plan_id || sub.plan)}`}>
+                        {sub.plan_name || sub.plan_id || sub.plan || '—'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -253,7 +267,12 @@ export default function AdminSubscriptionsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => { setChangePlanTarget(sub); setNewPlan(sub.plan); setPlanReason(''); }}
+                          onClick={() => {
+                            setChangePlanTarget(sub);
+                            setNewPlan(sub.plan_id || sub.plan || 'starter');
+                            setNewBillingCycle(sub.billing_cycle || 'monthly');
+                            setPlanReason('');
+                          }}
                           className={`text-xs px-2 py-1 rounded border font-medium transition-colors ${
                             isDarkMode
                               ? 'border-[#FFFFFF14] text-white hover:bg-white/10'
@@ -337,7 +356,7 @@ export default function AdminSubscriptionsPage() {
           <div className={`rounded-2xl border max-w-md w-full p-6 ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`}>
             <h3 className={`text-lg font-bold mb-2 ${textMain}`}>Cancel Subscription</h3>
             <p className={`text-sm mb-1 ${textMuted}`}>
-              Cancel the <span className="font-medium">{cancelTarget.plan}</span> subscription for{' '}
+              Cancel the <span className="font-medium">{cancelTarget.plan_name || cancelTarget.plan_id || cancelTarget.plan}</span> subscription for{' '}
               <span className="font-medium">{cancelTarget.user_name}</span>?
             </p>
             <p className={`text-xs mb-6 ${textMuted}`}>This action cannot be undone.</p>
@@ -377,11 +396,22 @@ export default function AdminSubscriptionsPage() {
                 onChange={(e) => setNewPlan(e.target.value)}
                 className={`w-full ${inputCls}`}
               >
-                {PLAN_OPTIONS.map((p) => (
-                  <option key={p} value={p} className={isDarkMode ? 'bg-[#1A1A1D]' : ''}>
-                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                {TIER_OPTIONS.map((t) => (
+                  <option key={t.id} value={t.id} className={isDarkMode ? 'bg-[#1A1A1D]' : ''}>
+                    {t.name}
                   </option>
                 ))}
+              </select>
+            </div>
+            <div className="mb-4">
+              <label className={`block text-sm font-medium mb-2 ${textMain}`}>Billing Cycle</label>
+              <select
+                value={newBillingCycle}
+                onChange={(e) => setNewBillingCycle(e.target.value)}
+                className={`w-full ${inputCls}`}
+              >
+                <option value="monthly" className={isDarkMode ? 'bg-[#1A1A1D]' : ''}>Monthly</option>
+                <option value="annual" className={isDarkMode ? 'bg-[#1A1A1D]' : ''}>Annual</option>
               </select>
             </div>
             <div className="mb-6">

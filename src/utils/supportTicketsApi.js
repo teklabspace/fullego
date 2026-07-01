@@ -81,13 +81,13 @@ export const listTickets = async (params = {}) => {
   if (params.limit) queryParams.append('limit', params.limit);
 
   const endpoint = `${API_ENDPOINTS.SUPPORT.LIST_TICKETS}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  // apiGet already unwraps the {success, data} envelope, so `response` here
+  // is the ticket array itself — not a wrapper with a `.data` property. The
+  // old `if (response.data)` check was always false (arrays have no `.data`),
+  // so every ticket kept its raw snake_case keys (e.g. `ticket_number` never
+  // became `ticketNumber`).
   const response = await apiGet(endpoint);
-
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-
-  return response;
+  return transformKeys(response);
 };
 
 /**
@@ -199,6 +199,13 @@ export const getTicketReplies = async (ticketId) => {
 /**
  * @deprecated Use addTicketReply — points at the canonical /replies route.
  */
+// Submit a CSAT rating (1–5) for a resolved/closed ticket. Owner-only; the
+// backend rejects (403) anyone else and (400) tickets that aren't resolved/closed.
+export const submitTicketRating = async (ticketId, { rating, comment } = {}) => {
+  const endpoint = API_ENDPOINTS.SUPPORT.TICKET_RATING(ticketId);
+  return await apiPost(endpoint, { rating, ...(comment ? { comment } : {}) });
+};
+
 export const addTicketComment = addTicketReply;
 
 /**
@@ -212,6 +219,18 @@ export const getTicketComments = getTicketReplies;
  */
 export const getTicketHistory = async (ticketId) => {
   const endpoint = API_ENDPOINTS.SUPPORT.TICKET_HISTORY(ticketId);
+  const response = await apiGet(endpoint);
+  return transformKeys(response);
+};
+
+/**
+ * Get role-scoped support analytics (Reports tab).
+ * GET /api/v1/support/analytics?range=7d|30d|90d
+ * Scope is decided server-side by role: admin sees all tickets, advisor sees
+ * tickets assigned to them, investor sees tickets they opened.
+ */
+export const getOwnSupportAnalytics = async (range = '30d') => {
+  const endpoint = `${API_ENDPOINTS.SUPPORT.ANALYTICS}?range=${encodeURIComponent(range)}`;
   const response = await apiGet(endpoint);
   return transformKeys(response);
 };

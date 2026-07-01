@@ -6,6 +6,7 @@ import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import DocumentUploadModal from '@/components/dashboard/DocumentUploadModal';
+import TicketRatingModal from '@/components/support/TicketRatingModal';
 import {
   listTickets,
   createTicket,
@@ -26,6 +27,7 @@ export default function SupportPage() {
   const [mounted, setMounted] = useState(false);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [ratingTicket, setRatingTicket] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,6 +46,7 @@ export default function SupportPage() {
         const ticketsData = response.data || response || [];
         setTickets(ticketsData.map(ticket => ({
           id: ticket.id || ticket.ticketId,
+          ticketNumber: ticket.ticketNumber,
           subject: ticket.subject,
           description: ticket.description,
           status: ticket.status,
@@ -382,9 +385,20 @@ export default function SupportPage() {
                             isDarkMode ? 'text-gray-400' : 'text-gray-600'
                           }`}
                         >
-                          {ticket.id}
+                          {ticket.ticketNumber || ticket.id}
                         </td>
                         <td className='px-6 py-4'>
+                          {(ticket.status === 'resolved' || ticket.status === 'closed') && (
+                            <button
+                              onClick={() => setRatingTicket(ticket)}
+                              className='p-2 rounded-lg text-[#F1CB68] hover:bg-[#F1CB68]/10 transition-all'
+                              title='Rate support'
+                            >
+                              <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                                <path d='M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z' />
+                              </svg>
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setSelectedTicket(ticket);
@@ -505,7 +519,7 @@ export default function SupportPage() {
                         isDarkMode ? 'text-gray-400' : 'text-gray-600'
                       }`}
                     >
-                      {ticket.id}
+                      {ticket.ticketNumber || ticket.id}
                     </span>
                   </div>
                   <div className='flex items-center justify-between'>
@@ -525,6 +539,17 @@ export default function SupportPage() {
                         </span>
                       </span>
                     </div>
+                    {(ticket.status === 'resolved' || ticket.status === 'closed') && (
+                      <button
+                        onClick={() => setRatingTicket(ticket)}
+                        className='p-2 rounded-lg text-[#F1CB68] hover:bg-[#F1CB68]/10 transition-all'
+                        title='Rate support'
+                      >
+                        <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                          <path d='M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z' />
+                        </svg>
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setSelectedTicket(ticket);
@@ -632,6 +657,13 @@ export default function SupportPage() {
         title='Upload Documents'
         itemType='ticket'
         itemId={selectedTicket?.id}
+      />
+
+      <TicketRatingModal
+        isOpen={!!ratingTicket}
+        onClose={() => setRatingTicket(null)}
+        ticket={ratingTicket}
+        isDarkMode={isDarkMode}
       />
 
       <style jsx global>{`

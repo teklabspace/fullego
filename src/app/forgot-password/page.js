@@ -31,7 +31,6 @@ export default function ForgotPasswordPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [otpFromResponse, setOtpFromResponse] = useState('');
   const [isVerificationFlow, setIsVerificationFlow] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpSuccessMessage, setOtpSuccessMessage] = useState('');
@@ -62,10 +61,6 @@ export default function ForgotPasswordPage() {
       setOtpSuccessMessage(
         response.message || 'Verification code sent. Check your inbox.'
       );
-      if (response.otp) {
-        setOtpFromResponse(response.otp);
-        console.log('OTP (dev mode):', response.otp);
-      }
     } catch (err) {
       setOtpSent(false);
       setError(getOtpErrorMessage(err));
@@ -115,10 +110,6 @@ export default function ForgotPasswordPage() {
       setOtpSuccessMessage(
         response.message || 'Verification code sent. Check your inbox.'
       );
-      if (response.otp) {
-        setOtpFromResponse(response.otp);
-        console.log('OTP (dev mode):', response.otp);
-      }
       setStep(2);
     } catch (err) {
       setOtpSent(false);
@@ -203,10 +194,6 @@ export default function ForgotPasswordPage() {
       setOtpSuccessMessage(
         response.message || 'Verification code sent. Check your inbox.'
       );
-      if (response.otp) {
-        setOtpFromResponse(response.otp);
-        console.log('OTP (dev mode):', response.otp);
-      }
       inputRefs[0].current?.focus();
     } catch (err) {
       setOtpSent(false);
@@ -328,11 +315,6 @@ export default function ForgotPasswordPage() {
                 {otpSuccessMessage && (
                   <div className='bg-green-500/10 border border-green-500/50 text-green-400 px-4 py-3 rounded-xl text-sm mt-4'>
                     {otpSuccessMessage}
-                  </div>
-                )}
-                {otpFromResponse && (
-                  <div className='bg-yellow-500/10 border border-yellow-500/50 text-yellow-400 px-4 py-3 rounded-xl text-sm'>
-                    Development Mode: OTP is {otpFromResponse}
                   </div>
                 )}
               </div>
