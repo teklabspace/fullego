@@ -524,7 +524,13 @@ export const API_ENDPOINTS = {
     CREATE_USER: '/admin/users', // admin creates an advisor (role set server-side)
     GET_USER: (id) => `/admin/users/${id}`,
     UPDATE_USER_ROLE: (id) => `/admin/users/${id}/role`,
+    // Full KYC review: status, capture_status, extracted_fields, checks,
+    // documents (short-lived signed view_urls, default 600s).
+    GET_USER_KYC: (id) => `/admin/users/${id}/kyc`,
     APPROVE_USER_KYC: (id) => `/admin/users/${id}/kyc/approve`,
+    REJECT_USER_KYC: (id) => `/admin/users/${id}/kyc/reject`,
+    // Re-pulls documents from Persona when capture_status is "failed".
+    RECAPTURE_USER_KYC: (id) => `/admin/users/${id}/kyc/recapture`,
     // Advisor ↔ investor client assignment (auto-creates a chat).
     ADVISOR_CLIENTS: (advisorId) => `/admin/advisors/${advisorId}/clients`,
     UNASSIGN_ADVISOR_CLIENT: (advisorId, investorId) => `/admin/advisors/${advisorId}/clients/${investorId}`,

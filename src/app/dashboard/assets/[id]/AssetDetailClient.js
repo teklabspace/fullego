@@ -15,12 +15,12 @@ import
     getAssetDocuments,
     getAssetValueHistory,
     requestAssetAppraisal,
-    requestAssetSale,
     runAiAppraisal,
     runAiReview,
     shareAssetDetails,
     transferAssetOwnership,
   } from '@/utils/assetsApi';
+import { createListing, listListings } from '@/utils/marketplaceApi';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -199,10 +199,37 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     targetPrice: '',
     saleNote: '',
   });
+
+  // Idempotency: the backend has no per-asset uniqueness guard on listing
+  // creation (confirmed against the live API), so this check — and
+  // disabling the button immediately on click — is what prevents duplicate
+  // listings for the same asset.
+  const [hasExistingListing, setHasExistingListing] = useState(false);
+
   const [appraisalType, setAppraisalType] = useState('');
   // Optional free-text note the investor adds with the appraisal request.
   const [appraisalNote, setAppraisalNote] = useState('');
   const [asset, setAsset] = useState(null);
+
+  useEffect(() => {
+    if (!asset?.id) return;
+    let cancelled = false;
+    listListings({ limit: 100 })
+      .then(res => {
+        if (cancelled) return;
+        const list = res?.data || res || [];
+        const arr = Array.isArray(list) ? list : Array.isArray(list?.listings) ? list.listings : [];
+        setHasExistingListing(arr.some(l => (l.assetId || l.asset_id) === asset.id));
+      })
+      .catch(() => {
+        // Fail open — let them try; the backend still enforces the real
+        // constraints regardless.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [asset?.id]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [valueHistory, setValueHistory] = useState([]);
@@ -652,20 +679,34 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
 
   const handleSellSubmit = async (e) => {
     e.preventDefault();
+    const typedPrice = sellFormData.targetPrice
+      ? parseFloat(sellFormData.targetPrice.replace(/[^0-9.-]+/g, ''))
+      : null;
+    const fallbackPrice = asset.currentValue
+      ? parseFloat(String(asset.currentValue).replace(/[^0-9.-]+/g, ''))
+      : null;
+    const askingPrice = typedPrice || fallbackPrice;
+    if (!askingPrice || Number.isNaN(askingPrice) || askingPrice <= 0) {
+      toast.error('Please enter a target price — this asset has no appraised value to fall back on.');
+      return;
+    }
     try {
       setSubmittingSell(true);
-      await requestAssetSale(asset.id, {
-        targetPrice: sellFormData.targetPrice ? parseFloat(sellFormData.targetPrice.replace(/[^0-9.-]+/g, '')) : undefined,
-        saleNote: sellFormData.saleNote || undefined,
+      await createListing({
+        assetId: asset.id,
+        title: asset.name,
+        askingPrice,
+        description: sellFormData.saleNote || undefined,
       });
-      toast.success('Sell request submitted successfully!');
+      toast.success('Listing submitted for marketplace approval!');
       setShowSellModal(false);
       setSellFormData({ targetPrice: '', saleNote: '' });
+      setHasExistingListing(true);
     } catch (err) {
       // BUG-03: surface the backend error detail and a timestamp so it can be
       // matched against the server logs if the request still fails.
       const timestamp = new Date().toISOString();
-      let errorMessage = 'Failed to submit sell request';
+      let errorMessage = 'Failed to create the listing';
       if (err.data) {
         if (typeof err.data.detail === 'string') errorMessage = err.data.detail;
         else if (err.data.message) errorMessage = err.data.message;
@@ -673,7 +714,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
       } else if (err.message) {
         errorMessage = err.message;
       }
-      console.error('Error submitting sell request:', {
+      console.error('Error creating listing:', {
         timestamp,
         assetId: asset.id,
         status: err.status,
@@ -1023,9 +1064,9 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
               <>
             <button
               onClick={() => setShowSellModal(true)}
-              disabled={submittingSell}
+              disabled={submittingSell || hasExistingListing}
               className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-                submittingSell
+                submittingSell || hasExistingListing
                   ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                   : 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
               }`}
@@ -1050,6 +1091,8 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   </svg>
                   Processing...
                 </span>
+              ) : hasExistingListing ? (
+                'Already Listed'
               ) : (
                 'Initiate Sale'
               )}
@@ -2293,7 +2336,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                 <h2 className={`text-lg sm:text-2xl font-bold ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}>
-                  Request to Sell
+                  List on Marketplace
                 </h2>
                 <button
                   onClick={() => setShowSellModal(false)}

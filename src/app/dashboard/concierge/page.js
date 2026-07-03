@@ -18,6 +18,7 @@ import {
   downloadValuationReport,
   getAppraisalStatistics,
 } from '@/utils/conciergeApi';
+import { createListing, listListings } from '@/utils/marketplaceApi';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearch } from '@/context/SearchContext';
@@ -139,6 +140,10 @@ export default function ConciergeServicePage() {
   const [page, setPage] = useState(1);
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectBusy, setRejectBusy] = useState(false);
+  const [finalizeTarget, setFinalizeTarget] = useState(null);
   const [appraisals, setAppraisals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -284,6 +289,52 @@ export default function ConciergeServicePage() {
       console.warn('Could not refresh documents:', error?.message);
     }
     toast.success('Document uploaded successfully!');
+  };
+
+  const handleRejectAppraisal = async () => {
+    if (!rejectTarget) return;
+    if (!rejectReason.trim()) {
+      toast.error('Please provide a reason for rejection.');
+      return;
+    }
+    setRejectBusy(true);
+    try {
+      await updateAppraisalStatus(rejectTarget.id, {
+        status: 'appraisal_failed',
+        notes: rejectReason.trim(),
+      });
+      setAppraisals(prev =>
+        prev.map(a => (a.id === rejectTarget.id ? { ...a, status: 'appraisal_failed' } : a))
+      );
+      setSelectedAppraisal(prev =>
+        prev && prev.id === rejectTarget.id ? { ...prev, status: 'appraisal_failed' } : prev
+      );
+      toast.success('Appraisal rejected.');
+      setRejectTarget(null);
+      setRejectReason('');
+    } catch (error) {
+      toast.error(error?.data?.detail || error?.message || 'Failed to reject appraisal.');
+    } finally {
+      setRejectBusy(false);
+    }
+  };
+
+  const handleValuationFinalized = async ({ appraisedValue, valuationDate }) => {
+    const target = finalizeTarget;
+    if (!target) return;
+    let docs = null;
+    try {
+      const res = await getAppraisalDocuments(target.id);
+      const list = res?.data || res || [];
+      docs = Array.isArray(list) ? list : null;
+    } catch {
+      // non-fatal — the documents list just won't refresh immediately
+    }
+    const patch = { status: 'completed', appraisedValue, valuationDate, ...(docs ? { documents: docs } : {}) };
+    setAppraisals(prev => prev.map(a => (a.id === target.id ? { ...a, ...patch } : a)));
+    setSelectedAppraisal(prev => (prev && prev.id === target.id ? { ...prev, ...patch } : prev));
+    setFinalizeTarget(null);
+    toast.success('Valuation finalized — appraisal marked completed.');
   };
 
   // Format date
@@ -644,6 +695,8 @@ export default function ConciergeServicePage() {
           isStaff={isStaff}
           onAssign={isStaff ? () => setAssignmentModalOpen(true) : undefined}
           onDocumentUpload={() => setDocumentModalOpen(true)}
+          onReject={isStaff ? () => setRejectTarget(selectedAppraisal) : undefined}
+          onFinalizeValuation={isStaff ? () => setFinalizeTarget(selectedAppraisal) : undefined}
         />
       )}
 
@@ -684,6 +737,68 @@ export default function ConciergeServicePage() {
             : 'Your uploaded document will be attached to this asset and shared with the appraisal team.'
         }
       />
+
+      {/* Reject Appraisal Modal */}
+      {rejectTarget && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm'>
+          <div
+            className={`rounded-2xl border max-w-md w-full p-6 ${
+              isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+            }`}
+          >
+            <h3 className={`text-lg font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              Reject appraisal
+            </h3>
+            <p className={`text-xs mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Rejecting <span className='font-medium'>{rejectTarget.assetName}</span>. The reason is
+              shown to the requester.
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder='Reason for rejection (required)…'
+              rows={4}
+              className={`w-full px-3 py-2 rounded-lg text-sm border resize-none mb-6 focus:outline-none focus:border-[#F1CB68] ${
+                isDarkMode
+                  ? 'bg-white/5 border-[#FFFFFF14] text-white placeholder-gray-500'
+                  : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
+              }`}
+            />
+            <div className='flex gap-3'>
+              <button
+                onClick={() => {
+                  setRejectTarget(null);
+                  setRejectReason('');
+                }}
+                className={`flex-1 py-2.5 rounded-lg font-semibold text-sm border transition-colors ${
+                  isDarkMode
+                    ? 'bg-white/5 border-[#FFFFFF14] text-white hover:bg-white/10'
+                    : 'bg-gray-100 border-gray-300 text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectAppraisal}
+                disabled={rejectBusy}
+                className='flex-1 py-2.5 rounded-lg font-semibold text-sm bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-60'
+              >
+                {rejectBusy ? 'Rejecting…' : 'Reject appraisal'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Finalize Valuation Modal */}
+      {finalizeTarget && (
+        <FinalizeValuationModal
+          appraisal={finalizeTarget}
+          isDarkMode={isDarkMode}
+          onClose={() => setFinalizeTarget(null)}
+          onFinalized={handleValuationFinalized}
+        />
+      )}
     </>
   );
 }
@@ -1003,6 +1118,154 @@ function AppraisalTableRow({
   );
 }
 
+// Staff-only: upload the final valuation report + set the appraised value in
+// one action. PUT /valuation alone completes the appraisal server-side, so
+// there is no separate "Approve" step — finalizing the valuation IS the
+// approval. If the value save succeeds but the file upload fails, the
+// appraisal is already completed (that call doesn't roll back) — the modal
+// drops into a reduced "retry upload" state instead of restarting the form.
+function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized }) {
+  const [file, setFile] = useState(null);
+  const [appraisedValue, setAppraisedValue] = useState('');
+  const [valuationDate, setValuationDate] = useState('');
+  const [stage, setStage] = useState('form'); // 'form' | 'retry-upload'
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const finishUpload = async (numericValue) => {
+    try {
+      await uploadAppraisalDocumentsWithProgress(appraisal.id, [file], {
+        documentType: 'valuation',
+        isClientVisible: true,
+      });
+      setBusy(false);
+      onFinalized({ appraisedValue: numericValue, valuationDate: valuationDate || null });
+    } catch (err) {
+      setBusy(false);
+      setStage('retry-upload');
+      setError(
+        err?.data?.detail || err?.message || 'Valuation saved, but the report file failed to upload.'
+      );
+    }
+  };
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    setError('');
+    if (!file) {
+      setError('Please choose the valuation report file.');
+      return;
+    }
+    const numericValue = Number(appraisedValue);
+    if (!appraisedValue || Number.isNaN(numericValue) || numericValue <= 0) {
+      setError('Please enter a valid appraised value.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await updateAppraisalValuation(appraisal.id, {
+        appraisedValue: numericValue,
+        ...(valuationDate ? { valuationDate } : {}),
+      });
+    } catch (err) {
+      setBusy(false);
+      setError(err?.data?.detail || err?.message || 'Failed to save the appraised value.');
+      return;
+    }
+    await finishUpload(numericValue);
+  };
+
+  const handleRetryUpload = async e => {
+    e.preventDefault();
+    setError('');
+    if (!file) {
+      setError('Please choose the valuation report file.');
+      return;
+    }
+    setBusy(true);
+    await finishUpload(Number(appraisedValue));
+  };
+
+  return (
+    <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm'>
+      <div
+        className={`rounded-2xl border max-w-md w-full p-6 ${
+          isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+        }`}
+      >
+        <h3 className={`text-lg font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+          {stage === 'retry-upload' ? 'Retry report upload' : 'Finalize valuation'}
+        </h3>
+        <p className={`text-xs mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          {stage === 'retry-upload'
+            ? 'The appraised value was saved. Re-upload the report file to finish.'
+            : `Upload the final report and appraised value for ${appraisal.assetName}. This completes the appraisal.`}
+        </p>
+        {error && <p className='text-xs text-red-400 mb-3'>{error}</p>}
+        <form onSubmit={stage === 'retry-upload' ? handleRetryUpload : handleSubmit}>
+          <input
+            type='file'
+            onChange={e => setFile(e.target.files?.[0] || null)}
+            className={`w-full text-sm mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}
+          />
+          {stage === 'form' && (
+            <>
+              <label className={`block text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Appraised value (USD)
+              </label>
+              <input
+                type='number'
+                min='0'
+                step='0.01'
+                value={appraisedValue}
+                onChange={e => setAppraisedValue(e.target.value)}
+                placeholder='e.g. 250000'
+                className={`w-full px-3 py-2 rounded-lg text-sm border mb-4 focus:outline-none focus:border-[#F1CB68] ${
+                  isDarkMode
+                    ? 'bg-white/5 border-[#FFFFFF14] text-white placeholder-gray-500'
+                    : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
+                }`}
+              />
+              <label className={`block text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Valuation date (optional)
+              </label>
+              <input
+                type='date'
+                value={valuationDate}
+                onChange={e => setValuationDate(e.target.value)}
+                className={`w-full px-3 py-2 rounded-lg text-sm border mb-6 focus:outline-none focus:border-[#F1CB68] ${
+                  isDarkMode ? 'bg-white/5 border-[#FFFFFF14] text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
+                }`}
+              />
+            </>
+          )}
+          <div className='flex gap-3'>
+            <button
+              type='button'
+              onClick={onClose}
+              className={`flex-1 py-2.5 rounded-lg font-semibold text-sm border transition-colors ${
+                isDarkMode
+                  ? 'bg-white/5 border-[#FFFFFF14] text-white hover:bg-white/10'
+                  : 'bg-gray-100 border-gray-300 text-gray-900 hover:bg-gray-200'
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type='submit'
+              disabled={busy}
+              className='flex-1 py-2.5 rounded-lg font-semibold text-sm text-[#0B0D12] disabled:opacity-60'
+              style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)' }}
+            >
+              {busy ? 'Saving…' : stage === 'retry-upload' ? 'Retry upload' : 'Finalize valuation'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // Appraisal Detail Modal Component
 function AppraisalDetailModal({
   appraisal,
@@ -1013,6 +1276,8 @@ function AppraisalDetailModal({
   isStaff,
   onAssign,
   onDocumentUpload,
+  onReject,
+  onFinalizeValuation,
 }) {
   const [newComment, setNewComment] = useState('');
   // The comment thread is loaded per-appraisal (the list item doesn't include it).
@@ -1020,6 +1285,53 @@ function AppraisalDetailModal({
   const [loadingThread, setLoadingThread] = useState(true);
   const [posting, setPosting] = useState(false);
   const chatScrollRef = useRef(null);
+
+  // Investor-only: once the appraisal is completed, offer a one-click listing
+  // action. The backend has no per-asset uniqueness guard on listing creation
+  // (confirmed), so this check — and disabling the button immediately on
+  // click — is the only thing preventing duplicate listings.
+  const [listingState, setListingState] = useState('n/a'); // 'n/a' | 'checking' | 'available' | 'exists' | 'creating' | 'created'
+
+  useEffect(() => {
+    if (isStaff || appraisal.status !== 'completed' || !appraisal.assetId) {
+      setListingState('n/a');
+      return;
+    }
+    let cancelled = false;
+    setListingState('checking');
+    listListings({ limit: 100 })
+      .then(res => {
+        if (cancelled) return;
+        const list = res?.data || res || [];
+        const arr = Array.isArray(list) ? list : Array.isArray(list?.listings) ? list.listings : [];
+        const exists = arr.some(l => (l.assetId || l.asset_id) === appraisal.assetId);
+        setListingState(exists ? 'exists' : 'available');
+      })
+      .catch(() => {
+        // Fail open — let them try; the backend still enforces the real
+        // ownership/KYC/subscription constraints regardless.
+        if (!cancelled) setListingState('available');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isStaff, appraisal.status, appraisal.assetId]);
+
+  const handleListOnMarketplace = async () => {
+    setListingState('creating');
+    try {
+      await createListing({
+        assetId: appraisal.assetId,
+        title: appraisal.assetName,
+        askingPrice: appraisal.appraisedValue,
+      });
+      toast.success('Listing submitted for approval.');
+      setListingState('created');
+    } catch (err) {
+      toast.error(err?.data?.detail || err?.message || 'Failed to create the listing.');
+      setListingState('available');
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1109,6 +1421,21 @@ function AppraisalDetailModal({
       toast.error(err?.data?.detail || err?.message || 'Failed to send your message.');
     } finally {
       setPosting(false);
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    try {
+      const res = await downloadValuationReport(appraisal.id);
+      const data = res?.data || res || {};
+      const url = data.url || data.downloadUrl || data.fileUrl || data.reportUrl;
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        toast.error('No report file is available yet.');
+      }
+    } catch (err) {
+      toast.error(err?.data?.detail || err?.message || 'Failed to download report.');
     }
   };
 
@@ -1274,6 +1601,28 @@ function AppraisalDetailModal({
                     <path d='M14 2v6h6' />
                   </svg>
                   Documents
+                </button>
+              )}
+              {onFinalizeValuation &&
+                !['completed', 'appraisal_failed', 'cancelled'].includes(appraisal.status) && (
+                  <button
+                    onClick={onFinalizeValuation}
+                    className='px-4 py-2 rounded-lg text-sm font-medium transition-all text-[#0B0D12]'
+                    style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)' }}
+                  >
+                    Finalize Valuation
+                  </button>
+                )}
+              {onReject && !['completed', 'appraisal_failed', 'cancelled'].includes(appraisal.status) && (
+                <button
+                  onClick={onReject}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isDarkMode
+                      ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
+                      : 'bg-red-500/15 text-red-500 hover:bg-red-500/25'
+                  }`}
+                >
+                  Reject
                 </button>
               )}
             </div>
@@ -1626,6 +1975,7 @@ function AppraisalDetailModal({
                     </p>
                   </div>
                   <button
+                    onClick={handleDownloadReport}
                     className={`w-full py-2 rounded-lg font-medium transition-all ${
                       isDarkMode
                         ? 'bg-[#F1CB68] text-white hover:bg-[#F1CB68]/80'
@@ -1634,6 +1984,28 @@ function AppraisalDetailModal({
                   >
                     Download Report
                   </button>
+                  {!isStaff && (listingState === 'available' || listingState === 'creating') && (
+                    <button
+                      onClick={handleListOnMarketplace}
+                      disabled={listingState === 'creating'}
+                      className='w-full mt-3 py-2 rounded-lg font-medium transition-all text-[#0B0D12] disabled:opacity-60'
+                      style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)' }}
+                    >
+                      {listingState === 'creating'
+                        ? 'Listing…'
+                        : `List on Marketplace — $${appraisal.appraisedValue}`}
+                    </button>
+                  )}
+                  {!isStaff && listingState === 'created' && (
+                    <p className='mt-3 text-xs text-center text-green-400'>
+                      Listed — pending marketplace approval.
+                    </p>
+                  )}
+                  {!isStaff && listingState === 'exists' && (
+                    <p className='mt-3 text-xs text-center text-gray-400'>
+                      Already listed on the marketplace.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div
