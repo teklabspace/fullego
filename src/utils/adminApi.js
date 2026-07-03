@@ -44,10 +44,25 @@ export const createAdvisor = ({ email, firstName, lastName, phone, password } = 
     ...(password ? { password } : {}),
   });
 
+// Full KYC review detail for one user: status, capture_status, extracted
+// fields, Persona checks, and documents (each with a short-lived signed
+// view_url, ~600s — re-call this to refresh expired links).
+export const getUserKyc = (userId) =>
+  apiGet(API_ENDPOINTS.ADMIN.GET_USER_KYC(userId));
+
 // Manually approve a user's KYC (fallback when Persona doesn't succeed). Admin
 // only; rejected for admin targets / already-approved KYC.
 export const approveUserKyc = (userId) =>
   apiPost(API_ENDPOINTS.ADMIN.APPROVE_USER_KYC(userId), {});
+
+// Reject a user's KYC with a reason (required) — notifies the user.
+export const rejectUserKyc = (userId, reason) =>
+  apiPost(API_ENDPOINTS.ADMIN.REJECT_USER_KYC(userId), { reason });
+
+// Re-pull documents from Persona when capture_status is "failed". Returns
+// capture_status: "pending" — poll getUserKyc to see it flip to "captured".
+export const recaptureUserKyc = (userId) =>
+  apiPost(API_ENDPOINTS.ADMIN.RECAPTURE_USER_KYC(userId), {});
 
 // ── Advisor ↔ client assignment ──────────────────────────────────────────────
 // Assign an investor to an advisor (auto-creates their chat + notifies both).

@@ -1,4 +1,10 @@
-@import "tailwindcss";
+/* Tailwind v4 normally auto-scans the whole project for class names. A
+   tracked AI_Appraisal_Feature_Product_Requirement.docx at the repo root
+   trips the Lightning CSS scanner ("Invalid code point"), 500-ing every
+   page, so automatic detection is disabled and the scan is pointed at src/
+   only instead. */
+@import "tailwindcss" source(none);
+@source "../../src";
 
 :root {
   --background: #ffffff;

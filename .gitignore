@@ -49,3 +49,10 @@ next-env.d.ts
 
 # generated PDFs
 *.pdf
+
+# ad-hoc screenshots dropped at the repo root during manual testing
+# (real app images live under public/ and src/, which are unaffected)
+/*.png
+
+# scratch design/planning docs (specs, plans, working notes)
+docs/superpowers/

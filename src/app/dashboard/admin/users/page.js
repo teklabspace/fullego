@@ -11,7 +11,10 @@ import {
   deactivateUser,
   activateUser,
   createAdvisor,
+  getUserKyc,
   approveUserKyc,
+  rejectUserKyc,
+  recaptureUserKyc,
   listAdvisorClients,
   assignAdvisorClient,
   unassignAdvisorClient,
@@ -35,6 +38,25 @@ const statusBadge = (active) =>
 const fmt = (d) => {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+const titleCase = (s) =>
+  s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—';
+
+const kycStatusBadge = (status) => {
+  const s = String(status || '').toLowerCase();
+  if (s === 'approved') return 'bg-green-500/20 text-green-400';
+  if (s === 'rejected') return 'bg-red-500/20 text-red-400';
+  if (s === 'pending_review' || s === 'in_progress') return 'bg-yellow-500/20 text-yellow-500';
+  return 'bg-gray-500/20 text-gray-400';
+};
+
+const captureStatusBadge = (status) => {
+  const s = String(status || '').toLowerCase();
+  if (s === 'captured') return 'bg-green-500/20 text-green-400';
+  if (s === 'failed') return 'bg-red-500/20 text-red-400';
+  if (s === 'pending') return 'bg-yellow-500/20 text-yellow-500';
+  return 'bg-gray-500/20 text-gray-400';
 };
 
 export default function AdminUsersPage() {
@@ -71,6 +93,15 @@ export default function AdminUsersPage() {
   const [investorQuery, setInvestorQuery] = useState('');
   const [investorResults, setInvestorResults] = useState([]);
   const [assignBusy, setAssignBusy] = useState(false);
+
+  // KYC review (shown in the non-admin detail drawer).
+  const [kycDetail, setKycDetail] = useState(null);
+  const [kycLoading, setKycLoading] = useState(false);
+  const [kycRejectOpen, setKycRejectOpen] = useState(false);
+  const [kycRejectReason, setKycRejectReason] = useState('');
+  const [kycRejectBusy, setKycRejectBusy] = useState(false);
+  const [kycRecaptureBusy, setKycRecaptureBusy] = useState(false);
+  const [kycImagePreview, setKycImagePreview] = useState(null);
 
   useEffect(() => {
     if (mounted && !isAdmin) router.replace('/dashboard');
@@ -117,16 +148,31 @@ export default function AdminUsersPage() {
     setDrawerOpen(true);
     setSelectedUser(user);
     setAdvisorClients([]);
+    setKycDetail(null);
     setDetailLoading(true);
     try {
       const res = await getAdminUser(user.id);
       const full = res.data || res;
       setSelectedUser(full);
-      if ((full.role || user.role) === 'advisor') loadAdvisorClients(user.id);
+      const role = full.role || user.role;
+      if (role === 'advisor') loadAdvisorClients(user.id);
+      if (role !== 'admin') loadKycDetail(user.id);
     } catch {
       // keep basic row data
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const loadKycDetail = async (userId) => {
+    setKycLoading(true);
+    try {
+      const res = await getUserKyc(userId);
+      setKycDetail(res?.data || res || null);
+    } catch {
+      setKycDetail(null);
+    } finally {
+      setKycLoading(false);
     }
   };
 
@@ -228,11 +274,47 @@ export default function AdminUsersPage() {
       } catch {
         /* keep current */
       }
+      loadKycDetail(userId);
       fetchUsers();
     } catch (err) {
       toast.error(err?.message || 'Failed to approve KYC');
     } finally {
       setActionLoading((p) => ({ ...p, [userId + '_kyc']: false }));
+    }
+  };
+
+  const handleRejectKyc = async () => {
+    if (!selectedUser) return;
+    if (!kycRejectReason.trim()) {
+      toast.info('A rejection reason is required.');
+      return;
+    }
+    setKycRejectBusy(true);
+    try {
+      await rejectUserKyc(selectedUser.id, kycRejectReason.trim());
+      toast.success('KYC rejected — the user has been notified.');
+      setKycRejectOpen(false);
+      setKycRejectReason('');
+      loadKycDetail(selectedUser.id);
+      fetchUsers();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to reject KYC');
+    } finally {
+      setKycRejectBusy(false);
+    }
+  };
+
+  const handleRecaptureKyc = async () => {
+    if (!selectedUser) return;
+    setKycRecaptureBusy(true);
+    try {
+      await recaptureUserKyc(selectedUser.id);
+      toast.success('Re-capture started — documents will refresh shortly.');
+      loadKycDetail(selectedUser.id);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to start re-capture');
+    } finally {
+      setKycRecaptureBusy(false);
     }
   };
 
@@ -522,18 +604,167 @@ export default function AdminUsersPage() {
                   <DetailRow label="Subscription Plan" value={selectedUser.subscription_plan || '—'} isDarkMode={isDarkMode} />
                   <DetailRow label="KYC Status" value={selectedUser.kyc_status || '—'} isDarkMode={isDarkMode} />
                   <DetailRow label="2FA Enabled" value={selectedUser.two_factor_auth_enabled ? 'Yes' : 'No'} isDarkMode={isDarkMode} />
-                  {selectedUser.role !== 'admin' &&
-                    String(selectedUser.kyc_status || '').toLowerCase() !== 'approved' &&
-                    !selectedUser.is_kyc_verified && (
-                      <button
-                        onClick={() => handleApproveKyc(selectedUser.id)}
-                        disabled={actionLoading[selectedUser.id + '_kyc']}
-                        className="mt-3 w-full px-3 py-2 rounded-lg text-xs font-semibold bg-green-500/15 text-green-400 border border-green-500/40 hover:bg-green-500/25 transition-colors disabled:opacity-60"
-                      >
-                        {actionLoading[selectedUser.id + '_kyc'] ? 'Approving…' : 'Approve KYC manually'}
-                      </button>
-                    )}
                 </div>
+
+                {/* KYC Review — full detail with extracted fields, checks, documents */}
+                {selectedUser.role !== 'admin' && (
+                  <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className={`text-xs font-medium uppercase tracking-wider ${textMuted}`}>KYC Review</p>
+                      <button
+                        onClick={() => loadKycDetail(selectedUser.id)}
+                        className={`text-xs ${textMuted} hover:text-[#F1CB68] transition-colors`}
+                      >
+                        Refresh
+                      </button>
+                    </div>
+
+                    {kycLoading ? (
+                      <div className="space-y-2">
+                        {[0, 1, 2].map((i) => (
+                          <div key={i} className={`h-4 rounded animate-pulse ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`} />
+                        ))}
+                      </div>
+                    ) : !kycDetail ? (
+                      <p className={`text-xs ${textMuted}`}>No KYC record yet.</p>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${kycStatusBadge(kycDetail.status)}`}>
+                            {titleCase(kycDetail.status)}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${captureStatusBadge(kycDetail.capture_status)}`}>
+                            Capture: {titleCase(kycDetail.capture_status)}
+                          </span>
+                        </div>
+
+                        {kycDetail.status === 'rejected' && kycDetail.rejection_reason && (
+                          <p className="text-xs text-red-400">Rejection reason: {kycDetail.rejection_reason}</p>
+                        )}
+                        {kycDetail.capture_status === 'failed' && kycDetail.capture_error && (
+                          <p className="text-xs text-red-400">Capture error: {kycDetail.capture_error}</p>
+                        )}
+
+                        {kycDetail.extracted_fields && Object.keys(kycDetail.extracted_fields).length > 0 && (
+                          <div>
+                            <p className={`text-[11px] font-medium uppercase tracking-wider mb-2 ${textMuted}`}>
+                              Extracted Fields
+                            </p>
+                            <div className="space-y-1">
+                              {Object.entries(kycDetail.extracted_fields).map(([key, value]) => (
+                                <div key={key} className="flex justify-between items-center gap-3 py-0.5">
+                                  <span className={`text-xs shrink-0 ${textMuted}`}>{titleCase(key)}</span>
+                                  <span className={`text-xs font-medium truncate ${textMain}`}>{value ?? '—'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {Array.isArray(kycDetail.checks) && kycDetail.checks.length > 0 && (
+                          <div>
+                            <p className={`text-[11px] font-medium uppercase tracking-wider mb-2 ${textMuted}`}>
+                              Verification Checks
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {kycDetail.checks.map((check, i) => {
+                                const passed = check.status === 'passed';
+                                const failed = check.status === 'failed';
+                                return (
+                                  <span
+                                    key={`${check.name}-${i}`}
+                                    title={check.reasons?.join(', ') || ''}
+                                    className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                                      passed
+                                        ? 'bg-green-500/20 text-green-400'
+                                        : failed
+                                          ? 'bg-red-500/20 text-red-400'
+                                          : 'bg-gray-500/20 text-gray-400'
+                                    }`}
+                                  >
+                                    {titleCase(check.name)}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {Array.isArray(kycDetail.documents) && kycDetail.documents.length > 0 ? (
+                          <div>
+                            <p className={`text-[11px] font-medium uppercase tracking-wider mb-2 ${textMuted}`}>
+                              Documents
+                            </p>
+                            <div className="grid grid-cols-3 gap-2">
+                              {kycDetail.documents.map((doc) => (
+                                <button
+                                  key={doc.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setKycImagePreview({ url: doc.view_url, label: titleCase(doc.document_type) })
+                                  }
+                                  className="group text-left"
+                                >
+                                  <div
+                                    className={`aspect-square rounded-lg overflow-hidden border ${
+                                      isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                                    }`}
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL, not a static/local asset */}
+                                    <img
+                                      src={doc.view_url}
+                                      alt={titleCase(doc.document_type)}
+                                      className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+                                    />
+                                  </div>
+                                  <p className={`text-[10px] mt-1 truncate ${textMuted}`}>{titleCase(doc.document_type)}</p>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className={`text-xs ${textMuted}`}>
+                            {kycDetail.capture_status === 'not_captured'
+                              ? 'Documents not captured yet — the user may not have completed verification.'
+                              : 'No documents.'}
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {kycDetail.status !== 'approved' && (
+                            <button
+                              onClick={() => handleApproveKyc(selectedUser.id)}
+                              disabled={actionLoading[selectedUser.id + '_kyc']}
+                              className="px-3 py-2 rounded-lg text-xs font-semibold bg-green-500/15 text-green-400 border border-green-500/40 hover:bg-green-500/25 transition-colors disabled:opacity-60"
+                            >
+                              {actionLoading[selectedUser.id + '_kyc'] ? 'Approving…' : 'Approve'}
+                            </button>
+                          )}
+                          {kycDetail.status !== 'rejected' && (
+                            <button
+                              onClick={() => {
+                                setKycRejectReason('');
+                                setKycRejectOpen(true);
+                              }}
+                              className="px-3 py-2 rounded-lg text-xs font-semibold bg-red-500/15 text-red-400 border border-red-500/40 hover:bg-red-500/25 transition-colors"
+                            >
+                              Reject
+                            </button>
+                          )}
+                          {kycDetail.capture_status === 'failed' && (
+                            <button
+                              onClick={handleRecaptureKyc}
+                              disabled={kycRecaptureBusy}
+                              className="px-3 py-2 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/40 hover:bg-amber-500/25 transition-colors disabled:opacity-60"
+                            >
+                              {kycRecaptureBusy ? 'Re-capturing…' : 'Re-capture documents'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Dates */}
                 <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
                   <p className={`text-xs font-medium uppercase tracking-wider mb-3 ${textMuted}`}>Activity</p>
@@ -723,6 +954,66 @@ export default function AdminUsersPage() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject KYC Modal */}
+      {kycRejectOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className={`rounded-2xl border max-w-md w-full p-6 ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`}>
+            <h3 className={`text-lg font-bold mb-1 ${textMain}`}>Reject KYC</h3>
+            <p className={`text-xs mb-4 ${textMuted}`}>
+              Rejecting {selectedUser?.first_name || 'this user'}&apos;s KYC. The reason is shown to them.
+            </p>
+            <textarea
+              value={kycRejectReason}
+              onChange={(e) => setKycRejectReason(e.target.value)}
+              placeholder="Reason for rejection (required)…"
+              rows={4}
+              className={`w-full px-3 py-2 rounded-lg text-sm border resize-none mb-6 focus:outline-none focus:border-[#F1CB68] ${
+                isDarkMode ? 'bg-white/5 border-[#FFFFFF14] text-white placeholder-gray-500' : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
+              }`}
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setKycRejectOpen(false); setKycRejectReason(''); }}
+                className={`flex-1 py-2.5 rounded-lg font-semibold text-sm border transition-colors ${
+                  isDarkMode ? 'bg-white/5 border-[#FFFFFF14] text-white hover:bg-white/10' : 'bg-gray-100 border-gray-300 text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectKyc}
+                disabled={kycRejectBusy}
+                className="flex-1 py-2.5 rounded-lg font-semibold text-sm bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-60"
+              >
+                {kycRejectBusy ? 'Rejecting…' : 'Reject KYC'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KYC Document Lightbox */}
+      {kycImagePreview && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85"
+          onClick={() => setKycImagePreview(null)}
+        >
+          <div className="max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-white">{kycImagePreview.label}</p>
+              <button
+                onClick={() => setKycImagePreview(null)}
+                className="text-white/70 hover:text-white text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL */}
+            <img src={kycImagePreview.url} alt={kycImagePreview.label} className="w-full h-auto rounded-lg" />
           </div>
         </div>
       )}
