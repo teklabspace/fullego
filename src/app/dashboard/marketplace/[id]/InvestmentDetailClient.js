@@ -13,7 +13,7 @@ import {
   payListingFee,
 } from '@/utils/marketplaceApi';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 
 export default function InvestmentDetailClient() {
@@ -23,19 +23,34 @@ export default function InvestmentDetailClient() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
-  const [offerAmount, setOfferAmount] = useState('1,100.00');
+  // Prefilled from the listing's asking price once it loads.
+  const [offerAmount, setOfferAmount] = useState('');
   const [offerMessage, setOfferMessage] = useState('');
   const [ownerActionBusy, setOwnerActionBusy] = useState('');
   const router = useRouter();
 
-  // Get ID from params
-  const investmentId = params?.id;
+  // Listing ID: `?id=` first (the static-export-safe /dashboard/marketplace/detail
+  // route — a dynamic [id] path can't be prerendered with `output: export`),
+  // falling back to the path param for legacy /dashboard/marketplace/<id> links.
+  const [queryId, setQueryId] = useState(null);
+  const pathId = params?.id && params.id !== '__' ? params.id : null;
+  const investmentId = queryId || pathId;
 
   // API data states
   const [listing, setListing] = useState(null);
   const [listingOffers, setListingOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('id');
+    if (id) {
+      setQueryId(id);
+    } else if (!params?.id || params.id === '__') {
+      setError('Listing not found');
+      setLoading(false);
+    }
+  }, [params]);
 
   // Fetch listing details
   useEffect(() => {
@@ -50,6 +65,15 @@ export default function InvestmentDetailClient() {
 
         if (listingRes.data) {
           setListing(listingRes.data);
+          // Trade Now opens the offer modal — start from the asking price
+          // rather than a placeholder amount.
+          if (listingRes.data.askingPrice) {
+            setOfferAmount(
+              Number(listingRes.data.askingPrice).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+              })
+            );
+          }
         } else {
           setListing(null);
         }
@@ -75,6 +99,22 @@ export default function InvestmentDetailClient() {
 
     fetchListingDetails();
   }, [investmentId]);
+
+  // Deep link: ?buy=1 (Buy buttons on the marketplace lists / the public-page
+  // guest handoff) opens the offer modal pre-filled with the asking price —
+  // a "buy now" is an offer at asking price (offer → accept → escrow).
+  const buyHandled = useRef(false);
+  useEffect(() => {
+    if (buyHandled.current || !listing || typeof window === 'undefined') return;
+    if (!new URLSearchParams(window.location.search).get('buy')) return;
+    buyHandled.current = true;
+    if (listing.askingPrice) {
+      setOfferAmount(
+        Number(listing.askingPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })
+      );
+    }
+    setIsOfferModalOpen(true);
+  }, [listing]);
 
   // Fetch listing offers
   useEffect(() => {
@@ -114,7 +154,7 @@ export default function InvestmentDetailClient() {
   const investment = listing
     ? {
         name: listing.title || listing.assetName || 'Untitled Listing',
-        category: listing.assetType || listing.category || 'Other',
+        category: listing.category || listing.assetType || 'Other',
         issuer: listing.issuer || listing.sellerName || 'Unknown',
         status:
           listing.status === 'active'
@@ -134,6 +174,8 @@ export default function InvestmentDetailClient() {
         minimum: listing.askingPrice
           ? `$${listing.askingPrice.toLocaleString()}`
           : '$0',
+        askingPriceValue: listing.askingPrice || 0,
+        image: listing.thumbnailUrl || listing.imageUrl || null,
         expectedReturns: listing.expectedReturn || '0%',
         duration: listing.duration || 'N/A',
         riskLevel: listing.riskLevel || 'Medium',
@@ -226,6 +268,42 @@ export default function InvestmentDetailClient() {
         {/* Page Content */}
         <main className='flex-1 overflow-y-auto'>
           <div className='p-4 md:p-6 lg:p-8'>
+            {loading ? (
+              <div className='flex flex-col items-center justify-center py-24 gap-3'>
+                <div className='w-10 h-10 border-2 border-[#F1CB68] border-t-transparent rounded-full animate-spin' />
+                <p
+                  className={`text-sm ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  Loading listing…
+                </p>
+              </div>
+            ) : !listing ? (
+              <div className='flex flex-col items-center justify-center py-24 gap-4 text-center'>
+                <p
+                  className={`text-lg font-semibold ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  This listing isn&apos;t available
+                </p>
+                <p
+                  className={`text-sm ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  {error || 'It may have been sold or removed.'}
+                </p>
+                <button
+                  onClick={() => router.push('/dashboard/marketplace')}
+                  className='px-6 py-2.5 bg-[#F1CB68] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all'
+                >
+                  Back to marketplace
+                </button>
+              </div>
+            ) : (
+              <>
             {/* Header Section */}
             <div
               className={`rounded-2xl border p-6 mb-6 ${
@@ -706,6 +784,8 @@ export default function InvestmentDetailClient() {
                 </p>
               </div>
             )}
+              </>
+            )}
           </div>
         </main>
       </div>
@@ -822,27 +902,26 @@ function MakeOfferModal({
   listingId,
   onOfferCreated,
 }) {
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  // Get listed price from investment data
+  // Real listing values only — no invented fallbacks on a financial modal.
   const listedPrice =
-    investment?.minimumValue ||
+    investment?.askingPriceValue ||
     parseFloat(investment?.minimum?.replace(/[^0-9.]/g, '')) ||
-    1250.0;
+    0;
   const returnRate =
-    parseFloat(investment?.expectedReturns?.replace('%', '')) || 12.5;
-  const transactionFee = (
-    parseFloat(offerAmount.replace(/,/g, '')) * 0.025
-  ).toFixed(2);
-  const total = (
-    parseFloat(offerAmount.replace(/,/g, '')) + parseFloat(transactionFee)
-  ).toFixed(2);
-  const percentageBelow = (
-    ((listedPrice - parseFloat(offerAmount.replace(/,/g, ''))) / listedPrice) *
-    100
-  ).toFixed(0);
+    parseFloat(investment?.expectedReturns?.replace('%', '')) || 0;
+  const offerValue = parseFloat(offerAmount.replace(/,/g, '')) || 0;
+  const transactionFee = (offerValue * 0.025).toFixed(2);
+  const total = (offerValue + parseFloat(transactionFee)).toFixed(2);
+  // Only meaningful when the offer is actually below a known listed price.
+  const percentageBelow =
+    listedPrice > 0 && offerValue > 0 && offerValue < listedPrice
+      ? (((listedPrice - offerValue) / listedPrice) * 100).toFixed(0)
+      : null;
 
   const handleSendOffer = async () => {
     if (!listingId) {
@@ -874,17 +953,39 @@ function MakeOfferModal({
           onOfferCreated();
         }
         onClose();
-        // Reset form
-        setOfferAmount('1,100.00');
+        // Reset form back to the listed price
+        setOfferAmount(
+          listedPrice
+            ? listedPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })
+            : ''
+        );
         setOfferMessage('');
       } else {
         toast.error('Failed to submit offer');
       }
     } catch (err) {
       console.error('Error creating offer:', err);
-      const errorMessage =
-        err.data?.detail || err.message || 'Failed to submit offer';
-      toast.error(errorMessage);
+      // Machine-readable codes from POST /listings/{id}/offers — route the
+      // user to the step they still owe instead of a generic failure.
+      const code = err?.data?.error?.code;
+      if (err?.status === 401 || code === 'AUTH_REQUIRED') {
+        toast.info('Please log in to continue with the purchase.');
+        router.push('/login');
+      } else if (code === 'KYC_REQUIRED') {
+        toast.info('Identity verification is required before buying. Complete KYC to continue.');
+        router.push('/dashboard/kyc');
+      } else if (code === 'SUBSCRIPTION_REQUIRED') {
+        toast.info('An active subscription is required to buy. Choose a plan to continue.');
+        router.push('/dashboard/settings?tab=payment');
+      } else if (code === 'OFFER_LIMIT_REACHED') {
+        toast.info(err?.data?.message || 'You have reached your plan’s offer limit. Upgrade for more.');
+      } else if (code === 'OWN_LISTING') {
+        toast.info('This is your own listing — you can’t buy it.');
+      } else if (code === 'STAFF_CANNOT_BUY') {
+        toast.info('Staff accounts cannot make purchases.');
+      } else {
+        toast.error(err?.data?.message || err?.data?.detail || err?.message || 'Failed to submit offer');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -946,20 +1047,28 @@ function MakeOfferModal({
           </div>
 
           <div className='p-6'>
-            {/* Investment Image */}
+            {/* Listing image (branded placeholder when the asset has none) */}
             <div className='mb-6 rounded-xl overflow-hidden bg-gradient-to-br from-[#F1CB68] to-[#8B7355] h-40 flex items-center justify-center'>
-              <div className='text-6xl opacity-20'>
-                <svg
-                  width='80'
-                  height='80'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='white'
-                  strokeWidth='1'
-                >
-                  <path d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5' />
-                </svg>
-              </div>
+              {investment?.image ? (
+                <img
+                  src={investment.image}
+                  alt={investment?.name || 'Listing'}
+                  className='w-full h-full object-cover'
+                />
+              ) : (
+                <div className='text-6xl opacity-20'>
+                  <svg
+                    width='80'
+                    height='80'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    stroke='white'
+                    strokeWidth='1'
+                  >
+                    <path d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5' />
+                  </svg>
+                </div>
+              )}
             </div>
 
             {/* Investment Details */}
@@ -969,7 +1078,7 @@ function MakeOfferModal({
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}
               >
-                Akunuba Prime Collection #247
+                {investment?.name || 'Listing'}
               </h3>
 
               <div className='flex items-center justify-between mb-2'>
@@ -989,18 +1098,20 @@ function MakeOfferModal({
                 </span>
               </div>
 
-              <div className='flex items-center justify-between'>
-                <span
-                  className={`text-sm ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}
-                >
-                  Return Rate
-                </span>
-                <span className='px-3 py-1 bg-[#F1CB68] text-white text-xs font-semibold rounded-full'>
-                  +{returnRate}%
-                </span>
-              </div>
+              {returnRate > 0 && (
+                <div className='flex items-center justify-between'>
+                  <span
+                    className={`text-sm ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}
+                  >
+                    Return Rate
+                  </span>
+                  <span className='px-3 py-1 bg-[#F1CB68] text-white text-xs font-semibold rounded-full'>
+                    +{returnRate}%
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Your Offer Amount */}
@@ -1031,9 +1142,11 @@ function MakeOfferModal({
                   } focus:outline-none focus:border-[#F1CB68]`}
                 />
               </div>
-              <p className='text-xs text-[#F1CB68] mt-1'>
-                {percentageBelow}% below listing price
-              </p>
+              {percentageBelow && (
+                <p className='text-xs text-[#F1CB68] mt-1'>
+                  {percentageBelow}% below listing price
+                </p>
+              )}
             </div>
 
             {/* Add a Message */}

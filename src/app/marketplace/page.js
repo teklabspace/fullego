@@ -5,22 +5,9 @@ import Navbar from '@/components/layout/Navbar';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { listListings, searchMarketplace, getMarketHighlights, getMarketTrends } from '@/utils/marketplaceApi';
-
-const categories = [
-  { id: 'All', name: 'All', icon: 'grid.svg' },
-  { id: 'Private Equity', name: 'Private Equity', icon: 'trending-up.svg' },
-  { id: 'Real Estate', name: 'Real Estate', icon: 'Highrise.svg' },
-  { id: 'Private Credit', name: 'Private Credit', icon: 'wallet-keys.svg' },
-  { id: 'Alternatives', name: 'Alternatives', icon: 'pie-chart.svg' },
-  { id: 'Funds', name: 'Funds', icon: 'bar-chart.svg' },
-  { id: 'Deals', name: 'Deals', icon: 'shopping-bag.svg' },
-  {
-    id: 'Arts & Collectibles',
-    name: 'Arts & Collectibles',
-    icon: 'diamond.svg',
-  },
-];
+import { searchMarketplace, getMarketplaceCategories, getMarketHighlights, getMarketTrends } from '@/utils/marketplaceApi';
+import { categoryGroupConfig, getCategoriesByGroup } from '@/config/assetConfig';
+import { getCategoryIcon } from '@/utils/categoryIcons';
 
 const allInvestmentFunds = [
   {
@@ -153,72 +140,130 @@ const allInvestmentFunds = [
 
 export default function Marketplace() {
   const router = useRouter();
+  // Two-level filter: a main category group first (Assets, Portfolio, ...),
+  // then optionally one of its subcategories (matches listing.category).
+  const [activeGroup, setActiveGroup] = useState('All');
   const [activeCategory, setActiveCategory] = useState('All');
+  // GET /marketplace/categories — only categories with live listings, with
+  // counts: [{ category, categoryGroup, count }]. A new category appears
+  // automatically once something is listed under it.
+  const [marketCategories, setMarketCategories] = useState(null);
+
+  useEffect(() => {
+    getMarketplaceCategories()
+      .then(res => {
+        if (Array.isArray(res?.data)) setMarketCategories(res.data);
+      })
+      .catch(() => {
+        // Availability unknown — every group stays visible.
+      });
+  }, []);
+
+  // Primary tabs: main groups that have live listings, in config order, plus
+  // any group the backend knows that the config doesn't (all config groups
+  // until /categories responds).
+  const apiGroups = marketCategories
+    ? [...new Set(marketCategories.map(c => c.categoryGroup))]
+    : null;
+  const groupTabs = [
+    'All',
+    ...Object.keys(categoryGroupConfig).filter(
+      group => !apiGroups || apiGroups.includes(group)
+    ),
+    ...(apiGroups || []).filter(group => !categoryGroupConfig[group]),
+  ];
+
+  // Secondary chips for the selected group — config order first, then any
+  // backend category the config doesn't know (e.g. the backfilled "Other").
+  const groupCategories = marketCategories
+    ? marketCategories.filter(c => c.categoryGroup === activeGroup)
+    : [];
+  const configOrder = getCategoriesByGroup(activeGroup).map(cat => cat.id);
+  const subCategoryTabs =
+    activeGroup === 'All'
+      ? []
+      : [
+          ...groupCategories
+            .filter(c => configOrder.includes(c.category))
+            .sort(
+              (a, b) =>
+                configOrder.indexOf(a.category) - configOrder.indexOf(b.category)
+            ),
+          ...groupCategories.filter(c => !configOrder.includes(c.category)),
+        ];
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState('price-low-high');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(null);
-  const [pageSize] = useState(12);
-  const [assetTypes, setAssetTypes] = useState({
-    'Real Estate': false,
-    Bonds: false,
-    Equity: false,
-    Others: false,
-  });
+  // Items per page — stick to these presets (no free-form input): the backend
+  // may reintroduce a server-side cap, and the presets are guaranteed safe.
+  const PAGE_SIZES = [20, 50, 100];
+  const [pageSize, setPageSize] = useState(20);
+
+  // Pager numbers: all pages up to 7, otherwise 1 … current±1 … last.
+  const getPageNumbers = (current, total) => {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const pages = [1];
+    if (current > 3) pages.push('ellipsis-left');
+    for (
+      let p = Math.max(2, current - 1);
+      p <= Math.min(total - 1, current + 1);
+      p++
+    ) {
+      pages.push(p);
+    }
+    if (current < total - 2) pages.push('ellipsis-right');
+    pages.push(total);
+    return pages;
+  };
   const [priceRange, setPriceRange] = useState([100, 10000]);
-  const [returnRange, setReturnRange] = useState([1, 30]);
 
   // API data states
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const toggleAssetType = type => {
-    setAssetTypes(prev => ({ ...prev, [type]: !prev[type] }));
-  };
-
-  // Fetch marketplace listings
+  // Fetch marketplace listings — everything (category, group, price, sort,
+  // pagination) is filtered server-side by GET /marketplace/search.
   useEffect(() => {
     const fetchListings = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Build filter params (used to decide between listings vs search)
         const filterParams = {};
         if (activeCategory !== 'All') {
-          filterParams.assetType = activeCategory;
+          // Exact asset-category name; matches listing.category server-side.
+          filterParams.category = activeCategory;
+        } else if (activeGroup !== 'All') {
+          // Whole main tab, paginated server-side.
+          filterParams.categoryGroup = activeGroup;
         }
-        const selectedAssetTypes = Object.keys(assetTypes).filter(
-          key => assetTypes[key]
-        );
-        if (selectedAssetTypes.length > 0) {
-          filterParams.assetType = selectedAssetTypes[0]; // Use first selected type
-        }
-        if (priceRange[0] > 0) {
+        // Slider defaults ([100, 10000]) mean "no price constraint" — only
+        // send bounds the user actually moved, otherwise listings priced
+        // under $100k are silently hidden.
+        if (priceRange[0] > 100) {
           filterParams.minPrice = priceRange[0] * 1000;
         }
         if (priceRange[1] < 10000) {
           filterParams.maxPrice = priceRange[1] * 1000;
         }
-        if (sortBy === 'price-low-high' || sortBy === 'price-high-low') {
+        if (sortBy === 'price-low-high') {
           filterParams.sortBy = 'price';
-        } else if (sortBy === 'return-low-high' || sortBy === 'return-high-low') {
-          filterParams.sortBy = 'return';
+          filterParams.sortOrder = 'asc';
+        } else if (sortBy === 'price-high-low') {
+          filterParams.sortBy = 'price';
+          filterParams.sortOrder = 'desc';
         }
 
-        // Always send pagination to the API
-        const baseParams = { page, limit: pageSize };
-
-        // Fetch listings:
-        // - use searchMarketplace when filters are applied
-        // - otherwise use listListings with pagination
-        let listingsRes;
-        if (Object.keys(filterParams).length > 0) {
-          listingsRes = await searchMarketplace({ ...filterParams, ...baseParams });
-        } else {
-          listingsRes = await listListings({ statusFilter: 'active', ...baseParams });
-        }
+        // No status_filter: the default returns all publicly visible listings
+        // (APPROVED + ACTIVE) — auto-listed assets come back as APPROVED, so
+        // filtering by 'active' alone would hide them.
+        const listingsRes = await searchMarketplace({
+          ...filterParams,
+          page,
+          limit: pageSize,
+        });
         
         // Log the response for debugging
         console.log('Marketplace API Response:', listingsRes);
@@ -242,13 +287,24 @@ export default function Marketplace() {
         }
         
         setPagination(paginationData);
+
+        // Out-of-range guard (e.g. sitting on page 3, then limit=100 fits
+        // everything on one page): the API doesn't error — it returns an
+        // empty data array with the real total_pages. Snap to the last page.
+        if (
+          paginationData?.totalPages > 0 &&
+          page > paginationData.totalPages
+        ) {
+          setPage(paginationData.totalPages);
+          return;
+        }
         
         if (listingsData && listingsData.length > 0) {
           // Transform API data to match UI structure
           const transformedListings = listingsData.map(listing => ({
             id: listing.id,
             name: listing.title || listing.assetName || listing.name || 'Untitled Listing',
-            category: listing.assetType || listing.category || 'Others',
+            category: listing.category || listing.assetType || 'Others',
             assetType: listing.assetType || listing.category || 'Others',
             minimum: listing.askingPrice 
               ? `$${listing.askingPrice.toLocaleString()}` 
@@ -274,7 +330,11 @@ export default function Marketplace() {
             riskLevel: listing.riskLevel || listing.risk || 'Medium',
             type: listing.type || '#Service',
             subType: listing.subType || '#Commercial',
-            image: listing.image || listing.thumbnail || listing.assetImage || listing.imageUrl || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400',
+            // Standardized: thumbnail_url for cards (backend falls back to the
+            // full-size URL itself), image_url for the detail page. Both null
+            // only when the asset has no photos.
+            image: listing.thumbnailUrl || listing.imageUrl || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400',
+            imageUrl: listing.imageUrl || null,
             status: listing.status || 'active',
             currency: listing.currency || 'USD',
             description: listing.description || '',
@@ -302,54 +362,32 @@ export default function Marketplace() {
     };
 
     fetchListings();
-  }, [activeCategory, assetTypes, priceRange, returnRange, sortBy, page, pageSize]);
+  }, [activeGroup, activeCategory, priceRange, sortBy, page, pageSize]);
 
-  const getFilteredFunds = () => {
-    // Only use API listings - no fallback to dummy data
-    let filtered = [...listings];
-
-    if (activeCategory !== 'All') {
-      filtered = filtered.filter(fund => fund.category === activeCategory);
-    }
-
-    const selectedAssetTypes = Object.keys(assetTypes).filter(
-      key => assetTypes[key]
-    );
-    if (selectedAssetTypes.length > 0) {
-      filtered = filtered.filter(fund =>
-        selectedAssetTypes.includes(fund.assetType)
-      );
-    }
-
-    filtered = filtered.filter(fund => {
-      const minValue = fund.minimumValue;
-      return (
-        minValue >= priceRange[0] * 1000 && minValue <= priceRange[1] * 1000
-      );
-    });
-
-    filtered = filtered.filter(fund => {
-      const returnVal = fund.returnValue;
-      return returnVal >= returnRange[0] && returnVal <= returnRange[1];
-    });
-
-    if (sortBy === 'price-low-high') {
-      filtered.sort((a, b) => a.minimumValue - b.minimumValue);
-    } else if (sortBy === 'price-high-low') {
-      filtered.sort((a, b) => b.minimumValue - a.minimumValue);
-    } else if (sortBy === 'return-low-high') {
-      filtered.sort((a, b) => a.returnValue - b.returnValue);
-    } else if (sortBy === 'return-high-low') {
-      filtered.sort((a, b) => b.returnValue - a.returnValue);
-    }
-
-    return filtered;
-  };
-
-  const investmentFunds = getFilteredFunds();
+  // Filtering, sorting, and pagination all happen server-side in /search —
+  // the current page renders as-is.
+  const investmentFunds = listings;
 
   const handleViewDetails = fundId => {
-    router.push('/signup');
+    router.push(`/marketplace/detail?id=${fundId}`);
+  };
+
+  // Buy on the public page: guests are sent through the normal login/signup +
+  // onboarding flow — the intended listing is remembered and the dashboard
+  // marketplace reopens it once they're in. Logged-in users go straight to the
+  // listing inside the dashboard, where the real Buy (offer) flow lives.
+  const handleBuy = fund => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (!token) {
+      try {
+        localStorage.setItem('pendingBuyListing', JSON.stringify({ id: fund.id, name: fund.name }));
+      } catch {
+        /* ignore */
+      }
+      router.push('/login');
+      return;
+    }
+    router.push(`/dashboard/marketplace/detail?id=${fund.id}&buy=1`);
   };
 
   return (
@@ -696,36 +734,36 @@ export default function Marketplace() {
           {/* Category Tabs and Filter */}
           <div className='relative mb-8'>
             <div className='flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide'>
-              {categories.map(category => (
+              {groupTabs.map(group => (
                 <motion.button
-                  key={category.id}
-                  onClick={() => setActiveCategory(category.id)}
+                  key={group}
+                  onClick={() => {
+                    setActiveGroup(group);
+                    setActiveCategory('All');
+                    setPage(1);
+                  }}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-all rounded-lg flex items-center gap-2 ${
-                    activeCategory === category.id
+                    activeGroup === group
                       ? 'text-black bg-[#F1CB68]'
                       : 'text-gray-400 bg-white/5 border border-[#FFFFFF14]'
                   }`}
                 >
-                  {category.icon && (
+                  {group === 'All' && (
                     <img
-                      src={`/icons/${category.icon}`}
-                      alt={category.name}
-                      className={`w-5 h-5 transition-all ${
-                        activeCategory === category.id
-                          ? 'brightness(0)'
-                          : 'brightness(0) saturate(100%) invert(60%)'
-                      }`}
+                      src='/icons/grid.svg'
+                      alt='All'
+                      className='w-5 h-5 transition-all'
                       style={{
                         filter:
-                          activeCategory === category.id
+                          activeGroup === 'All'
                             ? 'brightness(0)'
                             : 'brightness(0) saturate(100%) invert(60%)',
                       }}
                     />
                   )}
-                  <span>{category.name}</span>
+                  <span>{group}</span>
                 </motion.button>
               ))}
               <div className='ml-auto relative'>
@@ -753,6 +791,46 @@ export default function Marketplace() {
               </div>
             </div>
 
+            {/* Subcategory chips for the selected group (non-empty only) */}
+            {subCategoryTabs.length > 0 && (
+              <div className='flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide'>
+                <motion.button
+                  key='all-subcategories'
+                  onClick={() => {
+                    setActiveCategory('All');
+                    setPage(1);
+                  }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`whitespace-nowrap px-3 py-1.5 text-xs font-medium transition-all rounded-full ${
+                    activeCategory === 'All'
+                      ? 'text-black bg-[#F1CB68]'
+                      : 'text-gray-400 bg-white/5 border border-[#FFFFFF14]'
+                  }`}
+                >
+                  All {activeGroup}
+                </motion.button>
+                {subCategoryTabs.map(({ category, count }) => (
+                  <motion.button
+                    key={category}
+                    onClick={() => {
+                      setActiveCategory(category);
+                      setPage(1);
+                    }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`whitespace-nowrap px-3 py-1.5 text-xs font-medium transition-all rounded-full ${
+                      activeCategory === category
+                        ? 'text-black bg-[#F1CB68]'
+                        : 'text-gray-400 bg-white/5 border border-[#FFFFFF14]'
+                    }`}
+                  >
+                    {category} ({count})
+                  </motion.button>
+                ))}
+              </div>
+            )}
+
             {/* Filter Panel */}
             {isFilterOpen && (
               <motion.div
@@ -777,14 +855,6 @@ export default function Marketplace() {
                     {[
                       { value: 'price-low-high', label: 'Price: Low to High' },
                       { value: 'price-high-low', label: 'Price: High to Low' },
-                      {
-                        value: 'return-low-high',
-                        label: 'Return: Low to High',
-                      },
-                      {
-                        value: 'return-high-low',
-                        label: 'Return: High to Low',
-                      },
                     ].map(option => (
                       <label
                         key={option.value}
@@ -795,7 +865,10 @@ export default function Marketplace() {
                           name='sortBy'
                           value={option.value}
                           checked={sortBy === option.value}
-                          onChange={e => setSortBy(e.target.value)}
+                          onChange={e => {
+                            setSortBy(e.target.value);
+                            setPage(1);
+                          }}
                           className='sr-only'
                         />
                         <div
@@ -817,37 +890,6 @@ export default function Marketplace() {
                   </div>
                 </div>
 
-                {/* Asset Type */}
-                <div className='mb-6'>
-                  <h3 className='text-sm font-medium text-white mb-3'>
-                    Asset Type
-                  </h3>
-                  <div className='space-y-2'>
-                    {Object.keys(assetTypes).map(type => (
-                      <label
-                        key={type}
-                        className='flex items-center gap-3 cursor-pointer'
-                      >
-                        <input
-                          type='checkbox'
-                          checked={assetTypes[type]}
-                          onChange={() => toggleAssetType(type)}
-                          className='w-5 h-5 rounded border-2 border-gray-600 bg-transparent checked:bg-[#F1CB68] checked:border-[#F1CB68] appearance-none cursor-pointer'
-                          style={{
-                            backgroundImage: assetTypes[type]
-                              ? "url(\"data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e\")"
-                              : 'none',
-                            backgroundSize: '100% 100%',
-                            backgroundPosition: 'center',
-                            backgroundRepeat: 'no-repeat',
-                          }}
-                        />
-                        <span className='text-sm text-gray-300'>{type}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Price Range */}
                 <div className='mb-6'>
                   <h3 className='text-sm font-medium text-white mb-3'>
@@ -859,9 +901,10 @@ export default function Marketplace() {
                     max='10000'
                     step='100'
                     value={priceRange[1]}
-                    onChange={e =>
-                      setPriceRange([priceRange[0], parseInt(e.target.value)])
-                    }
+                    onChange={e => {
+                      setPriceRange([priceRange[0], parseInt(e.target.value)]);
+                      setPage(1);
+                    }}
                     className='w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer'
                     style={{
                       background: `linear-gradient(to right, #F1CB68 0%, #F1CB68 ${
@@ -884,38 +927,6 @@ export default function Marketplace() {
                   </div>
                 </div>
 
-                {/* Return Range */}
-                <div className='mb-6'>
-                  <h3 className='text-sm font-medium text-white mb-3'>
-                    Return Performance
-                  </h3>
-                  <input
-                    type='range'
-                    min='1'
-                    max='30'
-                    step='1'
-                    value={returnRange[1]}
-                    onChange={e =>
-                      setReturnRange([returnRange[0], parseInt(e.target.value)])
-                    }
-                    className='w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer'
-                    style={{
-                      background: `linear-gradient(to right, #F1CB68 0%, #F1CB68 ${
-                        ((returnRange[1] - 1) / (30 - 1)) * 100
-                      }%, #374151 ${
-                        ((returnRange[1] - 1) / (30 - 1)) * 100
-                      }%, #374151 100%)`,
-                    }}
-                  />
-                  <div className='flex justify-between mt-2'>
-                    <span className='text-xs text-gray-400'>
-                      {returnRange[0]}%
-                    </span>
-                    <span className='text-xs text-gray-400'>
-                      {returnRange[1]}%
-                    </span>
-                  </div>
-                </div>
               </motion.div>
             )}
           </div>
@@ -988,43 +999,132 @@ export default function Marketplace() {
                     fund={fund}
                     index={index}
                     onViewDetails={handleViewDetails}
+                    onBuy={handleBuy}
                   />
                 ))}
               </div>
 
-              {/* Pagination Controls */}
-              {pagination && pagination.totalPages > 1 && (
-                <div className='flex items-center justify-center gap-4 mb-12'>
-                  <button
-                    disabled={page <= 1}
-                    onClick={() => setPage(prev => Math.max(1, prev - 1))}
-                    className={`px-4 py-2 text-sm rounded-lg border ${
-                      page <= 1
-                        ? 'border-gray-700 text-gray-600 cursor-not-allowed'
-                        : 'border-[#F1CB68] text-[#F1CB68] hover:bg-[#F1CB68]/10'
-                    }`}
-                  >
-                    Previous
-                  </button>
-                  <span className='text-sm text-gray-400'>
-                    Page <span className='text-white'>{pagination.page}</span> of{' '}
-                    <span className='text-white'>{pagination.totalPages}</span>
-                  </span>
-                  <button
-                    disabled={pagination.page >= pagination.totalPages}
-                    onClick={() =>
-                      setPage(prev =>
-                        pagination ? Math.min(pagination.totalPages, prev + 1) : prev + 1
-                      )
-                    }
-                    className={`px-4 py-2 text-sm rounded-lg border ${
-                      pagination.page >= pagination.totalPages
-                        ? 'border-gray-700 text-gray-600 cursor-not-allowed'
-                        : 'border-[#F1CB68] text-[#F1CB68] hover:bg-[#F1CB68]/10'
-                    }`}
-                  >
-                    Next
-                  </button>
+              {/* Items per page + results summary (left), pager (right) */}
+              {pagination && pagination.total > 0 && (
+                <div className='flex flex-col lg:flex-row items-center justify-between gap-4 mb-12'>
+                  <div className='flex items-center gap-3 order-2 lg:order-1'>
+                    <label
+                      htmlFor='marketplace-page-size'
+                      className='text-xs text-gray-400'
+                    >
+                      Items per page
+                    </label>
+                    <select
+                      id='marketplace-page-size'
+                      value={pageSize}
+                      onChange={e => {
+                        setPageSize(parseInt(e.target.value, 10));
+                        setPage(1);
+                      }}
+                      className='appearance-none cursor-pointer rounded-lg bg-[#1C1C1E] border border-[#FFFFFF14] text-white text-xs font-medium pl-3 pr-8 py-2 focus:outline-none focus:border-[#F1CB68]'
+                      style={{
+                        backgroundImage:
+                          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23F1CB68' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundSize: '0.875rem',
+                      }}
+                    >
+                      {PAGE_SIZES.map(size => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                    {/* Kept visible even on a single page, so users know
+                        they're seeing everything. */}
+                    <span className='text-xs text-gray-400'>
+                      Showing{' '}
+                      <span className='text-white'>
+                        {(pagination.page - 1) * pagination.limit + 1}–
+                        {Math.min(
+                          pagination.page * pagination.limit,
+                          pagination.total
+                        )}
+                      </span>{' '}
+                      of <span className='text-white'>{pagination.total}</span>
+                    </span>
+                  </div>
+
+                  {/* Always visible (chevrons just disable on a single page) */}
+                  <div className='flex items-center gap-1 rounded-full bg-white/5 border border-[#FFFFFF14] px-2 py-1.5 order-1 lg:order-2'>
+                    <button
+                      aria-label='Previous page'
+                      disabled={pagination.page <= 1}
+                      onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                        pagination.page <= 1
+                          ? 'text-gray-600 cursor-not-allowed'
+                          : 'text-gray-300 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <svg
+                        width='14'
+                        height='14'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                      >
+                        <path d='M15 18l-6-6 6-6' />
+                      </svg>
+                    </button>
+                    {getPageNumbers(pagination.page, pagination.totalPages).map(
+                      item =>
+                        typeof item === 'number' ? (
+                          <button
+                            key={item}
+                            onClick={() => setPage(item)}
+                            className={`w-8 h-8 rounded-full text-xs flex items-center justify-center transition-all ${
+                              pagination.page === item
+                                ? 'text-black bg-[#F1CB68] font-semibold'
+                                : 'text-gray-400 hover:text-white hover:bg-white/10'
+                            }`}
+                          >
+                            {item}
+                          </button>
+                        ) : (
+                          <span
+                            key={item}
+                            className='w-6 text-center text-gray-500 select-none text-xs'
+                          >
+                            …
+                          </span>
+                        )
+                    )}
+                    <button
+                      aria-label='Next page'
+                      disabled={pagination.page >= pagination.totalPages}
+                      onClick={() =>
+                        setPage(prev => Math.min(pagination.totalPages, prev + 1))
+                      }
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                        pagination.page >= pagination.totalPages
+                          ? 'text-gray-600 cursor-not-allowed'
+                          : 'text-gray-300 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <svg
+                        width='14'
+                        height='14'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                      >
+                        <path d='M9 18l6-6-6-6' />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               )}
             </>
@@ -1101,7 +1201,8 @@ export default function Marketplace() {
 }
 
 // Investment Card Component
-function InvestmentCard({ fund, index, onViewDetails }) {
+function InvestmentCard({ fund, index, onViewDetails, onBuy }) {
+  const CategoryIcon = getCategoryIcon(fund.category);
   return (
     <motion.div
       initial={{ opacity: 0, y: 50 }}
@@ -1134,20 +1235,9 @@ function InvestmentCard({ fund, index, onViewDetails }) {
         <div className='absolute inset-0 bg-gradient-to-t from-black/60 to-transparent' />
       </div>
 
-      {/* Icon */}
+      {/* Category icon */}
       <div className='w-10 h-10 rounded-lg flex items-center justify-center mb-3 bg-[#F1CB68]/10'>
-        <svg
-          width='20'
-          height='20'
-          viewBox='0 0 24 24'
-          fill='none'
-          stroke='#F1CB68'
-          strokeWidth='2'
-        >
-          <rect x='3' y='3' width='18' height='18' rx='2' />
-          <path d='M3 9h18' />
-          <path d='M9 21V9' />
-        </svg>
+        <CategoryIcon size={20} color='#F1CB68' />
       </div>
 
       {/* Fund Name */}
@@ -1196,18 +1286,28 @@ function InvestmentCard({ fund, index, onViewDetails }) {
         </div>
       </div>
 
-      {/* View Details Button */}
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => onViewDetails(fund.id)}
-        className='w-full py-3 text-sm rounded-lg font-medium transition-all text-[#0B0D12]'
-        style={{
-          background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
-        }}
-      >
-        View Details
-      </motion.button>
+      {/* Actions */}
+      <div className='grid grid-cols-2 gap-3'>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => onViewDetails(fund.id)}
+          className='w-full py-3 text-sm rounded-lg font-medium transition-all text-white border border-[#FFFFFF2A] bg-white/5 hover:bg-white/10'
+        >
+          View Details
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => onBuy(fund)}
+          className='w-full py-3 text-sm rounded-lg font-semibold transition-all text-[#0B0D12]'
+          style={{
+            background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
+          }}
+        >
+          Buy
+        </motion.button>
+      </div>
     </motion.div>
   );
 }

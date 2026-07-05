@@ -3,7 +3,7 @@ import Modal from '@/components/ui/Modal';
 
 const COPY = {
   subscribe: { title: 'Confirm subscription', verb: 'Subscribe' },
-  upgrade: { title: 'Confirm upgrade', verb: 'Upgrade' },
+  upgrade: { title: 'Confirm upgrade', verb: 'Continue to checkout' },
   downgrade: { title: 'Confirm downgrade', verb: 'Downgrade' },
   cancel: { title: 'Cancel subscription', verb: 'Cancel plan' },
   renew: { title: 'Renew subscription', verb: 'Renew' },
@@ -85,7 +85,9 @@ export default function PlanChangeModal({
               </p>
             )}
             <p className="pt-2 text-xs opacity-70">
-              Your saved payment method will be charged by our billing provider.
+              {action === 'upgrade'
+                ? 'You will be taken to our secure Stripe checkout to review and pay for the new plan before it is upgraded.'
+                : 'Your saved payment method will be charged by our billing provider.'}
             </p>
           </div>
         )}

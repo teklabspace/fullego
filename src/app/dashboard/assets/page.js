@@ -19,6 +19,7 @@ import {
 import AssetCardSkeleton from '@/components/skeletons/AssetCardSkeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearch } from '@/context/SearchContext';
+import { listAppraisals } from '@/utils/conciergeApi';
 import { LuClock, LuZap, LuCheck } from 'react-icons/lu';
 import { FaUserTie, FaRobot } from 'react-icons/fa';
 import { toast } from 'react-toastify';
@@ -30,6 +31,49 @@ const apiErrorMessage = (err, fallback) => {
   const detail = err?.data?.detail ?? err?.data?.message ?? err?.message;
   return typeof detail === 'string' && detail ? detail : fallback;
 };
+
+// Concierge appraisal types — same options (and same `appraisal_type` field)
+// as the asset detail page; one backend code path, copy-only descriptions.
+const APPRAISAL_TYPE_OPTIONS = [
+  {
+    value: 'Standard',
+    label: 'Standard',
+    description:
+      'A standard professional appraisal covering current market value and overall condition.',
+  },
+  {
+    value: 'Comprehensive',
+    label: 'Comprehensive',
+    description:
+      'An in-depth appraisal with full documentation, provenance, and detailed market analysis.',
+  },
+  {
+    value: 'Expedited',
+    label: 'Expedited',
+    description:
+      'A faster-turnaround appraisal for when you need a valuation quickly.',
+  },
+  {
+    value: 'Insurance',
+    label: 'Insurance',
+    description:
+      'A valuation prepared specifically for insurance coverage and replacement value.',
+  },
+];
+
+// A human (concierge) appraisal in one of these statuses blocks a new request
+// for the same asset (backend enforces this with a 409) and is what the
+// "Appraisal · <status>" tag on the card reflects. AI appraisals don't count.
+const OPEN_APPRAISAL_STATUSES = [
+  'pending',
+  'in_progress',
+  'needs_more_information',
+  'professional_appraisal_recommended',
+];
+
+// "needs_more_information" → "Needs More Information"
+const prettyStatus = (status) =>
+  (status || '').toString().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 const ADMIN_PAGE_SIZE = 10;
 
@@ -54,6 +98,13 @@ export default function AssetsPage() {
     targetPrice: '',
   });
   const [appraisalType, setAppraisalType] = useState(null);
+  // Specific concierge appraisal type (Standard/Comprehensive/…), chosen after
+  // picking the Concierge method in the modal.
+  const [conciergeAppraisalType, setConciergeAppraisalType] = useState(null);
+  // assetId → { id, appraisalType, status } for every asset with an OPEN human
+  // appraisal. Drives the "Appraisal · <status>" tag on cards and blocks a
+  // duplicate concierge request before the backend has to 409 it.
+  const [appraisalByAsset, setAppraisalByAsset] = useState({});
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -136,6 +187,39 @@ export default function AssetsPage() {
     fetchAssets();
   }, [fetchAssets]);
 
+  // Load the user's appraisal requests once and index the human ones by asset:
+  // OPEN appraisals (pending/in progress/…) and COMPLETED ones (shown as a green
+  // "Approved" tag). The asset list itself doesn't carry appraisal state, so
+  // this is how the cards know what tag to show. An open appraisal wins over a
+  // completed one — it's the actionable state (and it blocks a new request).
+  const fetchOpenAppraisals = useCallback(async () => {
+    try {
+      const res = await listAppraisals({ limit: 100 });
+      const raw = res?.data ?? res;
+      const list = Array.isArray(raw) ? raw : Array.isArray(raw?.appraisals) ? raw.appraisals : [];
+      const map = {};
+      for (const ap of list) {
+        const assetId = ap.assetId || ap.asset_id || ap.asset?.id;
+        const type = (ap.appraisalType || ap.appraisal_type || ap.type || '').toString();
+        const status = (ap.status || '').toString().toLowerCase();
+        const isAi = type.toUpperCase() === 'API' || type.toUpperCase() === 'AI';
+        const isOpen = OPEN_APPRAISAL_STATUSES.includes(status);
+        if (!assetId || isAi || (!isOpen && status !== 'completed')) continue;
+        const prev = map[assetId];
+        if (prev && OPEN_APPRAISAL_STATUSES.includes(prev.status)) continue;
+        if (prev && !isOpen) continue; // keep the first completed one (newest first)
+        map[assetId] = { id: ap.id, appraisalType: type, status };
+      }
+      setAppraisalByAsset(map);
+    } catch {
+      // Tags are best-effort — the backend still 409s duplicate requests.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authMounted) fetchOpenAppraisals();
+  }, [authMounted, fetchOpenAppraisals]);
+
   // Debounce the admin search box, resetting to page 1 on each new query.
   useEffect(() => {
     if (!isAdmin) return;
@@ -186,6 +270,7 @@ export default function AssetsPage() {
     setSelectedAsset(asset);
     setShowAppraisalModal(true);
     setAppraisalType(null);
+    setConciergeAppraisalType(null);
   };
 
   const handleSubmitSellRequest = async () => {
@@ -234,17 +319,44 @@ export default function AssetsPage() {
         // Backend updated the asset's estimated value — refresh the list.
         fetchAssets();
       } else {
+        // Concierge: send the specific type the user picked (Standard/…) as
+        // `appraisal_type` — same field the detail page uses.
         await requestAssetAppraisal(selectedAsset.id, {
-          appraisalType: appraisalType,
+          appraisalType: conciergeAppraisalType,
         });
-        toast.success('Concierge appraisal request submitted successfully!');
+        toast.success(`${conciergeAppraisalType} appraisal request submitted successfully!`);
+        // Tag the card right away — the new request starts out pending.
+        setAppraisalByAsset(m => ({
+          ...m,
+          [selectedAsset.id]: { appraisalType: conciergeAppraisalType, status: 'pending' },
+        }));
       }
 
       setShowAppraisalModal(false);
       setAppraisalType(null);
+      setConciergeAppraisalType(null);
     } catch (err) {
       console.error('Error submitting appraisal request:', err);
-      if (err.status === 403) {
+      const existing = err?.data?.existing_appraisal;
+      if (err.status === 409 || existing) {
+        // An appraisal is already open for this asset — tell the user which
+        // one, and tag the card so the state is visible without retrying.
+        toast.info(
+          existing
+            ? `An appraisal is already in progress for this asset (${existing.appraisal_type} · ${prettyStatus(existing.status)}).`
+            : apiErrorMessage(err, 'An appraisal is already in progress for this asset.')
+        );
+        if (existing) {
+          setAppraisalByAsset(m => ({
+            ...m,
+            [selectedAsset.id]: {
+              id: existing.id,
+              appraisalType: existing.appraisal_type,
+              status: (existing.status || 'pending').toLowerCase(),
+            },
+          }));
+        }
+      } else if (err.status === 403) {
         // Monthly AI limit reached — surface the backend's upgrade message.
         toast.info(apiErrorMessage(err, 'You have reached your monthly AI appraisal limit. Upgrade for more.'));
       } else if (err.status === 503) {
@@ -442,6 +554,7 @@ export default function AssetsPage() {
             <AssetCard
               key={asset.id}
               asset={asset}
+              appraisal={appraisalByAsset[asset.id]}
               isDarkMode={isDarkMode}
               onViewDetails={() => handleViewDetails(asset)}
               onRequestSell={() => handleRequestSell(asset)}
@@ -508,6 +621,9 @@ export default function AssetsPage() {
           isDarkMode={isDarkMode}
           selectedType={appraisalType}
           onSelectType={setAppraisalType}
+          conciergeType={conciergeAppraisalType}
+          onSelectConciergeType={setConciergeAppraisalType}
+          existingAppraisal={appraisalByAsset[selectedAsset.id]}
           onSubmit={handleSubmitAppraisal}
           onClose={() => setShowAppraisalModal(false)}
           submitting={submittingAppraisal}
@@ -520,6 +636,7 @@ export default function AssetsPage() {
 // Asset Card Component
 function AssetCard({
   asset,
+  appraisal,
   isDarkMode,
   onViewDetails,
   onRequestSell,
@@ -760,6 +877,25 @@ function AssetCard({
               {allCategories.find(c => c.id === asset.category)?.icon || '📦'}
             </span>
           </div>
+        )}
+
+        {/* Appraisal tag — gold while a human appraisal is open (pending, in
+            progress…), green "Approved" once it's completed. */}
+        {appraisal && (
+          <span
+            className={`absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-black/60 backdrop-blur-sm shadow-lg ${
+              appraisal.status === 'completed' ? 'text-green-400' : 'text-[#F1CB68]'
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                appraisal.status === 'completed' ? 'bg-green-400' : 'bg-[#F1CB68] animate-pulse'
+              }`}
+            />
+            {appraisal.appraisalType ? `${appraisal.appraisalType} Appraisal` : 'Appraisal'}
+            {' · '}
+            {appraisal.status === 'completed' ? 'Approved' : prettyStatus(appraisal.status)}
+          </span>
         )}
       </div>
 
@@ -1308,10 +1444,24 @@ function AppraisalModal({
   isDarkMode,
   selectedType,
   onSelectType,
+  conciergeType,
+  onSelectConciergeType,
+  existingAppraisal,
   onSubmit,
   onClose,
   submitting = false,
 }) {
+  // A concierge request needs a specific appraisal type, and is blocked while
+  // another human appraisal is still OPEN. A completed ("Approved") appraisal
+  // doesn't block re-appraising. AI appraisals are unaffected either way.
+  const conciergeBlocked = Boolean(
+    existingAppraisal && OPEN_APPRAISAL_STATUSES.includes(existingAppraisal.status)
+  );
+  const canSubmit =
+    !submitting &&
+    (selectedType === 'API' ||
+      (selectedType === 'Concierge' && !!conciergeType && !conciergeBlocked));
+
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto'>
       <style jsx>{`
@@ -1403,6 +1553,19 @@ function AppraisalModal({
             </div>
           </div>
 
+          {/* An appraisal is already open for this asset — concierge requests
+              are blocked until it completes; AI appraisals still work. */}
+          {conciergeBlocked && (
+            <div className='bg-[#F1CB68]/10 border border-[#F1CB68]/30 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6'>
+              <p className='text-[#F1CB68] text-xs sm:text-sm'>
+                <strong>An appraisal is already in progress</strong> for this asset
+                {existingAppraisal?.appraisalType ? ` (${existingAppraisal.appraisalType}` : ' ('}
+                {' · '}{prettyStatus(existingAppraisal?.status)}). You can request a new
+                concierge appraisal once it completes. AI appraisals are unaffected.
+              </p>
+            </div>
+          )}
+
           {/* Appraisal Options */}
           <div className='mb-4 sm:mb-6'>
             <h3
@@ -1417,8 +1580,10 @@ function AppraisalModal({
               {/* Concierge Option */}
               <button
                 onClick={() => onSelectType('Concierge')}
+                disabled={conciergeBlocked}
                 className={`
                   text-left p-4 sm:p-5 rounded-xl border-2 transition-all
+                  ${conciergeBlocked ? 'opacity-50 cursor-not-allowed' : ''}
                   ${
                     selectedType === 'Concierge'
                       ? 'border-[#F1CB68] bg-[#F1CB68]/10'
@@ -1528,6 +1693,51 @@ function AppraisalModal({
             </div>
           </div>
 
+          {/* Concierge appraisal type — shown once the Concierge method is
+              picked. The chosen value is sent as `appraisal_type` (same options
+              as the asset detail page). */}
+          {selectedType === 'Concierge' && !conciergeBlocked && (
+            <div className='mb-4 sm:mb-6'>
+              <h3
+                className={`font-semibold mb-3 text-sm sm:text-base ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                Appraisal Type
+              </h3>
+              <div className='grid grid-cols-2 sm:grid-cols-4 gap-2'>
+                {APPRAISAL_TYPE_OPTIONS.map(opt => {
+                  const selected = conciergeType === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type='button'
+                      onClick={() => onSelectConciergeType(opt.value)}
+                      className={`px-3 py-2 rounded-lg border text-xs sm:text-sm font-semibold transition-all ${
+                        selected
+                          ? 'border-[#F1CB68] bg-[#F1CB68]/10 text-[#F1CB68]'
+                          : isDarkMode
+                          ? 'border-[#FFFFFF14] bg-white/5 text-gray-300 hover:border-[#F1CB68]/50'
+                          : 'border-gray-300 bg-gray-50 text-gray-700 hover:border-[#F1CB68]/50'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {conciergeType && (
+                <p
+                  className={`mt-3 text-xs sm:text-sm ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  {APPRAISAL_TYPE_OPTIONS.find(o => o.value === conciergeType)?.description}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Selected Type Info */}
           {selectedType && (
             <div className='bg-[#F1CB68]/10 border border-[#F1CB68]/30 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6'>
@@ -1568,13 +1778,13 @@ function AppraisalModal({
           </button>
           <button
             onClick={onSubmit}
-            disabled={!selectedType || submitting}
+            disabled={!canSubmit}
             className={`
               flex-1 py-2.5 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base
               ${
                 submitting
                   ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  : selectedType
+                  : canSubmit
                   ? 'bg-[#F1CB68] hover:bg-[#BF9B30] text-[#101014]'
                   : isDarkMode
                   ? 'bg-gray-700 text-gray-500 cursor-not-allowed'

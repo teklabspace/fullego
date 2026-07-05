@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { toast } from 'react-toastify';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
-import { getAvailablePlans, createSubscription } from '@/utils/subscriptionsApi';
+import { getAvailablePlans, createSubscription, updateSubscriptionPlan } from '@/utils/subscriptionsApi';
 import { clearSubscriptionCache, hasActiveSubscription } from '@/utils/onboarding';
 import { FALLBACK_PRICING } from '@/config/plans';
 import { ERROR_CODES } from '@/config/apiErrorCodes';
@@ -52,12 +52,13 @@ const extractClientSecret = (res) => {
   );
 };
 
-function CheckoutForm({ billingCycle, price, planId, planReady, onDone, onAlreadySubscribed }) {
+function CheckoutForm({ mode = 'subscribe', billingCycle, price, planId, planReady, onDone, onAlreadySubscribed }) {
   const router = useRouter();
   const stripe = useStripe();
   const elements = useElements();
   const [busy, setBusy] = useState(false);
   const [cardError, setCardError] = useState(null);
+  const isUpgrade = mode === 'upgrade';
 
   const handlePay = async (e) => {
     e.preventDefault();
@@ -71,12 +72,16 @@ function CheckoutForm({ billingCycle, price, planId, planReady, onDone, onAlread
     setCardError(null);
 
     try {
-      // 1) Create the subscription — backend returns a client_secret to confirm.
-      const res = await createSubscription({ planId, billingCycle });
+      // 1) Create the subscription (or request the plan upgrade) — the backend
+      // returns a client_secret when a payment must be confirmed first.
+      const res = isUpgrade
+        ? await updateSubscriptionPlan({ planId, billingCycle })
+        : await createSubscription({ planId, billingCycle });
       const clientSecret = extractClientSecret(res);
 
       // 2) Client-confirmed charge (option A): confirm the PaymentIntent with the
       // card entered here. confirmCardPayment also resolves any 3DS challenge.
+      // The plan only becomes active once Stripe confirms this payment.
       if (clientSecret) {
         const card = elements.getElement(CardElement);
         const { error } = await stripe.confirmCardPayment(clientSecret, {
@@ -89,7 +94,7 @@ function CheckoutForm({ billingCycle, price, planId, planReady, onDone, onAlread
         }
       }
 
-      toast.success('Subscription activated. Welcome aboard!');
+      toast.success(isUpgrade ? 'Payment confirmed — your plan has been upgraded.' : 'Subscription activated. Welcome aboard!');
       onDone();
     } catch (err) {
       // 409 backstop: a subscription already exists (e.g. created in another tab
@@ -105,7 +110,7 @@ function CheckoutForm({ billingCycle, price, planId, planReady, onDone, onAlread
         err?.code === ERROR_CODES.BILLING_CYCLE_INVALID
       ) {
         toast.error(err?.message || 'That plan or billing option is no longer available. Please choose again.');
-        router.push('/select-plan');
+        router.push(isUpgrade ? '/dashboard/settings?tab=payment' : '/select-plan');
         return;
       }
       // Custom-priced plan → hand off to sales.
@@ -200,24 +205,32 @@ export default function CheckoutPage() {
     } catch {
       /* ignore */
     }
+    // Read the chosen plan up front — upgrade handoffs from settings carry
+    // action: 'upgrade' and must not be bounced by the already-subscribed guard.
+    let parsed = null;
+    try {
+      const raw = localStorage.getItem('pendingPlan');
+      if (raw) parsed = JSON.parse(raw);
+    } catch {
+      /* ignore malformed pendingPlan */
+    }
     let cancelled = false;
     (async () => {
       const subscribed = await hasActiveSubscription();
       if (cancelled) return;
-      if (subscribed) {
+      if (subscribed && parsed?.action !== 'upgrade') {
         toast.info('You already have an active plan. Manage it in settings.');
         router.replace('/dashboard/settings?tab=payment');
         return;
       }
-      try {
-        const raw = localStorage.getItem('pendingPlan');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          setPending(parsed);
-          if (parsed?.billingCycle) setBillingCycle(parsed.billingCycle);
-        }
-      } catch {
-        /* ignore malformed pendingPlan */
+      // Upgrade requested but no live subscription to upgrade (e.g. it lapsed
+      // in another tab) → fall back to a fresh subscribe of the same plan.
+      if (!subscribed && parsed?.action === 'upgrade') {
+        parsed = { ...parsed, action: undefined };
+      }
+      if (parsed) {
+        setPending(parsed);
+        if (parsed.billingCycle) setBillingCycle(parsed.billingCycle);
       }
       setPendingLoaded(true);
     })();
@@ -244,11 +257,13 @@ export default function CheckoutPage() {
     };
   }, []);
 
+  const isUpgrade = pending?.action === 'upgrade';
+
   // Match the chosen plan to a backend plan by id (lowercase: starter/pro/premium),
-  // falling back to name. The backend matches on id, so prefer it.
+  // falling back to name. Upgrade handoffs from settings carry the exact planId.
   const matchedPlan = useMemo(() => {
-    if (!pending?.name || !Array.isArray(plans)) return null;
-    const target = pending.name.toLowerCase();
+    const target = String(pending?.planId ?? pending?.name ?? '').toLowerCase();
+    if (!target || !Array.isArray(plans)) return null;
     return (
       plans.find((p) => String(p?.id ?? '').toLowerCase() === target) ||
       plans.find((p) => (p?.name || p?.planName || '').toLowerCase() === target) ||
@@ -259,7 +274,9 @@ export default function CheckoutPage() {
   // The backend accepts the plain lowercase id, so we can derive it from the
   // chosen plan name even if the plans list is slow/unavailable.
   const planId =
-    matchedPlan?.id ?? (pending?.name ? pending.name.toLowerCase() : null);
+    matchedPlan?.id ??
+    pending?.planId ??
+    (pending?.name ? pending.name.toLowerCase() : null);
 
   const fallback = FALLBACK_PRICING[(pending?.name || '').toLowerCase()] || {};
   const price =
@@ -273,10 +290,11 @@ export default function CheckoutPage() {
     } catch {
       /* ignore */
     }
-    // The user is now subscribed — invalidate the cached check so the dashboard
-    // gate (SecureRoute) sees the new subscription and lets them in.
+    // The user is now subscribed (or upgraded) — invalidate the cached check so
+    // the dashboard gate (SecureRoute) sees the new subscription state.
     clearSubscriptionCache();
-    router.push('/dashboard');
+    // Upgrades came from the billing tab; land them back there to see the new plan.
+    router.push(isUpgrade ? '/dashboard/settings?tab=payment' : '/dashboard');
   };
 
   return (
@@ -295,9 +313,13 @@ export default function CheckoutPage() {
           transition={{ duration: 0.5 }}
           className="w-full max-w-md"
         >
-          <h1 className="text-2xl font-bold mb-1">Complete your subscription</h1>
+          <h1 className="text-2xl font-bold mb-1">
+            {isUpgrade ? 'Upgrade your plan' : 'Complete your subscription'}
+          </h1>
           <p className="text-sm text-gray-400 mb-6">
-            You’re one step away. Review your plan and add a payment method to activate it.
+            {isUpgrade
+              ? 'Review your new plan and confirm payment. Your plan is upgraded only after the payment succeeds.'
+              : 'You’re one step away. Review your plan and add a payment method to activate it.'}
           </p>
 
           {/* No plan chosen → send them to pick one. */}
@@ -361,6 +383,7 @@ export default function CheckoutPage() {
               ) : (
                 <Elements stripe={stripePromise}>
                   <CheckoutForm
+                    mode={isUpgrade ? 'upgrade' : 'subscribe'}
                     billingCycle={billingCycle}
                     price={price}
                     planId={planId}

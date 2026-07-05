@@ -153,7 +153,7 @@ export default function ApproveListingsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => router.push(`/dashboard/marketplace/${listing.id}`)}
+                          onClick={() => router.push(`/dashboard/marketplace/detail?id=${listing.id}`)}
                           className={`text-xs px-2 py-1 rounded border font-medium transition-colors ${
                             isDarkMode ? 'border-[#FFFFFF14] text-white hover:bg-white/10' : 'border-gray-300 text-gray-700 hover:bg-gray-100'
                           }`}

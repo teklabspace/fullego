@@ -129,6 +129,9 @@ export const API_ENDPOINTS = {
     REQUEST_APPRAISAL: (id) => `/assets/${id}/appraisals`,
     GET_APPRAISALS: (id) => `/assets/${id}/appraisals`,
     GET_APPRAISAL: (id, appraisalId) => `/assets/${id}/appraisals/${appraisalId}`,
+    // Investor-scoped appraisal documents, GET + POST (the /concierge variant is
+    // staff-only). Owner uploads are always client-visible; no query params.
+    APPRAISAL_DOCUMENTS: (id, appraisalId) => `/assets/${id}/appraisals/${appraisalId}/documents`,
     UPDATE_VALUATION: (id) => `/assets/${id}/valuation`,
     // AI Appraisal & Review (instant, synchronous AI valuation / advisory review)
     // Note: the Automated AI appraisal reuses REQUEST_APPRAISAL with type "API".
@@ -275,6 +278,8 @@ export const API_ENDPOINTS = {
     PAY_LISTING_FEE: (id) => `/marketplace/listings/${id}/pay-fee`,
     GET_LISTING_OFFERS: (id) => `/marketplace/listings/${id}/offers`,
     SEARCH: '/marketplace/search',
+    // Live (approved/active) categories with counts — public, no auth.
+    CATEGORIES: '/marketplace/categories',
     // Offers
     CREATE_OFFER: (listingId) => `/marketplace/listings/${listingId}/offers`,
     GET_OFFER: (id) => `/marketplace/offers/${id}`,

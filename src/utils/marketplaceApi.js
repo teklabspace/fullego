@@ -82,6 +82,9 @@ export const createListing = async (listingData) => {
 export const listListings = async (params = {}) => {
   const queryParams = new URLSearchParams();
   if (params.statusFilter) queryParams.append('status_filter', params.statusFilter);
+  // Exact asset-category name (case-insensitive server-side), from
+  // GET /assets/categories `names`.
+  if (params.category) queryParams.append('category', params.category);
   if (params.page) queryParams.append('page', params.page);
   if (params.limit) queryParams.append('limit', params.limit);
   
@@ -105,11 +108,18 @@ export const listListings = async (params = {}) => {
 export const getListing = async (listingId) => {
   const endpoint = API_ENDPOINTS.MARKETPLACE.GET_LISTING(listingId);
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
+
+  // apiGet unwraps the {success, data} envelope, and for this endpoint the
+  // unwrapped value IS the listing object (snake_case) — there's no nested
+  // `data` like the list endpoints have. Normalize to { data: <camelCase> }
+  // so callers read the same shape everywhere.
+  if (response && !response.data) {
+    return { data: transformKeys(response) };
+  }
+  if (response?.data) {
     response.data = transformKeys(response.data);
   }
-  
+
   return response;
 };
 
@@ -234,19 +244,44 @@ export const searchMarketplace = async (params = {}) => {
   const queryParams = new URLSearchParams();
   if (params.q) queryParams.append('q', params.q);
   if (params.assetType) queryParams.append('asset_type', params.assetType);
+  if (params.category) queryParams.append('category', params.category);
+  // Filters a whole main tab (Assets, Portfolio, ...) server-side with
+  // correct pagination; case-insensitive, combinable with category/q/price.
+  if (params.categoryGroup) queryParams.append('category_group', params.categoryGroup);
   if (params.minPrice) queryParams.append('min_price', params.minPrice);
   if (params.maxPrice) queryParams.append('max_price', params.maxPrice);
   if (params.sortBy) queryParams.append('sort_by', params.sortBy);
+  // 'asc' | 'desc' — omitting keeps backend defaults (asc for price).
+  if (params.sortOrder) queryParams.append('sort_order', params.sortOrder);
   if (params.page) queryParams.append('page', params.page);
   if (params.limit) queryParams.append('limit', params.limit);
-  
+
   const endpoint = `${API_ENDPOINTS.MARKETPLACE.SEARCH}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
+
   if (response.data) {
     response.data = transformKeys(response.data);
   }
-  
+  if (response.pagination) {
+    response.pagination = transformKeys(response.pagination);
+  }
+
+  return response;
+};
+
+/**
+ * Get Marketplace Categories (public, no auth)
+ * GET /api/v1/marketplace/categories
+ * Returns only categories with live (approved/active) listings:
+ * { data: [{ category, categoryGroup, count }], uncategorized, total }
+ */
+export const getMarketplaceCategories = async () => {
+  const response = await apiGet(API_ENDPOINTS.MARKETPLACE.CATEGORIES);
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
   return response;
 };
 

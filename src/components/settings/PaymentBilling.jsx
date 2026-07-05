@@ -115,12 +115,34 @@ export default function PaymentBilling({ isDarkMode }) {
   const setModalOpen = (open) => setModal((m) => ({ ...m, open }));
 
   const handleConfirm = async () => {
-    setModal((m) => ({ ...m, busy: true }));
     const { action, plan, billingCycle } = modal;
     const id = plan?.id ?? plan?.planId ?? plan?.plan_id;
+
+    // Upgrades are never applied directly: hand the chosen plan off to the
+    // Stripe checkout page, which charges the card first and only then lets
+    // the backend switch the plan.
+    if (action === 'upgrade') {
+      try {
+        localStorage.setItem(
+          'pendingPlan',
+          JSON.stringify({
+            name: plan?.name || plan?.planName || plan?.plan_name,
+            planId: id,
+            billingCycle,
+            action: 'upgrade',
+          }),
+        );
+      } catch {
+        /* ignore storage failures — checkout falls back to "no plan selected" */
+      }
+      router.push('/checkout');
+      return;
+    }
+
+    setModal((m) => ({ ...m, busy: true }));
     let ok = false;
     if (action === 'subscribe') ok = await subscribe(id, billingCycle);
-    else if (action === 'upgrade' || action === 'downgrade') ok = await changePlan(id, billingCycle);
+    else if (action === 'downgrade') ok = await changePlan(id, billingCycle);
     else if (action === 'cancel') ok = await cancel();
     else if (action === 'renew') ok = await renew();
     setModal((m) => ({ ...m, busy: false, open: ok ? false : m.open }));

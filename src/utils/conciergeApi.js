@@ -56,6 +56,59 @@ const transformToSnake = (obj) => {
   return obj;
 };
 
+// Upload constraints enforced by the backend. Files failing these are rejected
+// server-side (older deploys even did so silently with an empty 200), so
+// validate up front and give the user the precise reason instead.
+const ALLOWED_DOC_EXTENSIONS = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
+const MAX_DOC_SIZE_MB = 10;
+
+const validateAppraisalFiles = (files) => {
+  const problems = [];
+  for (const f of files) {
+    const name = f?.name || '';
+    const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+    if (!ext || !ALLOWED_DOC_EXTENSIONS.includes(ext)) {
+      problems.push(
+        `${name || 'Unnamed file'}: unsupported file type${ext ? ` ".${ext}"` : ''} — allowed: ${ALLOWED_DOC_EXTENSIONS.join(', ')}`
+      );
+    } else if (f.size > MAX_DOC_SIZE_MB * 1024 * 1024) {
+      problems.push(`${name}: larger than ${MAX_DOC_SIZE_MB} MB`);
+    }
+  }
+  if (problems.length) {
+    throw new Error(problems.join('. '));
+  }
+};
+
+// Append files with an explicit filename — a raw Blob without one is sent as
+// "blob" (no extension) and the backend always rejects it.
+const appendFiles = (formData, files) => {
+  files.forEach((f) => {
+    if (f?.name) formData.append('files', f, f.name);
+    else formData.append('files', f);
+  });
+};
+
+// The upload endpoint can return HTTP 200 with some (or, on older deploys, all)
+// files rejected — `count` / `rejected` are the source of truth, not the status
+// code. Throws when nothing was saved; passes `rejected` through otherwise so
+// callers can warn about partial success.
+const assertDocumentsSaved = (parsed, fileCount) => {
+  const rejected = Array.isArray(parsed?.rejected) ? parsed.rejected : [];
+  const count = parsed?.count ?? (Array.isArray(parsed?.data) ? parsed.data.length : null);
+  if (fileCount > 0 && count === 0) {
+    const reasons = rejected
+      .map((r) => `${r.fileName || r.file_name || 'file'}: ${r.reason || 'rejected'}`)
+      .join('; ');
+    const error = new Error(
+      reasons ? `No documents were saved — ${reasons}` : 'No documents were saved — the files were rejected by the server.'
+    );
+    error.data = parsed;
+    throw error;
+  }
+  return parsed;
+};
+
 /**
  * List Appraisals
  * GET /api/v1/concierge/appraisals
@@ -115,12 +168,11 @@ export const assignAppraisal = async (appraisalId, assignmentData) => {
  */
 export const uploadAppraisalDocuments = async (appraisalId, files) => {
   try {
+    const fileList = Array.isArray(files) ? files : [files];
+    validateAppraisalFiles(fileList);
+
     const formData = new FormData();
-    if (Array.isArray(files)) {
-      files.forEach(file => formData.append('files', file));
-    } else {
-      formData.append('files', files);
-    }
+    appendFiles(formData, fileList);
 
     const url = `${API_BASE_URL.replace(/\/$/, '')}/${API_BASE_PATH.replace(/^\//, '')}${API_ENDPOINTS.CONCIERGE.APPRAISAL_DOCUMENTS(appraisalId)}`;
     const headers = getDefaultHeaders();
@@ -141,34 +193,29 @@ export const uploadAppraisalDocuments = async (appraisalId, files) => {
     }
 
     const data = await response.json();
-    return transformKeys(data);
+    return assertDocumentsSaved(transformKeys(data), fileList.length);
   } catch (error) {
     console.error('Failed to upload appraisal documents:', error);
     throw error;
   }
 };
 
-/**
- * Upload documents with live progress (XHR — fetch can't report upload %).
- * Extra fields: `documentType` (heading, e.g. "Valuation Report") and
- * `isClientVisible` (admin "help doc" = false → not mirrored onto the asset).
- * @param {function} onProgress - called with an integer 0–100
- * @returns {Promise<object>} parsed JSON response
- */
-export const uploadAppraisalDocumentsWithProgress = (
-  appraisalId,
-  files,
-  { onProgress, documentType, isClientVisible } = {}
-) =>
+// Shared XHR upload core (fetch can't report upload progress). Validates the
+// files, appends them with explicit filenames, and enforces the count/rejected
+// contract on the response.
+const xhrUploadDocuments = (endpointPath, files, onProgress) =>
   new Promise((resolve, reject) => {
-    const formData = new FormData();
-    (Array.isArray(files) ? files : [files]).forEach((f) => formData.append('files', f));
-    if (documentType) formData.append('document_type', documentType);
-    if (typeof isClientVisible === 'boolean') {
-      formData.append('is_client_visible', String(isClientVisible));
+    const fileList = Array.isArray(files) ? files : [files];
+    try {
+      validateAppraisalFiles(fileList);
+    } catch (err) {
+      reject(err);
+      return;
     }
+    const formData = new FormData();
+    appendFiles(formData, fileList);
 
-    const url = `${API_BASE_URL.replace(/\/$/, '')}/${API_BASE_PATH.replace(/^\//, '')}${API_ENDPOINTS.CONCIERGE.APPRAISAL_DOCUMENTS(appraisalId)}`;
+    const url = `${API_BASE_URL.replace(/\/$/, '')}/${API_BASE_PATH.replace(/^\//, '')}${endpointPath}`;
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
 
@@ -184,7 +231,11 @@ export const uploadAppraisalDocumentsWithProgress = (
       if (xhr.status >= 200 && xhr.status < 300) {
         let data = {};
         try { data = JSON.parse(xhr.responseText); } catch { /* non-JSON ok */ }
-        resolve(transformKeys(data));
+        try {
+          resolve(assertDocumentsSaved(transformKeys(data), fileList.length));
+        } catch (err) {
+          reject(err);
+        }
       } else {
         let data = {};
         try { data = JSON.parse(xhr.responseText); } catch { /* ignore */ }
@@ -197,6 +248,52 @@ export const uploadAppraisalDocumentsWithProgress = (
     xhr.onerror = () => reject(new Error('Network error during upload'));
     xhr.send(formData);
   });
+
+/**
+ * Upload documents with live progress — STAFF surface.
+ * POST /api/v1/concierge/appraisals/{appraisal_id}/documents
+ *
+ * `documentType` and `isClientVisible` are query params, not form fields — the
+ * backend's marketplace auto-publish trigger (staff uploads a document_type=
+ * valuation doc + saves the appraised value) only reads document_type off the
+ * query string, and it must be exactly the lowercase string 'valuation'.
+ * `isClientVisible: false` keeps a document staff-internal.
+ * @param {function} onProgress - called with an integer 0–100
+ * @returns {Promise<object>} parsed JSON response ({ data, count, rejected? })
+ */
+export const uploadAppraisalDocumentsWithProgress = (
+  appraisalId,
+  files,
+  { onProgress, documentType, isClientVisible } = {}
+) => {
+  const queryParams = new URLSearchParams();
+  if (documentType) queryParams.append('document_type', documentType);
+  if (typeof isClientVisible === 'boolean') {
+    queryParams.append('is_client_visible', String(isClientVisible));
+  }
+  const query = queryParams.toString();
+  const path = `${API_ENDPOINTS.CONCIERGE.APPRAISAL_DOCUMENTS(appraisalId)}${query ? `?${query}` : ''}`;
+  return xhrUploadDocuments(path, files, onProgress);
+};
+
+/**
+ * Upload documents with live progress — INVESTOR surface (owner only).
+ * POST /api/v1/assets/{asset_id}/appraisals/{appraisal_id}/documents
+ *
+ * Always client-visible; the backend accepts no document_type/is_client_visible
+ * here. Investors must use this route — the /concierge one is staff-only.
+ */
+export const uploadAssetAppraisalDocumentsWithProgress = (
+  assetId,
+  appraisalId,
+  files,
+  { onProgress } = {}
+) =>
+  xhrUploadDocuments(
+    API_ENDPOINTS.ASSETS.APPRAISAL_DOCUMENTS(assetId, appraisalId),
+    files,
+    onProgress
+  );
 
 /**
  * Get Appraisal Documents
