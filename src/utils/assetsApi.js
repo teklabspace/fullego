@@ -278,6 +278,16 @@ export const getCategories = async () => {
 };
 
 /**
+ * 6b. Get canonical category names (flat list) — public, no auth required.
+ * The response's top-level `names` array holds exactly the values asset
+ * creation accepts, and what the marketplace `category` filter matches on.
+ */
+export const getCategoryNames = async () => {
+  const response = await apiGet(API_ENDPOINTS.ASSETS.CATEGORIES);
+  return Array.isArray(response?.names) ? response.names : [];
+};
+
+/**
  * 7. Get Category Groups
  * GET /api/v1/assets/category-groups
  */
@@ -422,6 +432,25 @@ export const getAssetValueHistory = async (assetId, params = {}) => {
     response.data = transformKeys(response.data);
   }
   
+  return response;
+};
+
+/**
+ * 13b. Get Appraisal Documents (investor-accessible)
+ * GET /api/v1/assets/{asset_id}/appraisals/{appraisal_id}/documents
+ *
+ * Returns the client-visible documents of one appraisal. Investors must use
+ * this route — GET /concierge/appraisals/{id}/documents is staff-only.
+ */
+export const getAssetAppraisalDocuments = async (assetId, appraisalId) => {
+  const response = await apiGet(
+    API_ENDPOINTS.ASSETS.APPRAISAL_DOCUMENTS(assetId, appraisalId)
+  );
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
   return response;
 };
 

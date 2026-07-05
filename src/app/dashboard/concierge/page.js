@@ -1,6 +1,6 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import AssignmentModal from '@/components/dashboard/AssignmentModal';
 import DocumentUploadModal from '@/components/dashboard/DocumentUploadModal';
@@ -11,6 +11,7 @@ import {
   assignAppraisal,
   uploadAppraisalDocuments,
   uploadAppraisalDocumentsWithProgress,
+  uploadAssetAppraisalDocumentsWithProgress,
   getAppraisalDocuments,
   addAppraisalComment,
   getAppraisalComments,
@@ -18,7 +19,8 @@ import {
   downloadValuationReport,
   getAppraisalStatistics,
 } from '@/utils/conciergeApi';
-import { createListing, listListings } from '@/utils/marketplaceApi';
+import { listListings } from '@/utils/marketplaceApi';
+import { getAssetAppraisalDocuments } from '@/utils/assetsApi';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearch } from '@/context/SearchContext';
@@ -110,6 +112,17 @@ const mapAppraisal = (ap) => {
     comments: ap.comments || [],
     documents: ap.documents || [],
   };
+};
+
+// GET /concierge/appraisals/{id}/documents may return the list bare, or nested
+// under `data` and/or `documents` depending on the envelope — take the first
+// array found so a shape change can't silently wipe the documents section.
+const extractDocuments = (res) => {
+  const candidates = [res, res?.data, res?.documents, res?.data?.documents];
+  for (const c of candidates) {
+    if (Array.isArray(c)) return c;
+  }
+  return [];
 };
 
 // Page numbers to render, collapsing long ranges with '…'.
@@ -273,18 +286,43 @@ export default function ConciergeServicePage() {
     }
   };
 
+  // Single source of truth for an appraisal's documents: fetch the list from
+  // the server and patch it into both the queue and the open detail modal.
+  // Staff read /concierge/appraisals/{id}/documents (staff-only); investors go
+  // through the asset-scoped route, which returns their client-visible docs.
+  const refreshDocuments = useCallback(async ({ id, assetId }) => {
+    if (!id || (!isStaff && !assetId)) return [];
+    const res = isStaff
+      ? await getAppraisalDocuments(id)
+      : await getAssetAppraisalDocuments(assetId, id);
+    const list = extractDocuments(res);
+    setAppraisals(prev =>
+      prev.map(a => (a.id === id ? { ...a, documents: list } : a))
+    );
+    setSelectedAppraisal(prev =>
+      prev && prev.id === id ? { ...prev, documents: list } : prev
+    );
+    return list;
+  }, [isStaff]);
+
+  // Hydrate documents whenever a request is opened. The appraisals LIST
+  // response doesn't carry documents, so without this fetch anything uploaded
+  // earlier (valuation reports, help docs) is invisible after a page reload.
+  const openAppraisalId = selectedAppraisal?.id;
+  const openAssetId = selectedAppraisal?.assetId;
+  useEffect(() => {
+    if (!openAppraisalId) return;
+    refreshDocuments({ id: openAppraisalId, assetId: openAssetId }).catch(error =>
+      console.warn('Could not load appraisal documents:', error?.message)
+    );
+  }, [openAppraisalId, openAssetId, refreshDocuments]);
+
   // The upload itself runs in the modal (with progress). Here we just pull the
   // fresh document list from the server so the UI reflects the new file.
   const handleDocumentUpload = async () => {
     if (!selectedAppraisal) return;
     try {
-      const res = await getAppraisalDocuments(selectedAppraisal.id);
-      const docs = res?.data || res || [];
-      const list = Array.isArray(docs) ? docs : [];
-      setAppraisals(prev =>
-        prev.map(a => (a.id === selectedAppraisal.id ? { ...a, documents: list } : a))
-      );
-      setSelectedAppraisal(prev => (prev ? { ...prev, documents: list } : prev));
+      await refreshDocuments(selectedAppraisal);
     } catch (error) {
       console.warn('Could not refresh documents:', error?.message);
     }
@@ -322,15 +360,12 @@ export default function ConciergeServicePage() {
   const handleValuationFinalized = async ({ appraisedValue, valuationDate }) => {
     const target = finalizeTarget;
     if (!target) return;
-    let docs = null;
     try {
-      const res = await getAppraisalDocuments(target.id);
-      const list = res?.data || res || [];
-      docs = Array.isArray(list) ? list : null;
+      await refreshDocuments(target);
     } catch {
       // non-fatal — the documents list just won't refresh immediately
     }
-    const patch = { status: 'completed', appraisedValue, valuationDate, ...(docs ? { documents: docs } : {}) };
+    const patch = { status: 'completed', appraisedValue, valuationDate };
     setAppraisals(prev => prev.map(a => (a.id === target.id ? { ...a, ...patch } : a)));
     setSelectedAppraisal(prev => (prev && prev.id === target.id ? { ...prev, ...patch } : prev));
     setFinalizeTarget(null);
@@ -717,17 +752,37 @@ export default function ConciergeServicePage() {
         title='Upload Documents'
         itemType='concierge'
         itemId={selectedAppraisal?.id}
-        uploadFn={(rawFiles, onProgress, { heading } = {}) =>
-          uploadAppraisalDocumentsWithProgress(selectedAppraisal?.id, rawFiles, {
-            onProgress,
-            documentType: heading || undefined,
-          })
-        }
+        uploadFn={async (rawFiles, onProgress, { heading } = {}) => {
+          // Staff upload via the concierge endpoint and can tag the document;
+          // investors use their asset-scoped route (owner-only, always
+          // client-visible, no query params — /concierge POST is staff surface).
+          const res = isStaff
+            ? await uploadAppraisalDocumentsWithProgress(selectedAppraisal?.id, rawFiles, {
+                onProgress,
+                // Only the exact lowercase 'valuation' tag is recognised by the
+                // backend (it + a saved amount triggers marketplace auto-publish);
+                // help documents are uploaded untagged.
+                documentType: heading === 'valuation' ? 'valuation' : undefined,
+              })
+            : await uploadAssetAppraisalDocumentsWithProgress(
+                selectedAppraisal?.assetId,
+                selectedAppraisal?.id,
+                rawFiles,
+                { onProgress }
+              );
+          // Partial success: the backend saved some files and rejected others
+          // (the all-rejected case throws inside the upload util instead).
+          (res?.rejected || []).forEach(r =>
+            toast.warn(`${r.fileName || r.file_name || 'File'} was not saved: ${r.reason || 'rejected by the server'}`)
+          );
+          return res;
+        }}
+        accept='.pdf,.doc,.docx,.jpg,.jpeg,.png'
         headingOptions={
           isStaff
             ? [
-                { value: 'Help Document', label: 'Help Document' },
-                { value: 'Valuation Report', label: 'Valuation Report (final)' },
+                { value: 'help', label: 'Help Document' },
+                { value: 'valuation', label: 'Valuation Report (final)' },
               ]
             : undefined
         }
@@ -1132,6 +1187,13 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  // A valuation report may already have been uploaded via the Documents modal
+  // (the backend completes on doc + amount in either order) — then choosing a
+  // file here is optional and finalizing just saves the amount.
+  const hasValuationDoc = (appraisal.documents || []).some(d =>
+    (d.documentType || d.type || '').toString().toLowerCase().includes('valuation')
+  );
+
   const finishUpload = async (numericValue) => {
     try {
       await uploadAppraisalDocumentsWithProgress(appraisal.id, [file], {
@@ -1152,8 +1214,9 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
-    if (!file) {
-      setError('Please choose the valuation report file.');
+    // A file is only mandatory when no valuation report exists yet.
+    if (!file && !hasValuationDoc) {
+      toast.error('Please choose the valuation report file.');
       return;
     }
     const numericValue = Number(appraisedValue);
@@ -1172,14 +1235,20 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
       setError(err?.data?.detail || err?.message || 'Failed to save the appraised value.');
       return;
     }
-    await finishUpload(numericValue);
+    if (file) {
+      await finishUpload(numericValue);
+    } else {
+      // Report already on file — saving the amount is all that was missing.
+      setBusy(false);
+      onFinalized({ appraisedValue: numericValue, valuationDate: valuationDate || null });
+    }
   };
 
   const handleRetryUpload = async e => {
     e.preventDefault();
     setError('');
     if (!file) {
-      setError('Please choose the valuation report file.');
+      toast.error('Please choose the valuation report file.');
       return;
     }
     setBusy(true);
@@ -1202,9 +1271,15 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
             : `Upload the final report and appraised value for ${appraisal.assetName}. This completes the appraisal.`}
         </p>
         {error && <p className='text-xs text-red-400 mb-3'>{error}</p>}
+        {stage === 'form' && hasValuationDoc && (
+          <p className={`text-xs mb-3 rounded-lg border border-[#F1CB68]/30 bg-[#F1CB68]/10 p-2.5 ${isDarkMode ? 'text-[#F1CB68]' : 'text-[#a07d1f]'}`}>
+            ✓ A valuation report is already uploaded for this appraisal — adding another file is optional.
+          </p>
+        )}
         <form onSubmit={stage === 'retry-upload' ? handleRetryUpload : handleSubmit}>
           <input
             type='file'
+            accept='.pdf,.doc,.docx,.jpg,.jpeg,.png'
             onChange={e => setFile(e.target.files?.[0] || null)}
             className={`w-full text-sm mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}
           />
@@ -1286,52 +1361,40 @@ function AppraisalDetailModal({
   const [posting, setPosting] = useState(false);
   const chatScrollRef = useRef(null);
 
-  // Investor-only: once the appraisal is completed, offer a one-click listing
-  // action. The backend has no per-asset uniqueness guard on listing creation
-  // (confirmed), so this check — and disabling the button immediately on
-  // click — is the only thing preventing duplicate listings.
-  const [listingState, setListingState] = useState('n/a'); // 'n/a' | 'checking' | 'available' | 'exists' | 'creating' | 'created'
+  // Marketplace listing status — visible to BOTH staff and investor once the
+  // appraisal is completed. Listings are fully automatic now: active assets are
+  // auto-listed at creation, and completing a concierge valuation re-prices the
+  // same listing to the appraised amount. This check only CONFIRMS the listing
+  // exists (there is no manual "List on Marketplace" action anymore).
+  //
+  // Known limitation: this scans up to 100 public listings client-side for an
+  // assetId match, since no server-side "listings for this asset" filter exists.
+  const [marketListing, setMarketListing] = useState({ state: 'checking', status: null }); // state: 'checking' | 'none' | 'found'
 
   useEffect(() => {
-    if (isStaff || appraisal.status !== 'completed' || !appraisal.assetId) {
-      setListingState('n/a');
+    if (appraisal.status !== 'completed' || !appraisal.assetId) {
+      setMarketListing({ state: 'none', status: null });
       return;
     }
     let cancelled = false;
-    setListingState('checking');
+    setMarketListing({ state: 'checking', status: null });
     listListings({ limit: 100 })
       .then(res => {
         if (cancelled) return;
         const list = res?.data || res || [];
         const arr = Array.isArray(list) ? list : Array.isArray(list?.listings) ? list.listings : [];
-        const exists = arr.some(l => (l.assetId || l.asset_id) === appraisal.assetId);
-        setListingState(exists ? 'exists' : 'available');
+        const match = arr.find(l => (l.assetId || l.asset_id) === appraisal.assetId);
+        setMarketListing(match ? { state: 'found', status: match.status || null } : { state: 'none', status: null });
       })
       .catch(() => {
-        // Fail open — let them try; the backend still enforces the real
-        // ownership/KYC/subscription constraints regardless.
-        if (!cancelled) setListingState('available');
+        if (!cancelled) setMarketListing({ state: 'none', status: null });
       });
     return () => {
       cancelled = true;
     };
-  }, [isStaff, appraisal.status, appraisal.assetId]);
+  }, [appraisal.status, appraisal.assetId]);
 
-  const handleListOnMarketplace = async () => {
-    setListingState('creating');
-    try {
-      await createListing({
-        assetId: appraisal.assetId,
-        title: appraisal.assetName,
-        askingPrice: appraisal.appraisedValue,
-      });
-      toast.success('Listing submitted for approval.');
-      setListingState('created');
-    } catch (err) {
-      toast.error(err?.data?.detail || err?.message || 'Failed to create the listing.');
-      setListingState('available');
-    }
-  };
+  const isListingPublished = status => ['active', 'approved'].includes(String(status || '').toLowerCase());
 
   useEffect(() => {
     let cancelled = false;
@@ -1425,6 +1488,18 @@ function AppraisalDetailModal({
   };
 
   const handleDownloadReport = async () => {
+    // Prefer the uploaded valuation report document — it carries a direct
+    // download URL, and the /report endpoint 404s when no generated report
+    // record exists (which is the norm for document-based reports).
+    const docs = appraisal.documents || [];
+    const reportDoc = docs.find(d =>
+      (d.documentType || d.type || '').toString().toLowerCase().includes('valuation')
+    );
+    const directUrl = reportDoc && (reportDoc.url || reportDoc.fileUrl || reportDoc.downloadUrl);
+    if (directUrl) {
+      window.open(directUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
     try {
       const res = await downloadValuationReport(appraisal.id);
       const data = res?.data || res || {};
@@ -1432,10 +1507,14 @@ function AppraisalDetailModal({
       if (url) {
         window.open(url, '_blank', 'noopener,noreferrer');
       } else {
-        toast.error('No report file is available yet.');
+        toast.info('No report file is available for this appraisal yet.');
       }
     } catch (err) {
-      toast.error(err?.data?.detail || err?.message || 'Failed to download report.');
+      if (err?.status === 404) {
+        toast.info('No report has been uploaded for this appraisal yet.');
+      } else {
+        toast.error(err?.data?.detail || err?.message || 'Failed to download report.');
+      }
     }
   };
 
@@ -1879,6 +1958,7 @@ function AppraisalDetailModal({
                         name={doc.name || doc.fileName || 'Document'}
                         type={doc.documentType || doc.type || 'File'}
                         size={size}
+                        url={doc.url || doc.fileUrl || doc.downloadUrl || null}
                         isDarkMode={isDarkMode}
                       />
                     );
@@ -1984,26 +2064,18 @@ function AppraisalDetailModal({
                   >
                     Download Report
                   </button>
-                  {!isStaff && (listingState === 'available' || listingState === 'creating') && (
-                    <button
-                      onClick={handleListOnMarketplace}
-                      disabled={listingState === 'creating'}
-                      className='w-full mt-3 py-2 rounded-lg font-medium transition-all text-[#0B0D12] disabled:opacity-60'
-                      style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)' }}
+                  {/* Listing is automatic (active assets are auto-listed; the
+                      finished valuation re-prices the same listing) — this just
+                      confirms it to both staff and investor. */}
+                  {marketListing.state === 'found' && (
+                    <p
+                      className={`mt-3 text-xs text-center font-medium ${
+                        isListingPublished(marketListing.status) ? 'text-green-400' : 'text-gray-400'
+                      }`}
                     >
-                      {listingState === 'creating'
-                        ? 'Listing…'
-                        : `List on Marketplace — $${appraisal.appraisedValue}`}
-                    </button>
-                  )}
-                  {!isStaff && listingState === 'created' && (
-                    <p className='mt-3 text-xs text-center text-green-400'>
-                      Listed — pending marketplace approval.
-                    </p>
-                  )}
-                  {!isStaff && listingState === 'exists' && (
-                    <p className='mt-3 text-xs text-center text-gray-400'>
-                      Already listed on the marketplace.
+                      {isListingPublished(marketListing.status)
+                        ? '✓ Published to marketplace'
+                        : 'Listed — pending marketplace approval.'}
                     </p>
                   )}
                 </div>
@@ -2035,7 +2107,7 @@ function AppraisalDetailModal({
 }
 
 // Document Item Component
-function DocumentItem({ name, type, size, isDarkMode }) {
+function DocumentItem({ name, type, size, url, isDarkMode }) {
   return (
     <div
       className={`flex items-center justify-between p-3 rounded-lg border ${
@@ -2082,26 +2154,32 @@ function DocumentItem({ name, type, size, isDarkMode }) {
           </p>
         </div>
       </div>
-      <button
-        className={`p-2 rounded-lg transition-all ${
-          isDarkMode
-            ? 'hover:bg-white/10 text-gray-400'
-            : 'hover:bg-gray-100 text-gray-600'
-        }`}
-      >
-        <svg
-          width='20'
-          height='20'
-          viewBox='0 0 24 24'
-          fill='none'
-          stroke='currentColor'
-          strokeWidth='2'
+      {url && (
+        <a
+          href={url}
+          target='_blank'
+          rel='noreferrer'
+          aria-label={`Download ${name}`}
+          className={`p-2 rounded-lg transition-all ${
+            isDarkMode
+              ? 'hover:bg-white/10 text-gray-400'
+              : 'hover:bg-gray-100 text-gray-600'
+          }`}
         >
-          <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
-          <polyline points='7 10 12 15 17 10' />
-          <line x1='12' y1='15' x2='12' y2='3' />
-        </svg>
-      </button>
+          <svg
+            width='20'
+            height='20'
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='2'
+          >
+            <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
+            <polyline points='7 10 12 15 17 10' />
+            <line x1='12' y1='15' x2='12' y2='3' />
+          </svg>
+        </a>
+      )}
     </div>
   );
 }

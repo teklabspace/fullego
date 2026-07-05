@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { mutate } from 'swr';
 import { useTheme } from '@/context/ThemeContext';
 import { API_BASE_URL, API_BASE_PATH } from '@/config/api';
+import { getUserProfile } from '@/utils/authApi';
 
 // SWR key used by the notification bell (NotificationDropdown) for the unread count.
 const UNREAD_COUNT_KEY = 'notifications-unread-count';
@@ -65,10 +66,12 @@ export default function RealtimeNotifications() {
 
   const openPopup = (p) => {
     removePopup(p.key);
-    if (p.appraisalId) {
+    if (p.kycEvent) {
+      router.push('/dashboard/kyc');
+    } else if (p.appraisalId) {
       router.push(`/dashboard/concierge?appraisal=${p.appraisalId}`);
     } else if (p.listingId) {
-      router.push(`/dashboard/marketplace/${p.listingId}`);
+      router.push(`/dashboard/marketplace/detail?id=${p.listingId}`);
     } else if (p.conversationId) {
       router.push('/dashboard/support-dashboard');
     }
@@ -104,11 +107,42 @@ export default function RealtimeNotifications() {
         console.log('[notifications] broadcast app:notification', msg.type, msg.notification_id);
         window.dispatchEvent(new CustomEvent('app:notification', { detail: msg }));
       }
+      // KYC outcomes from the Persona webhook: approved arrives as
+      // type "kyc_approved", rejected as type "general" — both carry
+      // metadata.event = "kyc_approved" | "kyc_rejected".
+      const kycEvent =
+        msg.type === 'kyc_approved' ||
+        msg.metadata?.event === 'kyc_approved' ||
+        msg.metadata?.event === 'kyc_rejected';
+      if (msg.type === 'kyc_approved' || msg.metadata?.event === 'kyc_approved') {
+        // Lift the KYC gate live: refresh the cached profile that useAuth
+        // reads (user_info.is_kyc_verified) — no re-login or polling needed.
+        getUserProfile()
+          .then((profile) => {
+            if (profile && (profile.role || 'is_kyc_verified' in profile)) {
+              let stored = null;
+              try {
+                stored = JSON.parse(localStorage.getItem('user_info'));
+              } catch {
+                /* ignore */
+              }
+              localStorage.setItem(
+                'user_info',
+                JSON.stringify({ ...(stored || {}), ...profile })
+              );
+              window.dispatchEvent(
+                new CustomEvent('app:kyc-updated', { detail: { status: 'approved' } })
+              );
+            }
+          })
+          .catch(() => {});
+      }
       const key = nid || `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
       const fallbackPreview = {
         appraisal_created: 'New appraisal request',
         client_assigned: 'You have a new client assignment',
         listing_approved: 'A listing was approved',
+        kyc_approved: 'Identity verification approved',
       }[msg.type] || msg.title || 'New notification';
       const popup = {
         key,
@@ -118,6 +152,7 @@ export default function RealtimeNotifications() {
         appraisalId: msg.appraisal_id,
         listingId: msg.listing_id,
         conversationId: msg.conversation_id,
+        kycEvent,
       };
       // Keep at most the last 3 popups stacked.
       setPopups((prev) => [...prev.slice(-2), popup]);

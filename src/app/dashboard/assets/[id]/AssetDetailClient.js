@@ -20,7 +20,7 @@ import
     shareAssetDetails,
     transferAssetOwnership,
   } from '@/utils/assetsApi';
-import { createListing, listListings } from '@/utils/marketplaceApi';
+import { listListings } from '@/utils/marketplaceApi';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -193,17 +193,11 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   }
   
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [showSellModal, setShowSellModal] = useState(false);
   const [showAppraisalModal, setShowAppraisalModal] = useState(false);
-  const [sellFormData, setSellFormData] = useState({
-    targetPrice: '',
-    saleNote: '',
-  });
 
-  // Idempotency: the backend has no per-asset uniqueness guard on listing
-  // creation (confirmed against the live API), so this check — and
-  // disabling the button immediately on click — is what prevents duplicate
-  // listings for the same asset.
+  // Marketplace listing is automatic (active assets are auto-listed; a
+  // completed concierge valuation re-prices the same listing) — this check
+  // only powers the "Listed on Marketplace" indicator.
   const [hasExistingListing, setHasExistingListing] = useState(false);
 
   const [appraisalType, setAppraisalType] = useState('');
@@ -222,8 +216,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
         setHasExistingListing(arr.some(l => (l.assetId || l.asset_id) === asset.id));
       })
       .catch(() => {
-        // Fail open — let them try; the backend still enforces the real
-        // constraints regardless.
+        // Non-fatal — the indicator just won't show.
       });
     return () => {
       cancelled = true;
@@ -233,7 +226,6 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [valueHistory, setValueHistory] = useState([]);
-  const [submittingSell, setSubmittingSell] = useState(false);
   const [submittingAppraisal, setSubmittingAppraisal] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState(null);
@@ -677,55 +669,6 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     );
   };
 
-  const handleSellSubmit = async (e) => {
-    e.preventDefault();
-    const typedPrice = sellFormData.targetPrice
-      ? parseFloat(sellFormData.targetPrice.replace(/[^0-9.-]+/g, ''))
-      : null;
-    const fallbackPrice = asset.currentValue
-      ? parseFloat(String(asset.currentValue).replace(/[^0-9.-]+/g, ''))
-      : null;
-    const askingPrice = typedPrice || fallbackPrice;
-    if (!askingPrice || Number.isNaN(askingPrice) || askingPrice <= 0) {
-      toast.error('Please enter a target price — this asset has no appraised value to fall back on.');
-      return;
-    }
-    try {
-      setSubmittingSell(true);
-      await createListing({
-        assetId: asset.id,
-        title: asset.name,
-        askingPrice,
-        description: sellFormData.saleNote || undefined,
-      });
-      toast.success('Listing submitted for marketplace approval!');
-      setShowSellModal(false);
-      setSellFormData({ targetPrice: '', saleNote: '' });
-      setHasExistingListing(true);
-    } catch (err) {
-      // BUG-03: surface the backend error detail and a timestamp so it can be
-      // matched against the server logs if the request still fails.
-      const timestamp = new Date().toISOString();
-      let errorMessage = 'Failed to create the listing';
-      if (err.data) {
-        if (typeof err.data.detail === 'string') errorMessage = err.data.detail;
-        else if (err.data.message) errorMessage = err.data.message;
-        else if (err.data.error) errorMessage = err.data.error;
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      console.error('Error creating listing:', {
-        timestamp,
-        assetId: asset.id,
-        status: err.status,
-        error: err,
-      });
-      toast.error(errorMessage);
-    } finally {
-      setSubmittingSell(false);
-    }
-  };
-
   const handleAppraisalSubmit = async (e) => {
     e.preventDefault();
     // Backstop: block a second open human appraisal for this asset.
@@ -1062,41 +1005,17 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
             </button>
             {isInvestor && (
               <>
-            <button
-              onClick={() => setShowSellModal(true)}
-              disabled={submittingSell || hasExistingListing}
-              className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-                submittingSell || hasExistingListing
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  : 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
-              }`}
-            >
-              {submittingSell ? (
-                <span className='flex items-center gap-2'>
-                  <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
-                    <circle
-                      className='opacity-25'
-                      cx='12'
-                      cy='12'
-                      r='10'
-                      stroke='currentColor'
-                      strokeWidth='4'
-                      fill='none'
-                    />
-                    <path
-                      className='opacity-75'
-                      fill='currentColor'
-                      d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
-                    />
-                  </svg>
-                  Processing...
-                </span>
-              ) : hasExistingListing ? (
-                'Already Listed'
-              ) : (
-                'Initiate Sale'
-              )}
-            </button>
+            {/* Listing is automatic — active assets are published to the
+                marketplace on creation and re-priced when a concierge
+                valuation completes. No manual "Initiate Sale" step. */}
+            {hasExistingListing && (
+              <span className='inline-flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm bg-green-500/10 text-green-400 border border-green-500/30'>
+                <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5'>
+                  <polyline points='20 6 9 17 4 12' />
+                </svg>
+                Listed on Marketplace
+              </span>
+            )}
             <button
               onClick={() => {
                 // No preselection — the investor picks one of the four types.
@@ -2311,196 +2230,6 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   )}
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Request to Sell Modal */}
-        {showSellModal && (
-          <div
-            className='fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto'
-            onClick={() => setShowSellModal(false)}
-          >
-            <div
-              className={`border rounded-2xl w-full max-w-md sm:max-w-2xl my-8 max-h-[90vh] flex flex-col ${
-                isDarkMode
-                  ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
-                  : 'bg-white border-gray-300'
-              }`}
-              onClick={e => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className={`border-b p-3 sm:p-6 flex items-center justify-between flex-shrink-0 ${
-                isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
-              }`}>
-                <h2 className={`text-lg sm:text-2xl font-bold ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
-                }`}>
-                  List on Marketplace
-                </h2>
-                <button
-                  onClick={() => setShowSellModal(false)}
-                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
-                    isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'
-                  }`}
-                >
-                  <span className={`text-2xl ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>×</span>
-                </button>
-              </div>
-
-              {/* Content */}
-              <form
-                onSubmit={handleSellSubmit}
-                className='p-3 sm:p-6 overflow-y-auto custom-scrollbar flex-1'
-              >
-                {/* Asset Preview */}
-                <div className={`rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 ${
-                  isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-50'
-                }`}>
-                  <div className='flex flex-col sm:flex-row items-start sm:items-center gap-3'>
-                    <img
-                      src={asset.images[0]}
-                      alt={asset.name}
-                      className='w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover mx-auto sm:mx-0'
-                    />
-                    <div className='flex-1 min-w-0 text-center sm:text-left'>
-                      <h3 className={`font-semibold mb-2 text-base sm:text-lg truncate ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {asset.name}
-                      </h3>
-                      <div className='grid grid-cols-2 gap-2'>
-                        <div>
-                          <p className={`text-xs ${
-                            isDarkMode ? 'text-gray-500' : 'text-gray-600'
-                          }`}>Current Value</p>
-                          <p className={`text-sm font-semibold ${
-                            isDarkMode ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {asset.currentValue}
-                          </p>
-                        </div>
-                        <div>
-                          <p className={`text-xs ${
-                            isDarkMode ? 'text-gray-500' : 'text-gray-600'
-                          }`}>Category</p>
-                          <p className={`text-sm ${
-                            isDarkMode ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {asset.propertyType}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Form Fields */}
-                <div className='space-y-4'>
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      Target Price
-                    </label>
-                    <div className='relative'>
-                      <span className='absolute left-4 top-1/2 -translate-y-1/2 text-[#F1CB68] font-semibold'>
-                        $
-                      </span>
-                      <input
-                        type='text'
-                        value={sellFormData.targetPrice}
-                        onChange={e =>
-                          setSellFormData({
-                            ...sellFormData,
-                            targetPrice: e.target.value,
-                          })
-                        }
-                        placeholder='Enter your target price'
-                        className={`w-full pl-8 pr-4 py-3 rounded-lg border placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors text-sm sm:text-base ${
-                          isDarkMode
-                            ? 'bg-[#2A2A2D] border-[#FFFFFF14] text-white'
-                            : 'bg-gray-50 border-gray-300 text-gray-900'
-                        }`}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      Sale Notes (Optional)
-                    </label>
-                    <textarea
-                      value={sellFormData.saleNote}
-                      onChange={e =>
-                        setSellFormData({
-                          ...sellFormData,
-                          saleNote: e.target.value,
-                        })
-                      }
-                      placeholder='Add any additional notes or requirements for the sale...'
-                      rows={3}
-                      className={`w-full px-4 py-3 rounded-lg border placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors resize-none text-sm sm:text-base ${
-                        isDarkMode
-                          ? 'bg-[#2A2A2D] border-[#FFFFFF14] text-white'
-                          : 'bg-gray-50 border-gray-300 text-gray-900'
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className='flex flex-col sm:flex-row gap-2 sm:gap-4 mt-6'>
-                  <button
-                    type='button'
-                    onClick={() => setShowSellModal(false)}
-                    className={`w-full sm:w-auto flex-1 px-4 sm:px-6 py-3 bg-transparent border rounded-lg font-semibold transition-colors text-sm sm:text-base ${
-                      isDarkMode
-                        ? 'border-[#FFFFFF14] text-white hover:bg-white/5'
-                        : 'border-gray-300 text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type='submit'
-                    disabled={submittingSell}
-                    className={`w-full sm:w-auto flex-1 px-4 sm:px-6 py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base ${
-                      submittingSell
-                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        : 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
-                    }`}
-                  >
-                    {submittingSell ? (
-                      <span className='flex items-center justify-center gap-2'>
-                        <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
-                          <circle
-                            className='opacity-25'
-                            cx='12'
-                            cy='12'
-                            r='10'
-                            stroke='currentColor'
-                            strokeWidth='4'
-                            fill='none'
-                          />
-                          <path
-                            className='opacity-75'
-                            fill='currentColor'
-                            d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
-                          />
-                        </svg>
-                        Submitting...
-                      </span>
-                    ) : (
-                      'Submit Request'
-                    )}
-                  </button>
-                </div>
-              </form>
             </div>
           </div>
         )}

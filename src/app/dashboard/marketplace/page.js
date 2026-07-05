@@ -21,9 +21,17 @@ import {
   disputeEscrow,
   refundEscrow,
   createListing,
+  getMarketplaceCategories,
 } from '@/utils/marketplaceApi';
 import { getAssets } from '@/utils/assetsApi';
+import {
+  categoryGroupConfig,
+  getCategoriesByGroup,
+  getCategoryGroup,
+} from '@/config/assetConfig';
+import { getCategoryIcon } from '@/utils/categoryIcons';
 import { toast } from 'react-toastify';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function MarketplacePage() {
   const { isDarkMode } = useTheme();
@@ -42,20 +50,51 @@ export default function MarketplacePage() {
   };
 
   const [activeTab, setActiveTab] = useState(getInitialTab);
+  // Two-level filter: a main category group first (Assets, Portfolio, ...),
+  // then optionally one of its subcategories (matches listing.category).
+  const [activeGroup, setActiveGroup] = useState('All');
   const [activeCategory, setActiveCategory] = useState('All');
+  const { isInvestor } = useAuth();
+  // GET /marketplace/categories — only categories with live listings, with
+  // counts: [{ category, categoryGroup, count }].
+  const [marketCategories, setMarketCategories] = useState(null);
+
+  useEffect(() => {
+    getMarketplaceCategories()
+      .then(res => {
+        if (Array.isArray(res?.data)) setMarketCategories(res.data);
+      })
+      .catch(() => {
+        // Availability unknown — every group stays visible.
+      });
+  }, []);
+
+  // A guest clicked Buy on the public marketplace and just finished
+  // login/onboarding — take them straight to that listing to complete it.
+  useEffect(() => {
+    if (!isInvestor) return;
+    let pending = null;
+    try {
+      const raw = localStorage.getItem('pendingBuyListing');
+      if (raw) pending = JSON.parse(raw);
+    } catch {
+      /* ignore */
+    }
+    if (pending?.id) {
+      try {
+        localStorage.removeItem('pendingBuyListing');
+      } catch {
+        /* ignore */
+      }
+      router.push(`/dashboard/marketplace/detail?id=${pending.id}&buy=1`);
+    }
+  }, [isInvestor, router]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isListModalOpen, setIsListModalOpen] = useState(false);
 
   // Filter states
   const [sortBy, setSortBy] = useState('price-low-high');
-  const [assetTypes, setAssetTypes] = useState({
-    'Real Estate': false,
-    Bonds: false,
-    Equity: false,
-    Others: false,
-  });
   const [priceRange, setPriceRange] = useState([100, 10000]);
-  const [returnRange, setReturnRange] = useState([1, 30]);
 
   // API data states
   const [listings, setListings] = useState([]);
@@ -87,37 +126,27 @@ export default function MarketplacePage() {
         setLoading(true);
         setError(null);
 
-        // Build search params from filters
-        const searchParams = {};
-        if (activeCategory !== 'All') {
-          searchParams.assetType = activeCategory;
-        }
-        const selectedAssetTypes = Object.keys(assetTypes).filter(
-          key => assetTypes[key]
-        );
-        if (selectedAssetTypes.length > 0) {
-          searchParams.assetType = selectedAssetTypes[0]; // Use first selected type
-        }
-        if (priceRange[0] > 0) {
-          searchParams.minPrice = priceRange[0] * 1000;
-        }
-        if (priceRange[1] < 10000) {
-          searchParams.maxPrice = priceRange[1] * 1000;
-        }
-        if (sortBy === 'price-low-high' || sortBy === 'price-high-low') {
-          searchParams.sortBy = 'price';
-        }
-
-        // Fetch listings
-        const listingsRes = await listListings({ statusFilter: 'active' });
+        // Fetch the full listing set once — category/group/price/sort are
+        // applied client-side in getFilteredFunds. No status_filter: the
+        // default returns all publicly visible listings (APPROVED + ACTIVE).
+        // Auto-listed assets are APPROVED, so filtering by 'active' alone
+        // would hide them.
+        const listingsRes = await listListings();
         
         if (listingsRes.data && Array.isArray(listingsRes.data)) {
           // Transform API data to match UI structure
           const transformedListings = listingsRes.data.map(listing => ({
             id: listing.id,
             name: listing.title || listing.assetName || 'Untitled Listing',
-            category: listing.assetType || listing.category || 'Others',
+            category: listing.category || listing.assetType || 'Others',
+            // Provided by the backend since the category backfill; config
+            // mapping is the fallback for anything older.
+            categoryGroup:
+              listing.categoryGroup || getCategoryGroup(listing.category),
             assetType: listing.assetType || listing.category || 'Others',
+            // Standardized: thumbnail_url for cards, image_url for detail.
+            image: listing.thumbnailUrl || listing.imageUrl || null,
+            imageUrl: listing.imageUrl || null,
             minimum: listing.askingPrice ? `$${listing.askingPrice.toLocaleString()}` : '$0',
             minimumValue: listing.askingPrice || 0,
             targetIRR: listing.expectedReturn || '0%',
@@ -154,7 +183,7 @@ export default function MarketplacePage() {
     if (activeTab === 'browse') {
       fetchListings();
     }
-  }, [activeTab, activeCategory, assetTypes, priceRange, sortBy]);
+  }, [activeTab]);
 
   // Fetch Market Highlights and Watchlist data
   useEffect(() => {
@@ -333,16 +362,38 @@ export default function MarketplacePage() {
     }
   }, [activeTab, fetchMyOffers]);
 
-  const categories = [
+  // Tabs come from GET /marketplace/categories: main groups with at least one
+  // live listing first, then the non-empty subcategories of the selected
+  // group. A new category appears automatically once something is listed
+  // under it.
+  const apiGroups = marketCategories
+    ? [...new Set(marketCategories.map(c => c.categoryGroup))]
+    : null;
+  const groupTabs = [
     'All',
-    'Private Equity',
-    'Real Estate',
-    'Private Credit',
-    'Alternatives',
-    'Funds',
-    'Deals',
-    'Arts & Collectibles',
+    ...Object.keys(categoryGroupConfig).filter(
+      group => !apiGroups || apiGroups.includes(group)
+    ),
+    ...(apiGroups || []).filter(group => !categoryGroupConfig[group]),
   ];
+  // Config order first, then any backend category the config doesn't know
+  // (e.g. the backfilled "Other").
+  const groupCategories = marketCategories
+    ? marketCategories.filter(c => c.categoryGroup === activeGroup)
+    : [];
+  const configOrder = getCategoriesByGroup(activeGroup).map(cat => cat.id);
+  const subCategoryTabs =
+    activeGroup === 'All'
+      ? []
+      : [
+          ...groupCategories
+            .filter(c => configOrder.includes(c.category))
+            .sort(
+              (a, b) =>
+                configOrder.indexOf(a.category) - configOrder.indexOf(b.category)
+            ),
+          ...groupCategories.filter(c => !configOrder.includes(c.category)),
+        ];
 
   // Transform market highlights API data to UI format
   const marketData = (marketHighlights && Array.isArray(marketHighlights) ? marketHighlights : []).map(highlight => ({
@@ -372,55 +423,35 @@ export default function MarketplacePage() {
     priceChangePercentage: item.priceChangePercentage,
   }));
 
-  // Toggle asset type filter
-  const toggleAssetType = type => {
-    setAssetTypes(prev => ({ ...prev, [type]: !prev[type] }));
-  };
-
   // Filter and sort logic
   const getFilteredFunds = () => {
     // Only use API data - no fallback to static data
     const dataSource = listings;
     let filtered = [...dataSource];
 
-    // Filter by category
+    // Filter by subcategory when one is picked, otherwise by the whole group
     if (activeCategory !== 'All') {
       filtered = filtered.filter(fund => fund.category === activeCategory);
+    } else if (activeGroup !== 'All') {
+      filtered = filtered.filter(fund => fund.categoryGroup === activeGroup);
     }
 
-    // Filter by asset type
-    const selectedAssetTypes = Object.keys(assetTypes).filter(
-      key => assetTypes[key]
-    );
-    if (selectedAssetTypes.length > 0) {
-      filtered = filtered.filter(fund =>
-        selectedAssetTypes.includes(fund.assetType)
-      );
+    // Price filter only applies once the user moves it off its defaults —
+    // otherwise listings under $100k vanish.
+    if (priceRange[0] > 100 || priceRange[1] < 10000) {
+      filtered = filtered.filter(fund => {
+        const minValue = fund.minimumValue;
+        return (
+          minValue >= priceRange[0] * 1000 && minValue <= priceRange[1] * 1000
+        );
+      });
     }
 
-    // Filter by price range (convert to thousands for comparison)
-    filtered = filtered.filter(fund => {
-      const minValue = fund.minimumValue;
-      return (
-        minValue >= priceRange[0] * 1000 && minValue <= priceRange[1] * 1000
-      );
-    });
-
-    // Filter by return range
-    filtered = filtered.filter(fund => {
-      const returnVal = fund.returnValue;
-      return returnVal >= returnRange[0] && returnVal <= returnRange[1];
-    });
-
-    // Sort
+    // Sort (client-side is correct here: `filtered` holds the full set)
     if (sortBy === 'price-low-high') {
       filtered.sort((a, b) => a.minimumValue - b.minimumValue);
     } else if (sortBy === 'price-high-low') {
       filtered.sort((a, b) => b.minimumValue - a.minimumValue);
-    } else if (sortBy === 'return-low-high') {
-      filtered.sort((a, b) => a.returnValue - b.returnValue);
-    } else if (sortBy === 'return-high-low') {
-      filtered.sort((a, b) => b.returnValue - a.returnValue);
     }
 
     return filtered;
@@ -512,12 +543,15 @@ export default function MarketplacePage() {
                   {/* Category Tabs - Full Width */}
                   <div className='relative'>
                     <div className='flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide'>
-                      {categories.map(category => (
+                      {groupTabs.map(group => (
                         <button
-                          key={category}
-                          onClick={() => setActiveCategory(category)}
+                          key={group}
+                          onClick={() => {
+                            setActiveGroup(group);
+                            setActiveCategory('All');
+                          }}
                           className={`whitespace-nowrap px-6 py-1.5 text-xs font-medium transition-all rounded-full ${
-                            activeCategory === category
+                            activeGroup === group
                               ? isDarkMode
                                 ? 'text-white'
                                 : 'text-black'
@@ -526,7 +560,7 @@ export default function MarketplacePage() {
                               : 'text-gray-600 hover:text-gray-900 bg-gray-100'
                           }`}
                           style={
-                            activeCategory === category
+                            activeGroup === group
                               ? isDarkMode
                                 ? {
                                     background:
@@ -538,7 +572,7 @@ export default function MarketplacePage() {
                               : {}
                           }
                         >
-                          {category}
+                          {group}
                         </button>
                       ))}
                       <div className='ml-auto relative'>
@@ -563,6 +597,40 @@ export default function MarketplacePage() {
                       </div>
                     </div>
 
+                    {/* Subcategory chips for the selected group (non-empty only) */}
+                    {subCategoryTabs.length > 0 && (
+                      <div className='flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide'>
+                        <button
+                          key='all-subcategories'
+                          onClick={() => setActiveCategory('All')}
+                          className={`whitespace-nowrap px-4 py-1 text-xs font-medium transition-all rounded-full ${
+                            activeCategory === 'All'
+                              ? 'text-[#101014] bg-[#F1CB68]'
+                              : isDarkMode
+                              ? 'text-gray-400 hover:text-white bg-white/5'
+                              : 'text-gray-600 hover:text-gray-900 bg-gray-100'
+                          }`}
+                        >
+                          All {activeGroup}
+                        </button>
+                        {subCategoryTabs.map(({ category, count }) => (
+                          <button
+                            key={category}
+                            onClick={() => setActiveCategory(category)}
+                            className={`whitespace-nowrap px-4 py-1 text-xs font-medium transition-all rounded-full ${
+                              activeCategory === category
+                                ? 'text-[#101014] bg-[#F1CB68]'
+                                : isDarkMode
+                                ? 'text-gray-400 hover:text-white bg-white/5'
+                                : 'text-gray-600 hover:text-gray-900 bg-gray-100'
+                            }`}
+                          >
+                            {category} ({count})
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Filter Panel */}
                     <FilterPanel
                       isOpen={isFilterOpen}
@@ -570,12 +638,8 @@ export default function MarketplacePage() {
                       isDarkMode={isDarkMode}
                       sortBy={sortBy}
                       setSortBy={setSortBy}
-                      assetTypes={assetTypes}
-                      toggleAssetType={toggleAssetType}
                       priceRange={priceRange}
                       setPriceRange={setPriceRange}
-                      returnRange={returnRange}
-                      setReturnRange={setReturnRange}
                     />
                   </div>
 
@@ -775,9 +839,9 @@ export default function MarketplacePage() {
         isDarkMode={isDarkMode}
         onCreated={() => {
           setIsListModalOpen(false);
-          // Refresh browse listings
+          // Refresh browse listings (public set = APPROVED + ACTIVE by default)
           if (activeTab === 'browse') {
-            listListings({ statusFilter: 'active' }).catch(() => {});
+            listListings().catch(() => {});
           }
         }}
       />
@@ -1211,7 +1275,7 @@ function OfferCard({
     const actions = [];
     actions.push({
       label: 'View Listing',
-      onClick: () => router.push(`/dashboard/marketplace/${offer.listingId}`),
+      onClick: () => router.push(`/dashboard/marketplace/detail?id=${offer.listingId}`),
       primary: false,
     });
 
@@ -1427,7 +1491,7 @@ function OfferTableRow({
     const actions = [];
     actions.push({
       label: 'View',
-      onClick: () => router.push(`/dashboard/marketplace/${offer.listingId}`),
+      onClick: () => router.push(`/dashboard/marketplace/detail?id=${offer.listingId}`),
     });
 
     if (offer.role === 'Buyer' && offer.offerStatus === 'Pending') {
@@ -2023,9 +2087,18 @@ function HeroSection({ isDarkMode }) {
 // Investment Card Component
 function InvestmentCard({ fund, isDarkMode }) {
   const router = useRouter();
+  // Buying is investor-only (staff get 403 STAFF_CANNOT_BUY server-side).
+  const { isInvestor } = useAuth();
+  const CategoryIcon = getCategoryIcon(fund.category);
 
   const handleViewDetails = () => {
-    router.push(`/dashboard/marketplace/${fund.id}`);
+    router.push(`/dashboard/marketplace/detail?id=${fund.id}`);
+  };
+
+  // Deep-link into the detail page with the offer modal pre-opened at the
+  // asking price — the offer→accept→escrow chain is the purchase flow.
+  const handleBuy = () => {
+    router.push(`/dashboard/marketplace/detail?id=${fund.id}&buy=1`);
   };
 
   return (
@@ -2041,24 +2114,13 @@ function InvestmentCard({ fund, isDarkMode }) {
         <div className='absolute top-0 right-0 w-0 h-0 border-t-[45px] border-t-[#F1CB68] border-l-[45px] border-l-transparent' />
       </div>
 
-      {/* Icon */}
+      {/* Category icon */}
       <div
         className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${
           isDarkMode ? 'bg-[#F1CB68]/10' : 'bg-[#F1CB68]/10'
         }`}
       >
-        <svg
-          width='18'
-          height='18'
-          viewBox='0 0 24 24'
-          fill='none'
-          stroke='#F1CB68'
-          strokeWidth='2'
-        >
-          <rect x='3' y='3' width='18' height='18' rx='2' />
-          <path d='M3 9h18' />
-          <path d='M9 21V9' />
-        </svg>
+        <CategoryIcon size={18} color='#F1CB68' />
       </div>
 
       {/* Fund Name */}
@@ -2158,17 +2220,27 @@ function InvestmentCard({ fund, isDarkMode }) {
         </div>
       </div>
 
-      {/* View Details Button */}
-      <button
-        onClick={handleViewDetails}
-        className={`w-full py-1.5 text-xs rounded-lg font-medium border transition-all ${
-          isDarkMode
-            ? 'border-white/20 text-white hover:bg-white/5'
-            : 'border-gray-300 text-gray-900 hover:bg-gray-50'
-        }`}
-      >
-        View Details
-      </button>
+      {/* Actions */}
+      <div className={isInvestor ? 'grid grid-cols-2 gap-2' : ''}>
+        <button
+          onClick={handleViewDetails}
+          className={`w-full py-1.5 text-xs rounded-lg font-medium border transition-all ${
+            isDarkMode
+              ? 'border-white/20 text-white hover:bg-white/5'
+              : 'border-gray-300 text-gray-900 hover:bg-gray-50'
+          }`}
+        >
+          View Details
+        </button>
+        {isInvestor && (
+          <button
+            onClick={handleBuy}
+            className='w-full py-1.5 text-xs rounded-lg font-semibold text-[#0B0D12] bg-[#F1CB68] hover:bg-[#d4b55a] transition-all'
+          >
+            Buy
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -2180,12 +2252,8 @@ function FilterPanel({
   isDarkMode,
   sortBy,
   setSortBy,
-  assetTypes,
-  toggleAssetType,
   priceRange,
   setPriceRange,
-  returnRange,
-  setReturnRange,
 }) {
   if (!isOpen) return null;
 
@@ -2233,8 +2301,6 @@ function FilterPanel({
               {[
                 { value: 'price-low-high', label: 'Price: Low to High' },
                 { value: 'price-high-low', label: 'Price: High to Low' },
-                { value: 'return-low-high', label: 'Return: Low to High' },
-                { value: 'return-high-low', label: 'Return: High to Low' },
               ].map(option => (
                 <label
                   key={option.value}
@@ -2269,47 +2335,6 @@ function FilterPanel({
                     }`}
                   >
                     {option.label}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Asset Type */}
-          <div className='mb-6'>
-            <h3
-              className={`text-sm font-medium mb-3 ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}
-            >
-              Asset Type
-            </h3>
-            <div className='space-y-2'>
-              {Object.keys(assetTypes).map(type => (
-                <label
-                  key={type}
-                  className='flex items-center gap-3 cursor-pointer'
-                >
-                  <input
-                    type='checkbox'
-                    checked={assetTypes[type]}
-                    onChange={() => toggleAssetType(type)}
-                    className='w-5 h-5 rounded border-2 border-gray-600 bg-transparent checked:bg-[#F1CB68] checked:border-[#F1CB68] appearance-none cursor-pointer relative'
-                    style={{
-                      backgroundImage: assetTypes[type]
-                        ? "url(\"data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e\")"
-                        : 'none',
-                      backgroundSize: '100% 100%',
-                      backgroundPosition: 'center',
-                      backgroundRepeat: 'no-repeat',
-                    }}
-                  />
-                  <span
-                    className={`text-sm ${
-                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                    }`}
-                  >
-                    {type}
                   </span>
                 </label>
               ))}
@@ -2366,52 +2391,6 @@ function FilterPanel({
             </div>
           </div>
 
-          {/* Return Performance */}
-          <div className='mb-6'>
-            <h3
-              className={`text-sm font-medium mb-3 ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}
-            >
-              Return Performance
-            </h3>
-            <div className='px-1'>
-              <input
-                type='range'
-                min='1'
-                max='30'
-                step='1'
-                value={returnRange[1]}
-                onChange={e =>
-                  setReturnRange([returnRange[0], parseInt(e.target.value)])
-                }
-                className='w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb-gold'
-                style={{
-                  background: `linear-gradient(to right, #F1CB68 0%, #F1CB68 ${
-                    ((returnRange[1] - 1) / (30 - 1)) * 100
-                  }%, ${isDarkMode ? '#374151' : '#E5E7EB'} ${
-                    ((returnRange[1] - 1) / (30 - 1)) * 100
-                  }%, ${isDarkMode ? '#374151' : '#E5E7EB'} 100%)`,
-                }}
-              />
-              <div className='flex justify-between mt-2'>
-                <span
-                  className={`text-xs ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}
-                >
-                  {returnRange[0]}%
-                </span>
-                <span
-                  className={`text-xs ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}
-                >
-                  {returnRange[1]}%
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 

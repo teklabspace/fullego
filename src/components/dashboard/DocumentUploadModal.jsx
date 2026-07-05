@@ -15,6 +15,8 @@ export default function DocumentUploadModal({
   // Optional: [{ value, label }] — shows a heading/type selector (e.g. for admins).
   headingOptions,
   infoText,
+  // Accepted file extensions for the picker (also shown in the hint text).
+  accept = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt',
 }) {
   const { isDarkMode } = useTheme();
   const [files, setFiles] = useState([]);
@@ -188,7 +190,7 @@ export default function DocumentUploadModal({
                 type='file'
                 multiple
                 className='hidden'
-                accept='.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt'
+                accept={accept}
                 onChange={handleFileChange}
               />
               <svg
@@ -216,7 +218,11 @@ export default function DocumentUploadModal({
                   isDarkMode ? 'text-gray-500' : 'text-gray-500'
                 }`}
               >
-                PDF, DOC, DOCX, XLS, XLSX, JPG, PNG up to 10MB
+                {accept
+                  .split(',')
+                  .map(s => s.trim().replace(/^\./, '').toUpperCase())
+                  .join(', ')}{' '}
+                up to 10MB
               </p>
             </div>
           </div>
