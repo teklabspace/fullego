@@ -678,7 +678,13 @@ function AssetCard({
       onDelete();
     } catch (err) {
       const msg = err.message || '';
-      if (err.status === 409 || msg.toLowerCase().includes('listed') || msg.toLowerCase().includes('marketplace')) {
+      if (err.code === 'ASSET_HAS_TRANSACTIONS') {
+        // Offers/escrow exist — deletion is permanently blocked to preserve
+        // financial history; removing the listing won't help.
+        setDeleteError(
+          "This asset has marketplace transaction history and can't be deleted."
+        );
+      } else if (err.status === 409 || msg.toLowerCase().includes('listed') || msg.toLowerCase().includes('marketplace')) {
         setDeleteError('Cannot delete: this asset has an active marketplace listing. Remove the listing first.');
       } else {
         setDeleteError(msg || 'Failed to delete asset. Please try again.');

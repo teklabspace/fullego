@@ -41,7 +41,7 @@ export default function ReportsPage() {
                 onClick={() => setActiveTab('tasks')}
                 className='px-4 md:px-6 py-2 rounded-full text-sm font-medium transition-all bg-gradient-to-r from-[#222126] to-[#111116] text-white w-full'
               >
-                Tasks 12
+                Tasks
               </button>
             </div>
           ) : (
@@ -55,7 +55,7 @@ export default function ReportsPage() {
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
-              Tasks 12
+              Tasks
             </button>
           )}
 
@@ -71,7 +71,7 @@ export default function ReportsPage() {
                 onClick={() => setActiveTab('updates')}
                 className='px-4 md:px-6 py-2 rounded-full text-sm font-medium transition-all bg-gradient-to-r from-[#222126] to-[#111116] text-white w-full'
               >
-                Updates 24
+                Updates
               </button>
             </div>
           ) : (
@@ -85,7 +85,7 @@ export default function ReportsPage() {
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
-              Updates 24
+              Updates
             </button>
           )}
         </div>

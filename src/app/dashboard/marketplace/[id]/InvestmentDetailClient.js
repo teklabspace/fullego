@@ -1,7 +1,5 @@
 'use client';
 
-import Navbar from '@/components/dashboard/Navbar';
-import Sidebar from '@/components/dashboard/Sidebar';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -9,18 +7,29 @@ import {
   createOffer,
   deleteListing,
   getListing,
+  getListingDocuments,
   getListingOffers,
+  getListingPerformance,
   payListingFee,
 } from '@/utils/marketplaceApi';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
+import {
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 export default function InvestmentDetailClient() {
   const { isDarkMode } = useTheme();
-  const { user } = useAuth();
+  // Buying is investor-only — the backend rejects staff offers with
+  // 403 STAFF_CANNOT_BUY, so staff never see the Trade Now entry points.
+  const { user, isInvestor } = useAuth();
   const params = useParams();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
   // Prefilled from the listing's asking price once it loads.
@@ -41,6 +50,12 @@ export default function InvestmentDetailClient() {
   const [listingOffers, setListingOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Performance & documents tabs load lazily on first open
+  const [performance, setPerformance] = useState(null);
+  const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [perfRange, setPerfRange] = useState('1y');
+  const [documents, setDocuments] = useState(null);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('id');
@@ -106,6 +121,8 @@ export default function InvestmentDetailClient() {
   const buyHandled = useRef(false);
   useEffect(() => {
     if (buyHandled.current || !listing || typeof window === 'undefined') return;
+    // Staff can't buy — ignore the ?buy=1 deep link entirely for them.
+    if (!isInvestor) return;
     if (!new URLSearchParams(window.location.search).get('buy')) return;
     buyHandled.current = true;
     if (listing.askingPrice) {
@@ -114,7 +131,7 @@ export default function InvestmentDetailClient() {
       );
     }
     setIsOfferModalOpen(true);
-  }, [listing]);
+  }, [listing, isInvestor]);
 
   // Fetch listing offers
   useEffect(() => {
@@ -150,12 +167,63 @@ export default function InvestmentDetailClient() {
     }
   }, [investmentId]);
 
+  // Performance tab: GET /marketplace/listings/{id}/performance — fetched on
+  // first open and again when the range changes. Always 200; empty series
+  // means "no valuation history yet".
+  useEffect(() => {
+    if (activeTab !== 'performance' || !investmentId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setPerformanceLoading(true);
+        const res = await getListingPerformance(investmentId, {
+          timeRange: perfRange,
+        });
+        if (!cancelled) {
+          setPerformance(res && typeof res === 'object' ? res : null);
+        }
+      } catch (err) {
+        console.error('Error fetching listing performance:', err);
+        if (!cancelled) setPerformance(null);
+      } finally {
+        if (!cancelled) setPerformanceLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, investmentId, perfRange]);
+
+  // Documents tab: GET /marketplace/listings/{id}/documents — fetched once on
+  // first open (documents === null means "not fetched yet").
+  useEffect(() => {
+    if (activeTab !== 'documents' || !investmentId || documents !== null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setDocumentsLoading(true);
+        const res = await getListingDocuments(investmentId);
+        const list = Array.isArray(res?.data) ? res.data : [];
+        if (!cancelled) setDocuments(list);
+      } catch (err) {
+        console.error('Error fetching listing documents:', err);
+        if (!cancelled) setDocuments([]);
+      } finally {
+        if (!cancelled) setDocumentsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, investmentId, documents]);
+
   // Transform API data to match UI structure
   const investment = listing
     ? {
         name: listing.title || listing.assetName || 'Untitled Listing',
         category: listing.category || listing.assetType || 'Other',
-        issuer: listing.issuer || listing.sellerName || 'Unknown',
+        // Nullable — the header hides "Issued by" when the backend has no name.
+        issuer: listing.sellerName || listing.issuer || null,
         status:
           listing.status === 'active'
             ? 'Open for Investment'
@@ -176,10 +244,19 @@ export default function InvestmentDetailClient() {
           : '$0',
         askingPriceValue: listing.askingPrice || 0,
         image: listing.thumbnailUrl || listing.imageUrl || null,
-        expectedReturns: listing.expectedReturn || '0%',
+        // All nullable until the seller provides them — show N/A, not fake data.
+        expectedReturns: listing.expectedReturn || 'N/A',
         duration: listing.duration || 'N/A',
-        riskLevel: listing.riskLevel || 'Medium',
-        slotsAvailable: listing.slotsAvailable || 'N/A',
+        riskLevel: listing.riskLevel
+          ? listing.riskLevel.charAt(0).toUpperCase() +
+            listing.riskLevel.slice(1).toLowerCase()
+          : 'N/A',
+        slotsAvailable:
+          listing.slotsTotal != null
+            ? `${Math.max(listing.slotsTotal - (listing.slotsFilled || 0), 0)}/${listing.slotsTotal}`
+            : listing.slotsAvailable || 'N/A',
+        overview: listing.overview || null,
+        faqs: Array.isArray(listing.faqs) ? listing.faqs : [],
         description: listing.description || '',
         currency: listing.currency || 'USD',
         listingFee: listing.listingFee || 0,
@@ -199,9 +276,13 @@ export default function InvestmentDetailClient() {
 
   // Owner controls: only the user who created the listing can manage its lifecycle
   const listingStatus = (listing?.status || '').toLowerCase();
+  // Prefer the server-computed is_owner; fall back to id comparison for
+  // backends that haven't been redeployed with the new field yet.
   const ownerId =
-    listing?.ownerId || listing?.sellerId || listing?.userId || null;
-  const isOwner = !!listing && !!user?.id && !!ownerId && ownerId === user.id;
+    listing?.sellerId || listing?.ownerId || listing?.userId || null;
+  const isOwner =
+    listing?.isOwner ??
+    (!!listing && !!user?.id && !!ownerId && ownerId === user.id);
   const feePaid = listing?.feePaid ?? listing?.listingFeePaid ?? false;
 
   const runOwnerAction = async (
@@ -253,21 +334,35 @@ export default function InvestmentDetailClient() {
     ).then(() => router.push('/dashboard/marketplace'));
   };
 
+  // Overview tab content — every section is nullable server-side; each hides
+  // when the seller provided nothing, description doubles as summary fallback.
+  const overview = investment.overview || {};
+  const overviewSummary = overview.summary || investment.description || '';
+  const rationaleItems = Array.isArray(overview.investmentRationale)
+    ? overview.investmentRationale
+    : [];
+  const assetSecurityText = overview.assetSecurity || '';
+  const objectiveItems = Array.isArray(overview.investmentObjectives)
+    ? overview.investmentObjectives
+    : [];
+  const hasOverviewContent =
+    !!overviewSummary ||
+    rationaleItems.length > 0 ||
+    !!assetSecurityText ||
+    objectiveItems.length > 0;
+  const objectiveIcons = [
+    'piechart.svg',
+    'graphchar.svg',
+    'linechart.svg',
+    'World.svg',
+  ];
+
   return (
-    <div
-      className={`flex h-screen ${isDarkMode ? 'bg-brand-bg' : 'bg-gray-50'}`}
-    >
-      {/* Sidebar */}
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-
-      {/* Main Content */}
-      <div className='flex-1 flex flex-col overflow-hidden lg:ml-64'>
-        {/* Navbar */}
-        <Navbar onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-
-        {/* Page Content */}
-        <main className='flex-1 overflow-y-auto'>
-          <div className='p-4 md:p-6 lg:p-8'>
+    // Sidebar, Navbar, page padding and scrolling all come from the shared
+    // /dashboard layout (src/app/dashboard/layout.js) — rendering them here
+    // too produced a doubled navbar and a sidebar-width offset.
+    <>
+      <div>
             {loading ? (
               <div className='flex flex-col items-center justify-center py-24 gap-3'>
                 <div className='w-10 h-10 border-2 border-[#F1CB68] border-t-transparent rounded-full animate-spin' />
@@ -360,7 +455,7 @@ export default function InvestmentDetailClient() {
                         </button>
                       )}
                   </div>
-                ) : (
+                ) : isInvestor ? (
                   <button
                     onClick={() => setIsOfferModalOpen(true)}
                     className='px-6 py-2 bg-[#F1CB68] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all flex items-center gap-2'
@@ -376,7 +471,7 @@ export default function InvestmentDetailClient() {
                       <path d='M5 12h14M12 5l7 7-7 7' strokeWidth='2' />
                     </svg>
                   </button>
-                )}
+                ) : null}
               </div>
 
               {/* Title */}
@@ -389,20 +484,22 @@ export default function InvestmentDetailClient() {
               </h1>
 
               {/* Issuer */}
-              <div className='flex items-center gap-2 mb-4'>
-                <div className='flex items-center justify-center'>
-                  <span>
-                    <img src='/icons/Highrise.svg' alt='Highrise' />
+              {investment.issuer && (
+                <div className='flex items-center gap-2 mb-4'>
+                  <div className='flex items-center justify-center'>
+                    <span>
+                      <img src='/icons/Highrise.svg' alt='' />
+                    </span>
+                  </div>
+                  <span
+                    className={`${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}
+                  >
+                    Issued by {investment.issuer}
                   </span>
                 </div>
-                <span
-                  className={`${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}
-                >
-                  Issued by {investment.issuer}
-                </span>
-              </div>
+              )}
 
               {/* Status */}
               <div className='flex items-center gap-2'>
@@ -600,113 +697,105 @@ export default function InvestmentDetailClient() {
                     : {}
                 }
               >
-                <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
-                  {/* Investment Overview */}
-                  <div>
-                    <h2
-                      className={`text-xl font-bold mb-4 ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      Investment Overview
-                    </h2>
-                    <p
-                      className={`text-sm leading-relaxed mb-6 ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}
-                    >
-                      The Silver Heights Bond Fund offers investors exposure to
-                      a diversified portfolio of high-grade corporate bonds,
-                      with emphasis on the technology and healthcare sectors.
-                      The fund aims to provide stable returns with moderate risk
-                      through careful selection of issuers with strong credit
-                      ratings and sustainable business models.
-                    </p>
+                {!hasOverviewContent ? (
+                  <p
+                    className={`text-sm ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}
+                  >
+                    The seller hasn&apos;t provided an overview for this listing
+                    yet.
+                  </p>
+                ) : (
+                  <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
+                    {/* Investment Overview + Rationale */}
+                    <div>
+                      {overviewSummary && (
+                        <>
+                          <h2
+                            className={`text-xl font-bold mb-4 ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}
+                          >
+                            Investment Overview
+                          </h2>
+                          <p
+                            className={`text-sm leading-relaxed mb-6 whitespace-pre-line ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}
+                          >
+                            {overviewSummary}
+                          </p>
+                        </>
+                      )}
 
-                    <h3
-                      className={`text-lg font-semibold mb-3 ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                    >
-                      Investment Rationale
-                    </h3>
-                    <div className='space-y-3'>
-                      <RationaleItem
-                        text='Current market conditions favor fixed-income investments as a hedge against market volatility'
-                        isDarkMode={isDarkMode}
-                      />
-                      <RationaleItem
-                        text='Portfolio diversification across multiple sectors provides stability'
-                        isDarkMode={isDarkMode}
-                      />
-                      <RationaleItem
-                        text='Rigorous selection criteria ensures only quality issuers are included'
-                        isDarkMode={isDarkMode}
-                      />
-                      <RationaleItem
-                        text='Regular quarterly distributions provide predictable income'
-                        isDarkMode={isDarkMode}
-                      />
+                      {rationaleItems.length > 0 && (
+                        <>
+                          <h3
+                            className={`text-lg font-semibold mb-3 ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}
+                          >
+                            Investment Rationale
+                          </h3>
+                          <div className='space-y-3'>
+                            {rationaleItems.map((text, index) => (
+                              <RationaleItem
+                                key={index}
+                                text={text}
+                                isDarkMode={isDarkMode}
+                              />
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Asset Security & Investment Objectives */}
+                    <div className='space-y-6'>
+                      {assetSecurityText && (
+                        <div>
+                          <h2
+                            className={`text-xl font-bold mb-4 ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}
+                          >
+                            Asset Security
+                          </h2>
+                          <p
+                            className={`text-sm leading-relaxed whitespace-pre-line ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}
+                          >
+                            {assetSecurityText}
+                          </p>
+                        </div>
+                      )}
+
+                      {objectiveItems.length > 0 && (
+                        <div>
+                          <h2
+                            className={`text-xl font-bold mb-4 ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}
+                          >
+                            Investment Objectives
+                          </h2>
+                          <div className='space-y-3'>
+                            {objectiveItems.map((text, index) => (
+                              <ObjectiveItem
+                                key={index}
+                                icon={objectiveIcons[index % objectiveIcons.length]}
+                                text={text}
+                                isDarkMode={isDarkMode}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  {/* Asset Security & Investment Objectives */}
-                  <div className='space-y-6'>
-                    {/* Asset Security */}
-                    <div>
-                      <h2
-                        className={`text-xl font-bold mb-4 ${
-                          isDarkMode ? 'text-white' : 'text-gray-900'
-                        }`}
-                      >
-                        Asset Security
-                      </h2>
-                      <p
-                        className={`text-sm leading-relaxed ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}
-                      >
-                        The fund is backed by high-quality corporate bonds with
-                        an average credit rating of A+. The portfolio is
-                        structured to minimize default risk while optimizing for
-                        yield.
-                      </p>
-                    </div>
-
-                    {/* Investment Objectives */}
-                    <div>
-                      <h2
-                        className={`text-xl font-bold mb-4 ${
-                          isDarkMode ? 'text-white' : 'text-gray-900'
-                        }`}
-                      >
-                        Investment Objectives
-                      </h2>
-                      <div className='space-y-3'>
-                        <ObjectiveItem
-                          icon='piechart.svg'
-                          text='Generate consistent quarterly income'
-                          isDarkMode={isDarkMode}
-                        />
-                        <ObjectiveItem
-                          icon='graphchar.svg'
-                          text='Preserve capital with minimal volatility'
-                          isDarkMode={isDarkMode}
-                        />
-                        <ObjectiveItem
-                          icon='linechart.svg'
-                          text='Outperform inflation over the investment period'
-                          isDarkMode={isDarkMode}
-                        />
-                        <ObjectiveItem
-                          icon='World.svg'
-                          text='Diversify across multiple markets and sectors'
-                          isDarkMode={isDarkMode}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -718,20 +807,164 @@ export default function InvestmentDetailClient() {
                     : 'bg-white border-gray-200'
                 }`}
               >
-                <h2
-                  className={`text-xl font-bold mb-4 ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}
-                >
-                  Performance Metrics
-                </h2>
-                <p
-                  className={`text-sm ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}
-                >
-                  Performance data will be displayed here...
-                </p>
+                <div className='flex items-center justify-between flex-wrap gap-3 mb-4'>
+                  <h2
+                    className={`text-xl font-bold ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}
+                  >
+                    Performance
+                  </h2>
+                  <div className='flex gap-1'>
+                    {['30d', '90d', '1y', 'all'].map(range => (
+                      <button
+                        key={range}
+                        onClick={() => setPerfRange(range)}
+                        className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${
+                          perfRange === range
+                            ? 'bg-[#F1CB68] text-[#101014]'
+                            : isDarkMode
+                              ? 'bg-white/5 text-gray-400 hover:text-white'
+                              : 'bg-gray-100 text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        {range.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {performanceLoading ? (
+                  <div className='animate-pulse space-y-4'>
+                    <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className={`h-16 rounded-lg ${
+                            isDarkMode ? 'bg-white/10' : 'bg-gray-200'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <div
+                      className={`h-64 rounded-lg ${
+                        isDarkMode ? 'bg-white/10' : 'bg-gray-200'
+                      }`}
+                    />
+                  </div>
+                ) : !performance?.series?.length ? (
+                  <p
+                    className={`text-sm ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}
+                  >
+                    No performance history is available for this listing yet.
+                  </p>
+                ) : (
+                  <>
+                    {performance.metrics && (
+                      <div className='grid grid-cols-2 md:grid-cols-4 gap-4 mb-6'>
+                        <PerfMetric
+                          label='Total Return'
+                          value={formatPct(performance.metrics.totalReturnPct)}
+                          tone={
+                            performance.metrics.totalReturnPct >= 0
+                              ? 'positive'
+                              : 'negative'
+                          }
+                          isDarkMode={isDarkMode}
+                        />
+                        {/* Annualized is null server-side under 90 days of data */}
+                        {performance.metrics.annualizedReturnPct != null && (
+                          <PerfMetric
+                            label='Annualized Return'
+                            value={formatPct(
+                              performance.metrics.annualizedReturnPct
+                            )}
+                            tone={
+                              performance.metrics.annualizedReturnPct >= 0
+                                ? 'positive'
+                                : 'negative'
+                            }
+                            isDarkMode={isDarkMode}
+                          />
+                        )}
+                        <PerfMetric
+                          label='Volatility'
+                          value={
+                            performance.metrics.volatilityPct != null
+                              ? `${Number(
+                                  performance.metrics.volatilityPct
+                                ).toFixed(1)}%`
+                              : '—'
+                          }
+                          isDarkMode={isDarkMode}
+                        />
+                        <PerfMetric
+                          label='Value Change'
+                          value={formatCompactMoney(
+                            performance.metrics.valueChangeAbs
+                          )}
+                          tone={
+                            performance.metrics.valueChangeAbs >= 0
+                              ? 'positive'
+                              : 'negative'
+                          }
+                          isDarkMode={isDarkMode}
+                        />
+                      </div>
+                    )}
+
+                    <div className='h-64'>
+                      <ResponsiveContainer width='100%' height='100%'>
+                        <LineChart data={performance.series}>
+                          <XAxis
+                            dataKey='date'
+                            tick={{
+                              fontSize: 11,
+                              fill: isDarkMode ? '#9CA3AF' : '#6B7280',
+                            }}
+                            tickLine={false}
+                            axisLine={false}
+                            minTickGap={48}
+                          />
+                          <YAxis
+                            tick={{
+                              fontSize: 11,
+                              fill: isDarkMode ? '#9CA3AF' : '#6B7280',
+                            }}
+                            tickLine={false}
+                            axisLine={false}
+                            width={64}
+                            tickFormatter={value => formatCompactMoney(value)}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              background: isDarkMode ? '#1C1C1E' : '#FFFFFF',
+                              border: '1px solid rgba(241, 203, 104, 0.4)',
+                              borderRadius: 8,
+                              fontSize: 12,
+                            }}
+                            labelStyle={{
+                              color: isDarkMode ? '#9CA3AF' : '#6B7280',
+                            }}
+                            formatter={value => [
+                              formatCompactMoney(value),
+                              'Value',
+                            ]}
+                          />
+                          <Line
+                            type='monotone'
+                            dataKey='value'
+                            stroke='#F1CB68'
+                            strokeWidth={2}
+                            dot={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -750,13 +983,95 @@ export default function InvestmentDetailClient() {
                 >
                   Documents
                 </h2>
-                <p
-                  className={`text-sm ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}
-                >
-                  Investment documents will be listed here...
-                </p>
+                {documentsLoading || documents === null ? (
+                  <div className='animate-pulse space-y-3'>
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-14 rounded-lg ${
+                          isDarkMode ? 'bg-white/10' : 'bg-gray-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                ) : documents.length === 0 ? (
+                  <p
+                    className={`text-sm ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}
+                  >
+                    The seller hasn&apos;t shared any documents for this
+                    listing.
+                  </p>
+                ) : (
+                  <div className='space-y-3'>
+                    {documents.map(doc => (
+                      <div
+                        key={doc.id}
+                        className={`flex items-center justify-between gap-3 rounded-lg border p-3 ${
+                          isDarkMode
+                            ? 'bg-white/5 border-[#FFFFFF14]'
+                            : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className='flex items-center gap-3 min-w-0'>
+                          <svg
+                            width='20'
+                            height='20'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='#F1CB68'
+                            strokeWidth='2'
+                            className='shrink-0'
+                          >
+                            <path d='M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z' />
+                            <polyline points='13 2 13 9 20 9' />
+                          </svg>
+                          <div className='min-w-0'>
+                            <p
+                              className={`text-sm font-medium truncate ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}
+                              title={doc.name}
+                            >
+                              {doc.name}
+                            </p>
+                            <p
+                              className={`text-xs ${
+                                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                              }`}
+                            >
+                              {[
+                                (doc.fileType || '').toUpperCase(),
+                                formatBytes(doc.sizeBytes),
+                                doc.uploadedAt
+                                  ? new Date(doc.uploadedAt).toLocaleDateString(
+                                      'en-US',
+                                      {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: 'numeric',
+                                      }
+                                    )
+                                  : '',
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </p>
+                          </div>
+                        </div>
+                        <a
+                          href={doc.url}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] transition-all'
+                        >
+                          View
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -775,19 +1090,47 @@ export default function InvestmentDetailClient() {
                 >
                   FAQ
                 </h2>
-                <p
-                  className={`text-sm ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}
-                >
-                  Frequently asked questions will be displayed here...
-                </p>
+                {investment.faqs?.length > 0 ? (
+                  <div className='space-y-4'>
+                    {investment.faqs.map((faq, index) => (
+                      <div
+                        key={index}
+                        className={`rounded-lg border p-4 ${
+                          isDarkMode
+                            ? 'bg-white/5 border-[#FFFFFF14]'
+                            : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <p
+                          className={`text-sm font-semibold mb-1 ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}
+                        >
+                          {faq.question}
+                        </p>
+                        <p
+                          className={`text-sm whitespace-pre-line ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}
+                        >
+                          {faq.answer}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p
+                    className={`text-sm ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}
+                  >
+                    No FAQs have been added for this listing yet.
+                  </p>
+                )}
               </div>
             )}
               </>
             )}
-          </div>
-        </main>
       </div>
 
       {/* Make Offer Modal */}
@@ -816,6 +1159,62 @@ export default function InvestmentDetailClient() {
           }
         }}
       />
+    </>
+  );
+}
+
+// ─── Formatting helpers (performance & documents tabs) ─────────────────────
+const formatPct = value =>
+  value === null || value === undefined || isNaN(Number(value))
+    ? '—'
+    : `${Number(value) > 0 ? '+' : ''}${Number(value).toFixed(1)}%`;
+
+const formatCompactMoney = value =>
+  value === null || value === undefined || isNaN(Number(value))
+    ? '—'
+    : `${Number(value) < 0 ? '-' : ''}$${Math.abs(Number(value)).toLocaleString(
+        'en-US',
+        { notation: 'compact', maximumFractionDigits: 1 }
+      )}`;
+
+const formatBytes = bytes => {
+  if (bytes === null || bytes === undefined || isNaN(Number(bytes))) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = Number(bytes);
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+};
+
+// Metric tile on the Performance tab
+function PerfMetric({ label, value, tone = 'neutral', isDarkMode }) {
+  const toneClass =
+    tone === 'positive'
+      ? 'text-green-500'
+      : tone === 'negative'
+        ? 'text-red-500'
+        : isDarkMode
+          ? 'text-white'
+          : 'text-gray-900';
+  return (
+    <div
+      className={`rounded-lg border p-3 ${
+        isDarkMode
+          ? 'bg-white/5 border-[#FFFFFF14]'
+          : 'bg-gray-50 border-gray-200'
+      }`}
+    >
+      <p
+        className={`text-xs mb-1 ${
+          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}
+      >
+        {label}
+      </p>
+      <p className={`text-base font-bold ${toneClass}`}>{value}</p>
     </div>
   );
 }

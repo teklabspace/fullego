@@ -5,6 +5,20 @@ import { getDashboardOverview, getCrmUpdates } from '@/utils/crmApi';
 import { getReportStatistics, listReports, generateReport } from '@/utils/reportsApi';
 import { toast } from 'react-toastify';
 
+// Crash-proof render helpers (BUG-19): the CRM overview/updates payloads can
+// carry objects or nulls where strings are expected. Rendering an object as a
+// React child (or calling .split on one) throws and dumps the whole page onto
+// the /dashboard "Something went wrong" error boundary.
+const textOf = (value, fallback = '') => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'object')
+    return textOf(value.name ?? value.title ?? value.label, fallback);
+  return fallback;
+};
+const asArray = value => (Array.isArray(value) ? value : []);
+
 export default function TasksView({ isDarkMode }) {
   const [loading, setLoading] = useState(true);
   const [dashboardStats, setDashboardStats] = useState(null);
@@ -63,10 +77,11 @@ export default function TasksView({ isDarkMode }) {
     fetchData();
   }, []);
 
-  // Chart data from API - no fallback dummy data
-  const chartData1 = dashboardStats?.totalTasksTrend || dashboardStats?.performanceTrends || [];
-  const chartData2 = dashboardStats?.tasksSolvedTrend || dashboardStats?.performanceTrends || [];
-  const chartData3 = dashboardStats?.tasksUnresolvedTrend || dashboardStats?.performanceTrends || [];
+  // Chart data from API - no fallback dummy data. asArray: recharts crashes
+  // on non-array `data`.
+  const chartData1 = asArray(dashboardStats?.totalTasksTrend || dashboardStats?.performanceTrends);
+  const chartData2 = asArray(dashboardStats?.tasksSolvedTrend || dashboardStats?.performanceTrends);
+  const chartData3 = asArray(dashboardStats?.tasksUnresolvedTrend || dashboardStats?.performanceTrends);
 
   // Get stat values from API - no fallback dummy data
   const totalTasks = dashboardStats?.totalTasks ?? dashboardStats?.totalTasksReceived ?? reportStats?.totalReports ?? 0;
@@ -219,23 +234,23 @@ export default function TasksView({ isDarkMode }) {
                           <span
                             className={isDarkMode ? 'text-gray-200' : 'text-gray-800'}
                           >
-                            {report.reportType || report.type || 'portfolio'}
+                            {textOf(report.reportType) || textOf(report.type) || 'portfolio'}
                           </span>
                         </td>
                         <td className='px-4 py-3'>
                           <span className='text-xs font-medium text-gray-400'>
-                            {report.status || 'pending'}
+                            {textOf(report.status) || 'pending'}
                           </span>
                         </td>
                         <td className='px-4 py-3'>
                           <span className='text-xs text-gray-400'>
-                            {report.format || 'pdf'}
+                            {textOf(report.format) || 'pdf'}
                           </span>
                         </td>
                         <td className='px-4 py-3'>
                           <span className='text-xs text-gray-500'>
-                            {report.createdAt ||
-                              report.created_at ||
+                            {textOf(report.createdAt) ||
+                              textOf(report.created_at) ||
                               '—'}
                           </span>
                         </td>
@@ -294,19 +309,20 @@ export default function TasksView({ isDarkMode }) {
           <div className='space-y-3'>
             {pinnedUpdates.length > 0 ? (
               pinnedUpdates.map((update, index) => {
-                const userName = update.user || update.userName || update.actor || 'Unknown User';
-                const initials = update.initials || userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                const userName =
+                  textOf(update.user) || textOf(update.userName) || textOf(update.actor) || 'Unknown User';
+                const initials = textOf(update.initials) || userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
                 const bgColors = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500'];
-                const bgColor = update.bgColor || bgColors[index % bgColors.length];
-                
+                const bgColor = textOf(update.bgColor) || bgColors[index % bgColors.length];
+
                 return (
                   <UpdateCard
                     key={update.id || index}
                     user={userName}
                     initials={initials}
-                    message={update.message || update.action || 'updated'}
-                    description={update.description || update.subtitle || update.body || ''}
-                    time={update.time || update.timestamp || update.createdAt || 'Just now'}
+                    message={textOf(update.message) || textOf(update.action) || 'updated'}
+                    description={textOf(update.description) || textOf(update.subtitle) || textOf(update.body)}
+                    time={textOf(update.time) || textOf(update.timestamp) || textOf(update.createdAt) || 'Just now'}
                     isRead={!update.isUnread && !update.hasIndicator}
                     bgColor={bgColor}
                     isDarkMode={isDarkMode}
@@ -367,19 +383,20 @@ export default function TasksView({ isDarkMode }) {
           <div className='space-y-3'>
             {ticketUpdates.length > 0 ? (
               ticketUpdates.map((update, index) => {
-                const userName = update.user || update.userName || update.actor || 'Unknown User';
-                const initials = update.initials || userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                const userName =
+                  textOf(update.user) || textOf(update.userName) || textOf(update.actor) || 'Unknown User';
+                const initials = textOf(update.initials) || userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
                 const bgColors = ['bg-orange-500', 'bg-pink-500', 'bg-blue-500', 'bg-purple-500'];
-                const bgColor = update.bgColor || bgColors[index % bgColors.length];
-                
+                const bgColor = textOf(update.bgColor) || bgColors[index % bgColors.length];
+
                 return (
                   <TicketCard
                     key={update.id || index}
                     user={userName}
                     initials={initials}
-                    message={update.message || update.action || 'updated'}
-                    title={update.title || update.highlight || update.subject || ''}
-                    time={update.time || update.timestamp || update.createdAt || 'Just now'}
+                    message={textOf(update.message) || textOf(update.action) || 'updated'}
+                    title={textOf(update.title) || textOf(update.highlight) || textOf(update.subject)}
+                    time={textOf(update.time) || textOf(update.timestamp) || textOf(update.createdAt) || 'Just now'}
                     bgColor={bgColor}
                     isDarkMode={isDarkMode}
                   />

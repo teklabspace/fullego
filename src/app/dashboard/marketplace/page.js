@@ -7,9 +7,12 @@ import {
   listListings,
   searchMarketplace,
   getMyOffers,
+  getMyListings,
   getMarketHighlights,
   getMarketTrends,
+  getMarketSummary,
   getWatchlist,
+  addToWatchlist,
   removeFromWatchlist,
   acceptOffer,
   rejectOffer,
@@ -54,7 +57,7 @@ export default function MarketplacePage() {
   // then optionally one of its subcategories (matches listing.category).
   const [activeGroup, setActiveGroup] = useState('All');
   const [activeCategory, setActiveCategory] = useState('All');
-  const { isInvestor } = useAuth();
+  const { isInvestor, isAdmin } = useAuth();
   // GET /marketplace/categories — only categories with live listings, with
   // counts: [{ category, categoryGroup, count }].
   const [marketCategories, setMarketCategories] = useState(null);
@@ -99,8 +102,14 @@ export default function MarketplacePage() {
   // API data states
   const [listings, setListings] = useState([]);
   const [myOffers, setMyOffers] = useState([]);
+  const [myListings, setMyListings] = useState([]);
+  // Start true so the tab shows skeletons (never the empty state) until the
+  // first fetch has actually resolved.
+  const [myOffersLoading, setMyOffersLoading] = useState(true);
+  const [myListingsLoading, setMyListingsLoading] = useState(true);
   const [marketHighlights, setMarketHighlights] = useState([]);
   const [marketTrends, setMarketTrends] = useState([]);
+  const [marketSummary, setMarketSummary] = useState(null);
   const [watchlistItems, setWatchlistItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -110,29 +119,44 @@ export default function MarketplacePage() {
     const currentPath =
       pathname ||
       (typeof window !== 'undefined' ? window.location.pathname : '');
-    const newTab = currentPath?.includes('/active-offers')
-      ? 'active-offers'
-      : 'browse';
+    // Admins don't trade — no Active Offers tab; the URL falls back to browse.
+    const newTab =
+      !isAdmin && currentPath?.includes('/active-offers')
+        ? 'active-offers'
+        : 'browse';
     // Only update if tab actually changed
     if (newTab !== activeTab) {
       setActiveTab(newTab);
     }
-  }, [pathname, activeTab]);
+  }, [pathname, activeTab, isAdmin]);
 
-  // Fetch marketplace listings
+  // Fetch marketplace listings. Filtering and sorting are server-side via
+  // GET /marketplace/search: category / category_group, min_price / max_price,
+  // sort_by=price + sort_order. Debounced so slider drags don't spam the API.
   useEffect(() => {
+    if (activeTab !== 'browse') return;
+
     const fetchListings = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Fetch the full listing set once — category/group/price/sort are
-        // applied client-side in getFilteredFunds. No status_filter: the
-        // default returns all publicly visible listings (APPROVED + ACTIVE).
-        // Auto-listed assets are APPROVED, so filtering by 'active' alone
-        // would hide them.
-        const listingsRes = await listListings();
-        
+        const searchParams = {
+          sortBy: 'price',
+          sortOrder: sortBy === 'price-high-low' ? 'desc' : 'asc',
+        };
+        if (activeCategory !== 'All') {
+          searchParams.category = activeCategory;
+        } else if (activeGroup !== 'All') {
+          searchParams.categoryGroup = activeGroup;
+        }
+        // Slider is in $k; only send prices once moved off the defaults so
+        // listings outside the default band don't vanish.
+        if (priceRange[0] > 100) searchParams.minPrice = priceRange[0] * 1000;
+        if (priceRange[1] < 10000) searchParams.maxPrice = priceRange[1] * 1000;
+
+        const listingsRes = await searchMarketplace(searchParams);
+
         if (listingsRes.data && Array.isArray(listingsRes.data)) {
           // Transform API data to match UI structure
           const transformedListings = listingsRes.data.map(listing => ({
@@ -180,20 +204,31 @@ export default function MarketplacePage() {
       }
     };
 
-    if (activeTab === 'browse') {
-      fetchListings();
-    }
-  }, [activeTab]);
+    const timer = setTimeout(fetchListings, 350);
+    return () => clearTimeout(timer);
+  }, [activeTab, activeGroup, activeCategory, priceRange, sortBy]);
 
-  // Fetch Market Highlights and Watchlist data
+  // Watchlist (auth) — its own callback so the card heart toggles can refresh it.
+  const refreshWatchlist = useCallback(async () => {
+    try {
+      const res = await getWatchlist();
+      const data = res?.data || res;
+      setWatchlistItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      if (!(err?.status === 405 || err?.status === 400 || err?.status === 422)) {
+        console.error('Error fetching watchlist:', err);
+      }
+    }
+  }, []);
+
+  // Fetch Market Highlights cards, trends graph and summary stat tiles
   useEffect(() => {
     const fetchMarketData = async () => {
       try {
-        // Fetch Market Highlights
-        const [highlightsRes, trendsRes, watchlistRes] = await Promise.allSettled([
+        const [highlightsRes, trendsRes, summaryRes] = await Promise.allSettled([
           getMarketHighlights({ timeRange: '1d' }),
           getMarketTrends({ timeRange: '30d', granularity: 'daily' }),
-          getWatchlist(),
+          getMarketSummary({ timeRange: '30d' }),
         ]);
 
         // Handle Market Highlights
@@ -256,32 +291,16 @@ export default function MarketplacePage() {
           }
         }
 
-        // Handle Watchlist
-        if (watchlistRes.status === 'fulfilled') {
-          try {
-            const watchlistData = watchlistRes.value.data || watchlistRes.value;
-            if (Array.isArray(watchlistData)) {
-              setWatchlistItems(watchlistData);
-            } else {
-              setWatchlistItems([]);
-            }
-          } catch (err) {
-            // Handle 405, 400, or 422 errors gracefully
-            if (watchlistRes.value?.status === 405 || 
-                watchlistRes.value?.status === 400 || 
-                watchlistRes.value?.status === 422 ||
-                err.status === 405 || 
-                err.status === 400 || 
-                err.status === 422) {
-              setWatchlistItems([]);
-            }
-          }
+        // Handle Market Summary (stat tiles under the highlights)
+        if (summaryRes.status === 'fulfilled') {
+          const summaryData = summaryRes.value?.data || summaryRes.value;
+          setMarketSummary(
+            summaryData && typeof summaryData === 'object' && !Array.isArray(summaryData)
+              ? summaryData
+              : null
+          );
         } else {
-          // Rejected promise - check if it's a 405/400/422 error
-          const error = watchlistRes.reason;
-          if (error?.status === 405 || error?.status === 400 || error?.status === 422) {
-            setWatchlistItems([]);
-          }
+          setMarketSummary(null);
         }
       } catch (err) {
         // General error handling - don't break the UI
@@ -291,11 +310,13 @@ export default function MarketplacePage() {
 
     if (activeTab === 'browse') {
       fetchMarketData();
+      refreshWatchlist();
     }
-  }, [activeTab]);
+  }, [activeTab, refreshWatchlist]);
 
   // Fetch user's offers (exposed as a callback so offer/escrow actions can refresh)
   const fetchMyOffers = useCallback(async () => {
+    setMyOffersLoading(true);
     try {
       const offersRes = await getMyOffers();
 
@@ -315,9 +336,14 @@ export default function MarketplacePage() {
                       offer.status === 'countered' ? 'Countered' :
                       offer.status === 'expired' ? 'Expired' :
                       offer.status === 'withdrawn' ? 'Withdrawn' : 'Pending',
-          role: offer.role || 'Buyer',
-          counterparty: offer.sellerName || offer.counterparty || 'Unknown',
-          counterpartyId: offer.sellerId || offer.counterpartyId || '',
+          // Backend sends lowercase 'buyer' | 'seller' — buyer means an offer
+          // the user sent, seller means one received on their own listing.
+          role:
+            (offer.role || 'buyer').toLowerCase() === 'seller'
+              ? 'Seller'
+              : 'Buyer',
+          counterparty: offer.counterparty || offer.sellerName || 'Unknown',
+          counterpartyId: offer.counterpartyId || offer.sellerId || '',
           dateUpdated: offer.updatedAt || offer.createdAt || new Date().toISOString(),
           listingId: offer.listingId || offer.id,
           message: offer.message || '',
@@ -353,14 +379,57 @@ export default function MarketplacePage() {
         // Only log unexpected errors
         console.error('Error fetching my offers:', err);
       }
+    } finally {
+      setMyOffersLoading(false);
+    }
+  }, []);
+
+  // Fetch the user's own listings (all statuses) for the "My Listings" view.
+  // pending_offers_count drives the "N pending offers" badge on each card.
+  const fetchMyListings = useCallback(async () => {
+    setMyListingsLoading(true);
+    try {
+      const listingsRes = await getMyListings();
+
+      if (listingsRes.data && Array.isArray(listingsRes.data)) {
+        const transformed = listingsRes.data.map(listing => ({
+          id: listing.id,
+          assetId: listing.assetId || null,
+          title: listing.title || 'Untitled Listing',
+          category: listing.category || 'Others',
+          categoryGroup:
+            listing.categoryGroup || getCategoryGroup(listing.category),
+          askingPrice: listing.askingPrice || 0,
+          currency: listing.currency || 'USD',
+          status: (listing.status || 'draft').toLowerCase(),
+          listingFee: listing.listingFee ?? null,
+          rejectionReason: listing.rejectionReason || null,
+          thumbnail: listing.thumbnailUrl || listing.imageUrl || null,
+          createdAt: listing.createdAt || null,
+          pendingOffersCount: listing.pendingOffersCount || 0,
+        }));
+        setMyListings(transformed);
+      } else {
+        setMyListings([]);
+      }
+    } catch (err) {
+      if (err.status === 405 || err.status === 400 || err.status === 404) {
+        // Endpoint not deployed on this environment yet
+        setMyListings([]);
+      } else {
+        console.error('Error fetching my listings:', err);
+      }
+    } finally {
+      setMyListingsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     if (activeTab === 'active-offers') {
       fetchMyOffers();
+      fetchMyListings();
     }
-  }, [activeTab, fetchMyOffers]);
+  }, [activeTab, fetchMyOffers, fetchMyListings]);
 
   // Tabs come from GET /marketplace/categories: main groups with at least one
   // live listing first, then the non-empty subcategories of the selected
@@ -423,41 +492,32 @@ export default function MarketplacePage() {
     priceChangePercentage: item.priceChangePercentage,
   }));
 
-  // Filter and sort logic
-  const getFilteredFunds = () => {
-    // Only use API data - no fallback to static data
-    const dataSource = listings;
-    let filtered = [...dataSource];
+  // Category/group, price range and sorting are applied server-side by
+  // /marketplace/search — the fetched set is already the final one.
+  const investmentFunds = listings;
 
-    // Filter by subcategory when one is picked, otherwise by the whole group
-    if (activeCategory !== 'All') {
-      filtered = filtered.filter(fund => fund.category === activeCategory);
-    } else if (activeGroup !== 'All') {
-      filtered = filtered.filter(fund => fund.categoryGroup === activeGroup);
+  // listing_id → watchlist_item_id, for the heart icon on each card
+  const watchlistIdByListing = new Map(
+    (watchlistItems || []).map(w => [w.listingId, w.id || w.watchlistItemId])
+  );
+
+  const handleToggleWatchlist = async fund => {
+    const watchlistItemId = watchlistIdByListing.get(fund.id);
+    try {
+      if (watchlistItemId) {
+        await removeFromWatchlist(watchlistItemId);
+        toast.success('Removed from watchlist');
+      } else {
+        await addToWatchlist({ listingId: fund.id });
+        toast.success('Added to watchlist');
+      }
+      refreshWatchlist();
+    } catch (err) {
+      toast.error(
+        err?.data?.detail || err?.message || 'Failed to update watchlist'
+      );
     }
-
-    // Price filter only applies once the user moves it off its defaults —
-    // otherwise listings under $100k vanish.
-    if (priceRange[0] > 100 || priceRange[1] < 10000) {
-      filtered = filtered.filter(fund => {
-        const minValue = fund.minimumValue;
-        return (
-          minValue >= priceRange[0] * 1000 && minValue <= priceRange[1] * 1000
-        );
-      });
-    }
-
-    // Sort (client-side is correct here: `filtered` holds the full set)
-    if (sortBy === 'price-low-high') {
-      filtered.sort((a, b) => a.minimumValue - b.minimumValue);
-    } else if (sortBy === 'price-high-low') {
-      filtered.sort((a, b) => b.minimumValue - a.minimumValue);
-    }
-
-    return filtered;
   };
-
-  const investmentFunds = getFilteredFunds();
 
   return (
     <>
@@ -501,6 +561,7 @@ export default function MarketplacePage() {
                       />
                     )}
                   </button>
+                  {!isAdmin && (
                   <button
                     onClick={() => {
                       // Navigate immediately - don't wait for data
@@ -528,12 +589,7 @@ export default function MarketplacePage() {
                       />
                     )}
                   </button>
-                  <button
-                    onClick={() => setIsListModalOpen(true)}
-                    className='ml-auto my-1.5 px-4 py-1.5 bg-[#F1CB68] text-[#101014] text-sm font-semibold rounded-lg hover:bg-[#C49D2E] transition-all'
-                  >
-                    + List an Asset
-                  </button>
+                  )}
                 </div>
               </div>
 
@@ -648,10 +704,10 @@ export default function MarketplacePage() {
                     <div className='flex-1'>
                       {/* Investment Cards Grid */}
                       {loading ? (
-                        <div className='flex items-center justify-center py-12'>
-                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            Loading listings...
-                          </p>
+                        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3'>
+                          {Array.from({ length: 6 }).map((_, i) => (
+                            <ListingSkeletonCard key={i} isDarkMode={isDarkMode} />
+                          ))}
                         </div>
                       ) : investmentFunds.length > 0 ? (
                         <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3'>
@@ -660,6 +716,8 @@ export default function MarketplacePage() {
                               key={fund.id}
                               fund={fund}
                               isDarkMode={isDarkMode}
+                              isWatched={watchlistIdByListing.has(fund.id)}
+                              onToggleWatchlist={handleToggleWatchlist}
                             />
                           ))}
                         </div>
@@ -693,9 +751,9 @@ export default function MarketplacePage() {
                           <button className='text-[#F1CB68] text-sm'>→</button>
                         </div>
 
-                        <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-                          {/* Market Data */}
-                          <div className='space-y-3'>
+                        {/* Market Data */}
+                        {marketData.length > 0 && (
+                          <div className='space-y-3 mb-4'>
                             {marketData.map((item, index) => (
                               <div
                                 key={index}
@@ -722,22 +780,30 @@ export default function MarketplacePage() {
                               </div>
                             ))}
                           </div>
+                        )}
 
-                          {/* Chart */}
-                          <div className='h-24'>
-                            <ResponsiveContainer width='100%' height='100%'>
-                              <LineChart data={chartData}>
-                                <Line
-                                  type='monotone'
-                                  dataKey='value'
-                                  stroke='#F1CB68'
-                                  strokeWidth={2}
-                                  dot={false}
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </div>
+                        {/* Chart — spans the full card width */}
+                        <div className='h-32 w-full'>
+                          <ResponsiveContainer width='100%' height='100%'>
+                            <LineChart data={chartData}>
+                              <Line
+                                type='monotone'
+                                dataKey='value'
+                                stroke='#F1CB68'
+                                strokeWidth={2}
+                                dot={false}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
                         </div>
+
+                        {/* Stat tiles — GET /marketplace/market-summary */}
+                        {marketSummary && (
+                          <MarketSummaryTiles
+                            summary={marketSummary}
+                            isDarkMode={isDarkMode}
+                          />
+                        )}
                       </div>
                       {/* Your Watchlist */}
                       <div
@@ -758,7 +824,8 @@ export default function MarketplacePage() {
                           <button className='text-[#F1CB68] text-sm'>→</button>
                         </div>
 
-                        <div className='space-y-3'>
+                        {/* Scrolls beyond ~6 items so the card keeps its height */}
+                        <div className='space-y-3 max-h-64 overflow-y-auto pr-1 filter-panel-scroll'>
                           {transformedWatchlistItems.length > 0 ? (
                             transformedWatchlistItems.map((item) => (
                               <div
@@ -780,33 +847,31 @@ export default function MarketplacePage() {
                                     {item.name}
                                   </span>
                                 </div>
+                                {/* Removal happens via the card heart; this views the listing */}
                                 <button
-                                  className={`shrink-0 ml-2 ${
-                                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                  title='View listing'
+                                  className={`shrink-0 ml-2 transition-colors ${
+                                    isDarkMode
+                                      ? 'text-gray-400 hover:text-white'
+                                      : 'text-gray-600 hover:text-gray-900'
                                   }`}
-                                  onClick={async () => {
-                                    if (!item.id) return;
-                                    // Optimistic UI update
-                                    const previous = [...watchlistItems];
-                                    setWatchlistItems(prev =>
-                                      (prev || []).filter(w => (w.id || w.watchlistItemId || w.listingId) !== item.id)
+                                  onClick={() => {
+                                    if (!item.listingId) return;
+                                    router.push(
+                                      `/dashboard/marketplace/detail?id=${item.listingId}`
                                     );
-                                    try {
-                                      await removeFromWatchlist(item.id);
-                                    } catch (err) {
-                                      console.error('Failed to remove from watchlist', err);
-                                      // Revert on failure
-                                      setWatchlistItems(previous);
-                                    }
                                   }}
                                 >
                                   <svg
                                     width='16'
                                     height='16'
                                     viewBox='0 0 24 24'
-                                    fill='currentColor'
+                                    fill='none'
+                                    stroke='currentColor'
+                                    strokeWidth='2'
                                   >
-                                    <circle cx='12' cy='12' r='2' />
+                                    <path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' />
+                                    <circle cx='12' cy='12' r='3' />
                                   </svg>
                                 </button>
                               </div>
@@ -827,7 +892,20 @@ export default function MarketplacePage() {
 
               {/* Active Offers Tab Content */}
               {activeTab === 'active-offers' && (
-                <ActiveOffersContent isDarkMode={isDarkMode} router={router} myOffers={myOffers} onRefresh={fetchMyOffers} />
+                <ActiveOffersContent
+                  isDarkMode={isDarkMode}
+                  router={router}
+                  myOffers={myOffers}
+                  myListings={myListings}
+                  offersLoading={myOffersLoading}
+                  listingsLoading={myListingsLoading}
+                  onRefresh={() => {
+                    // Accept/reject/withdraw also changes pending_offers_count
+                    // on the owner's listings, so refresh both.
+                    fetchMyOffers();
+                    fetchMyListings();
+                  }}
+                />
               )}
         </div>
       </div>
@@ -892,7 +970,15 @@ export default function MarketplacePage() {
 }
 
 // Active Offers Content Component
-function ActiveOffersContent({ isDarkMode, router, myOffers = [], onRefresh }) {
+function ActiveOffersContent({
+  isDarkMode,
+  router,
+  myOffers = [],
+  myListings = [],
+  offersLoading = false,
+  listingsLoading = false,
+  onRefresh,
+}) {
   const [activeFilter, setActiveFilter] = useState('My Offers'); // Default filter
   const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
   const [actionLoading, setActionLoading] = useState({}); // { [offerId_action]: bool }
@@ -928,24 +1014,24 @@ function ActiveOffersContent({ isDarkMode, router, myOffers = [], onRefresh }) {
     actionLoading,
   };
 
-  // Filter offers based on active filter
+  // "My Listings" shows the user's own listings (GET /marketplace/listings/my);
+  // the other two tabs split GET /marketplace/offers/my by role.
+  const isListingsView = activeFilter === 'My Listings';
+  // Which fetch backs the current tab — gates skeletons vs. empty state.
+  const isLoading = isListingsView ? listingsLoading : offersLoading;
+
   const getFilteredOffers = () => {
-    // Only use API data - no fallback to static data
-    const dataSource = myOffers;
-    
     switch (activeFilter) {
-      case 'My Listings':
-        return dataSource.filter(offer => offer.role === 'Lister' || offer.role === 'Seller');
       case 'My Offers':
-        return dataSource.filter(offer => offer.role === 'Buyer');
+        return myOffers.filter(offer => offer.role === 'Buyer');
       case 'Received Offers':
-        return dataSource.filter(offer => offer.role === 'Seller' || offer.role === 'Lister');
+        return myOffers.filter(offer => offer.role === 'Seller' || offer.role === 'Lister');
       default:
-        return dataSource;
+        return myOffers;
     }
   };
 
-  const filteredOffers = getFilteredOffers();
+  const filteredOffers = isListingsView ? [] : getFilteredOffers();
 
   // Format date
   const formatDate = dateString => {
@@ -976,6 +1062,33 @@ function ActiveOffersContent({ isDarkMode, router, myOffers = [], onRefresh }) {
         return 'text-gray-400 bg-gray-400/10 border-gray-400/20';
     }
   };
+
+  // Listing status badge (draft | pending_approval | approved | active |
+  // rejected | sold | cancelled)
+  const getListingStatusColor = status => {
+    switch (status) {
+      case 'active':
+        return 'text-green-500 bg-green-500/10 border-green-500/20';
+      case 'approved':
+        return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
+      case 'pending_approval':
+        return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20';
+      case 'rejected':
+        return 'text-red-500 bg-red-500/10 border-red-500/20';
+      case 'sold':
+        return 'text-purple-400 bg-purple-500/10 border-purple-500/20';
+      case 'cancelled':
+        return 'text-gray-500 bg-gray-500/10 border-gray-500/20';
+      default:
+        return 'text-gray-400 bg-gray-400/10 border-gray-400/20';
+    }
+  };
+
+  const formatListingStatus = status =>
+    (status || 'draft')
+      .split('_')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
 
   // Get role badge color
   const getRoleColor = role => {
@@ -1036,8 +1149,11 @@ function ActiveOffersContent({ isDarkMode, router, myOffers = [], onRefresh }) {
               isDarkMode ? 'text-gray-400' : 'text-gray-600'
             }`}
           >
-            {filteredOffers.length} offer
-            {filteredOffers.length !== 1 ? 's' : ''} found
+            {isLoading
+              ? ''
+              : isListingsView
+              ? `${myListings.length} listing${myListings.length !== 1 ? 's' : ''} found`
+              : `${filteredOffers.length} offer${filteredOffers.length !== 1 ? 's' : ''} found`}
           </p>
           <div className='flex gap-2'>
             <button
@@ -1096,23 +1212,90 @@ function ActiveOffersContent({ isDarkMode, router, myOffers = [], onRefresh }) {
       {/* Content - Card View */}
       {viewMode === 'card' && (
         <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
-          {filteredOffers.map(offer => (
-            <OfferCard
-              key={offer.id}
-              offer={offer}
-              isDarkMode={isDarkMode}
-              formatDate={formatDate}
-              getStatusColor={getStatusColor}
-              getRoleColor={getRoleColor}
-              router={router}
-              handlers={offerActionHandlers}
-            />
-          ))}
+          {isLoading
+            ? Array.from({ length: 6 }).map((_, i) => (
+                <OfferSkeletonCard key={i} isDarkMode={isDarkMode} />
+              ))
+            : isListingsView
+            ? myListings.map(listing => (
+                <MyListingCard
+                  key={listing.id}
+                  listing={listing}
+                  isDarkMode={isDarkMode}
+                  formatDate={formatDate}
+                  getListingStatusColor={getListingStatusColor}
+                  formatListingStatus={formatListingStatus}
+                  router={router}
+                />
+              ))
+            : filteredOffers.map(offer => (
+                <OfferCard
+                  key={offer.id}
+                  offer={offer}
+                  isDarkMode={isDarkMode}
+                  formatDate={formatDate}
+                  getStatusColor={getStatusColor}
+                  getRoleColor={getRoleColor}
+                  router={router}
+                  handlers={offerActionHandlers}
+                />
+              ))}
         </div>
       )}
 
-      {/* Content - Table View */}
-      {viewMode === 'table' && (
+      {/* Content - Table View (My Listings) */}
+      {viewMode === 'table' && isListingsView && (
+        <div
+          className={`rounded-xl border overflow-hidden ${
+            isDarkMode
+              ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
+              : 'bg-white border-gray-200'
+          }`}
+        >
+          <div className='overflow-x-auto'>
+            <table className='w-full text-nowrap'>
+              <thead>
+                <tr
+                  className={`border-b ${
+                    isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+                  }`}
+                >
+                  {['Listing', 'Category', 'Asking Price', 'Status', 'Pending Offers', 'Created', 'Actions'].map(header => (
+                    <th
+                      key={header}
+                      className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}
+                    >
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <SkeletonTableRow key={i} isDarkMode={isDarkMode} cols={7} />
+                    ))
+                  : myListings.map(listing => (
+                  <MyListingTableRow
+                    key={listing.id}
+                    listing={listing}
+                    isDarkMode={isDarkMode}
+                    formatDate={formatDate}
+                    getListingStatusColor={getListingStatusColor}
+                    formatListingStatus={formatListingStatus}
+                    router={router}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Content - Table View (Offers) */}
+      {viewMode === 'table' && !isListingsView && (
         <div
           className={`rounded-xl border overflow-hidden ${
             isDarkMode
@@ -1187,7 +1370,11 @@ function ActiveOffersContent({ isDarkMode, router, myOffers = [], onRefresh }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredOffers.map(offer => (
+                {isLoading
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <SkeletonTableRow key={i} isDarkMode={isDarkMode} cols={8} />
+                    ))
+                  : filteredOffers.map(offer => (
                   <OfferTableRow
                     key={offer.id}
                     offer={offer}
@@ -1205,8 +1392,9 @@ function ActiveOffersContent({ isDarkMode, router, myOffers = [], onRefresh }) {
         </div>
       )}
 
-      {/* Empty State */}
-      {filteredOffers.length === 0 && myOffers.length === 0 && (
+      {/* Empty State — only after the backing API call has resolved */}
+      {!isLoading &&
+        (isListingsView ? myListings.length === 0 : filteredOffers.length === 0) && (
         <div
           className={`rounded-xl border p-12 text-center ${
             isDarkMode
@@ -1219,7 +1407,7 @@ function ActiveOffersContent({ isDarkMode, router, myOffers = [], onRefresh }) {
               isDarkMode ? 'text-white' : 'text-gray-900'
             }`}
           >
-            No offers found
+            {isListingsView ? 'No listings found' : 'No offers found'}
           </p>
           <p
             className={`text-sm ${
@@ -1229,7 +1417,7 @@ function ActiveOffersContent({ isDarkMode, router, myOffers = [], onRefresh }) {
             {activeFilter === 'My Offers'
               ? "You haven't made any offers yet."
               : activeFilter === 'My Listings'
-              ? "You don't have any active listings."
+              ? "You haven't listed anything on the marketplace yet."
               : "You haven't received any offers yet."}
           </p>
         </div>
@@ -1640,6 +1828,311 @@ function OfferTableRow({
 }
 
 // ============================================================================
+// Skeletons — shown on the Active Offers tab while offers/listings load
+// ============================================================================
+function OfferSkeletonCard({ isDarkMode }) {
+  const block = isDarkMode ? 'bg-white/10' : 'bg-gray-200';
+  return (
+    <div
+      className={`rounded-xl border p-4 animate-pulse ${
+        isDarkMode
+          ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
+          : 'bg-white border-gray-200'
+      }`}
+    >
+      <div className='flex items-start gap-3 mb-4'>
+        <div className={`w-16 h-16 rounded-lg shrink-0 ${block}`} />
+        <div className='flex-1 min-w-0 space-y-2 pt-1'>
+          <div className={`h-4 w-3/4 rounded ${block}`} />
+          <div className={`h-3 w-1/3 rounded ${block}`} />
+        </div>
+      </div>
+      <div className='space-y-3 mb-4'>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className='flex items-center justify-between'>
+            <div className={`h-3 w-20 rounded ${block}`} />
+            <div className={`h-3 w-16 rounded ${block}`} />
+          </div>
+        ))}
+      </div>
+      <div
+        className={`flex gap-2 pt-4 border-t ${
+          isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+        }`}
+      >
+        <div className={`h-7 flex-1 rounded-lg ${block}`} />
+        <div className={`h-7 flex-1 rounded-lg ${block}`} />
+      </div>
+    </div>
+  );
+}
+
+function SkeletonTableRow({ isDarkMode, cols = 8 }) {
+  const block = isDarkMode ? 'bg-white/10' : 'bg-gray-200';
+  return (
+    <tr
+      className={`border-b animate-pulse ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}
+    >
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} className='px-4 py-3'>
+          {i === 0 ? (
+            <div className='flex items-center gap-3'>
+              <div className={`w-12 h-12 rounded-lg shrink-0 ${block}`} />
+              <div className={`h-4 w-24 rounded ${block}`} />
+            </div>
+          ) : (
+            <div className={`h-4 w-16 rounded ${block}`} />
+          )}
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+// ============================================================================
+// My Listing Card — GET /marketplace/listings/my ("My Listings" tab)
+// ============================================================================
+function MyListingCard({
+  listing,
+  isDarkMode,
+  formatDate,
+  getListingStatusColor,
+  formatListingStatus,
+  router,
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-4 transition-all hover:shadow-lg ${
+        isDarkMode
+          ? 'bg-[#1A1A1D] border-[#FFFFFF14] hover:border-[#F1CB68]'
+          : 'bg-white border-gray-200 hover:border-[#F1CB68]'
+      }`}
+    >
+      {/* Thumbnail & Title */}
+      <div className='flex items-start gap-3 mb-4'>
+        <img
+          src={
+            listing.thumbnail ||
+            'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400'
+          }
+          alt={listing.title}
+          className='w-16 h-16 rounded-lg object-cover'
+        />
+        <div className='flex-1 min-w-0'>
+          <h3
+            className={`text-sm font-semibold mb-1 truncate ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}
+          >
+            {listing.title}
+          </h3>
+          <span
+            className={`text-xs px-2 py-0.5 rounded ${
+              isDarkMode
+                ? 'bg-white/5 text-gray-300'
+                : 'bg-gray-100 text-gray-700'
+            }`}
+          >
+            {listing.category}
+          </span>
+        </div>
+        {listing.pendingOffersCount > 0 && (
+          <span className='shrink-0 text-xs font-semibold px-2 py-1 rounded-full bg-[#F1CB68]/15 text-[#F1CB68] border border-[#F1CB68]/30'>
+            {listing.pendingOffersCount} pending offer
+            {listing.pendingOffersCount !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {/* Listing Details */}
+      <div className='space-y-2 mb-4'>
+        <div className='flex items-center justify-between'>
+          <span
+            className={`text-xs ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}
+          >
+            Asking Price
+          </span>
+          <span
+            className={`text-sm font-semibold ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}
+          >
+            ${Number(listing.askingPrice || 0).toLocaleString()}
+          </span>
+        </div>
+
+        <div className='flex items-center justify-between'>
+          <span
+            className={`text-xs ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}
+          >
+            Status
+          </span>
+          <span
+            className={`text-xs px-2 py-1 rounded border ${getListingStatusColor(
+              listing.status
+            )}`}
+          >
+            {formatListingStatus(listing.status)}
+          </span>
+        </div>
+
+        <div className='flex items-center justify-between'>
+          <span
+            className={`text-xs ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}
+          >
+            Created
+          </span>
+          <span
+            className={`text-xs ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}
+          >
+            {listing.createdAt ? formatDate(listing.createdAt) : '—'}
+          </span>
+        </div>
+
+        {listing.status === 'rejected' && listing.rejectionReason && (
+          <p className='text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2'>
+            {listing.rejectionReason}
+          </p>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className='flex flex-wrap gap-2 pt-4 border-t border-[#FFFFFF14]'>
+        <button
+          onClick={() =>
+            router.push(`/dashboard/marketplace/detail?id=${listing.id}`)
+          }
+          className={`flex-1 min-w-[100px] px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
+            isDarkMode
+              ? 'border border-white/20 text-white hover:bg-white/5'
+              : 'border border-gray-300 text-gray-900 hover:bg-gray-50'
+          }`}
+        >
+          View Listing
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// My Listing Table Row
+function MyListingTableRow({
+  listing,
+  isDarkMode,
+  formatDate,
+  getListingStatusColor,
+  formatListingStatus,
+  router,
+}) {
+  return (
+    <tr
+      className={`border-b ${
+        isDarkMode
+          ? 'border-[#FFFFFF14] hover:bg-white/5'
+          : 'border-gray-200 hover:bg-gray-50'
+      }`}
+    >
+      <td className='px-4 py-3'>
+        <div className='flex items-center gap-3'>
+          <img
+            src={
+              listing.thumbnail ||
+              'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400'
+            }
+            alt={listing.title}
+            className='w-12 h-12 rounded-lg object-cover'
+          />
+          <span
+            className={`text-sm font-medium ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}
+          >
+            {listing.title}
+          </span>
+        </div>
+      </td>
+      <td className='px-4 py-3'>
+        <span
+          className={`text-xs px-2 py-1 rounded ${
+            isDarkMode
+              ? 'bg-white/5 text-gray-300'
+              : 'bg-gray-100 text-gray-700'
+          }`}
+        >
+          {listing.category}
+        </span>
+      </td>
+      <td className='px-4 py-3'>
+        <span
+          className={`text-sm font-semibold ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}
+        >
+          ${Number(listing.askingPrice || 0).toLocaleString()}
+        </span>
+      </td>
+      <td className='px-4 py-3'>
+        <span
+          className={`text-xs px-2 py-1 rounded border ${getListingStatusColor(
+            listing.status
+          )}`}
+        >
+          {formatListingStatus(listing.status)}
+        </span>
+      </td>
+      <td className='px-4 py-3'>
+        {listing.pendingOffersCount > 0 ? (
+          <span className='text-xs font-semibold px-2 py-1 rounded-full bg-[#F1CB68]/15 text-[#F1CB68] border border-[#F1CB68]/30'>
+            {listing.pendingOffersCount}
+          </span>
+        ) : (
+          <span
+            className={`text-xs ${
+              isDarkMode ? 'text-gray-500' : 'text-gray-400'
+            }`}
+          >
+            0
+          </span>
+        )}
+      </td>
+      <td className='px-4 py-3'>
+        <span
+          className={`text-xs ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}
+        >
+          {listing.createdAt ? formatDate(listing.createdAt) : '—'}
+        </span>
+      </td>
+      <td className='px-4 py-3'>
+        <button
+          onClick={() =>
+            router.push(`/dashboard/marketplace/detail?id=${listing.id}`)
+          }
+          className={`px-2 py-1 text-xs rounded transition-all ${
+            isDarkMode
+              ? 'bg-white/5 text-white hover:bg-white/10'
+              : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+          }`}
+        >
+          View
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+// ============================================================================
 // Counter Offer Modal — POST /marketplace/offers/{id}/counter
 // ============================================================================
 function CounterOfferModal({ offer, isDarkMode, onClose, onSubmitted }) {
@@ -2006,37 +2499,20 @@ function HeroSection({ isDarkMode }) {
 
         <div className='flex gap-3'>
           <button
-            className={`px-4 py-1.5 text-sm rounded-full border-2 font-medium transition-all ${
+            className={`px-4 py-1.5 text-sm rounded-full border-2 font-medium transition-all hover:bg-[#F1CB68] hover:border-[#F1CB68] hover:text-white ${
               isDarkMode
-                ? 'text-white border-white hover:bg-white hover:text-gray-900'
-                : 'text-gray-900 border-gray-900 hover:bg-gray-900 hover:text-white'
+                ? 'text-white border-white'
+                : 'text-gray-900 border-gray-900'
             }`}
           >
             Explore Now
           </button>
           <button
-            className='px-4 py-1.5 text-sm rounded-full font-medium transition-all relative overflow-hidden group'
-            style={{
-              background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              border: '2px solid transparent',
-              borderImage: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
-              borderImageSlice: 1,
-            }}
+            className={`px-4 py-1.5 text-sm rounded-full border-2 border-[#F1CB68] font-medium transition-all hover:bg-[#F1CB68] hover:text-white ${
+              isDarkMode ? 'text-[#F1CB68]' : 'text-[#C49D2E]'
+            }`}
           >
-            <span
-              className='relative z-10'
-              style={{
-                background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}
-            >
-              Learn More
-            </span>
+            Learn More
           </button>
         </div>
       </div>
@@ -2084,8 +2560,108 @@ function HeroSection({ isDarkMode }) {
   );
 }
 
+// Skeleton matching InvestmentCard's compact layout — shown in the browse
+// grid while /marketplace/search is in flight.
+function ListingSkeletonCard({ isDarkMode }) {
+  const block = isDarkMode ? 'bg-white/10' : 'bg-gray-200';
+  return (
+    <div
+      className={`rounded-xl border p-3 animate-pulse ${
+        isDarkMode
+          ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
+          : 'bg-white border-gray-200'
+      }`}
+    >
+      <div className={`w-8 h-8 rounded-lg mb-2 ${block}`} />
+      <div className={`h-4 w-3/4 rounded mb-2 ${block}`} />
+      <div className={`h-4 w-20 rounded mb-3 ${block}`} />
+      <div className='grid grid-cols-2 gap-3 mb-3'>
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i}>
+            <div className={`h-3 w-14 rounded mb-1 ${block}`} />
+            <div className={`h-3 w-16 rounded ${block}`} />
+          </div>
+        ))}
+      </div>
+      <div className='flex items-center justify-between mb-3'>
+        <div>
+          <div className={`h-3 w-14 rounded mb-1 ${block}`} />
+          <div className={`h-3 w-10 rounded ${block}`} />
+        </div>
+        <div className={`h-3 w-20 rounded ${block}`} />
+      </div>
+      <div className='grid grid-cols-2 gap-2'>
+        <div className={`h-7 rounded-lg ${block}`} />
+        <div className={`h-7 rounded-lg ${block}`} />
+      </div>
+    </div>
+  );
+}
+
+// Market summary stat tiles — GET /marketplace/market-summary (30d window).
+// Field names are read defensively since the payload keys may evolve.
+function MarketSummaryTiles({ summary, isDarkMode }) {
+  const money = v =>
+    v === null || v === undefined || isNaN(Number(v))
+      ? '—'
+      : `$${Number(v).toLocaleString('en-US', {
+          notation: 'compact',
+          maximumFractionDigits: 1,
+        })}`;
+
+  const volume =
+    summary.totalVolume ?? summary.volume ?? summary.totals?.volume;
+  const avgPrice = summary.averagePrice ?? summary.avgPrice;
+  const sentimentRaw = summary.sentiment ?? summary.marketSentiment;
+  const sentiment =
+    typeof sentimentRaw === 'string' ? sentimentRaw : sentimentRaw?.label;
+
+  const tiles = [
+    { label: 'Volume (30d)', value: money(volume) },
+    { label: 'Avg Price', value: money(avgPrice) },
+    {
+      label: 'Sentiment',
+      value: sentiment
+        ? sentiment.charAt(0).toUpperCase() + sentiment.slice(1)
+        : '—',
+      valueClass: /bull|positive|up/i.test(sentiment || '')
+        ? 'text-green-500'
+        : /bear|negative|down/i.test(sentiment || '')
+        ? 'text-red-500'
+        : '',
+    },
+  ];
+
+  return (
+    <div
+      className={`grid grid-cols-3 gap-2 mt-4 pt-4 border-t ${
+        isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+      }`}
+    >
+      {tiles.map(tile => (
+        <div key={tile.label}>
+          <p
+            className={`text-[11px] mb-0.5 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}
+          >
+            {tile.label}
+          </p>
+          <p
+            className={`text-sm font-semibold ${
+              tile.valueClass || (isDarkMode ? 'text-white' : 'text-gray-900')
+            }`}
+          >
+            {tile.value}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Investment Card Component
-function InvestmentCard({ fund, isDarkMode }) {
+function InvestmentCard({ fund, isDarkMode, isWatched = false, onToggleWatchlist }) {
   const router = useRouter();
   // Buying is investor-only (staff get 403 STAFF_CANNOT_BUY server-side).
   const { isInvestor } = useAuth();
@@ -2114,12 +2690,28 @@ function InvestmentCard({ fund, isDarkMode }) {
         <div className='absolute top-0 right-0 w-0 h-0 border-t-[45px] border-t-[#F1CB68] border-l-[45px] border-l-transparent' />
       </div>
 
+      {/* Watchlist heart — sits on the golden corner triangle */}
+      {onToggleWatchlist && (
+        <button
+          onClick={() => onToggleWatchlist(fund)}
+          title={isWatched ? 'Remove from watchlist' : 'Add to watchlist'}
+          className='absolute top-1.5 right-1.5 z-10 p-1 transition-transform hover:scale-110'
+        >
+          <svg
+            width='16'
+            height='16'
+            viewBox='0 0 24 24'
+            fill={isWatched ? (isDarkMode ? '#1A1A1D' : '#FFFFFF') : 'none'}
+            stroke={isDarkMode ? '#1A1A1D' : '#FFFFFF'}
+            strokeWidth='2'
+          >
+            <path d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' />
+          </svg>
+        </button>
+      )}
+
       {/* Category icon */}
-      <div
-        className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${
-          isDarkMode ? 'bg-[#F1CB68]/10' : 'bg-[#F1CB68]/10'
-        }`}
-      >
+      <div className='w-8 h-8 rounded-lg flex items-center justify-center mb-2 bg-[#F1CB68]/10'>
         <CategoryIcon size={18} color='#F1CB68' />
       </div>
 

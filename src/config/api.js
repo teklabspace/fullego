@@ -268,6 +268,9 @@ export const API_ENDPOINTS = {
     // Listings
     CREATE_LISTING: '/marketplace/listings',
     LIST_LISTINGS: '/marketplace/listings',
+    // Logged-in user's own listings (all statuses), newest first. Auth +
+    // KYC-approved required; supports status_filter/page/limit.
+    MY_LISTINGS: '/marketplace/listings/my',
     GET_LISTING: (id) => `/marketplace/listings/${id}`,
     UPDATE_LISTING: (id) => `/marketplace/listings/${id}`,
     DELETE_LISTING: (id) => `/marketplace/listings/${id}`,
@@ -277,6 +280,11 @@ export const API_ENDPOINTS = {
     ACTIVATE_LISTING: (id) => `/marketplace/listings/${id}/activate`,
     PAY_LISTING_FEE: (id) => `/marketplace/listings/${id}/pay-fee`,
     GET_LISTING_OFFERS: (id) => `/marketplace/listings/${id}/offers`,
+    // Valuation history + metrics for the detail Performance tab. Always 200;
+    // empty series when the asset has no valuations.
+    LISTING_PERFORMANCE: (id) => `/marketplace/listings/${id}/performance`,
+    // Seller-exposed documents only (picked via document_ids on create/update).
+    LISTING_DOCUMENTS: (id) => `/marketplace/listings/${id}/documents`,
     SEARCH: '/marketplace/search',
     // Live (approved/active) categories with counts — public, no auth.
     CATEGORIES: '/marketplace/categories',
