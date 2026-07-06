@@ -8,7 +8,7 @@ import {
 import { useTheme } from '@/context/ThemeContext';
 import { getCategoryIcon } from '@/utils/categoryIcons';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   createAsset,
   requestAssetAppraisal,
@@ -93,6 +93,30 @@ export default function AddAssetPage() {
   const [valuationType, setValuationType] = useState('manual');
   const [estimatedValue, setEstimatedValue] = useState('');
   const [uploadPromises, setUploadPromises] = useState(new Map()); // Track active uploads
+
+  // BUG-17: handleNext awaits uploads, but its closure captured the state from
+  // the render it was created in — so after awaiting, `assetPhotos` still said
+  // 'uploading' even though the upload had completed, and creation was blocked
+  // with "Upload still in progress". These refs always hold the LATEST state so
+  // post-await checks see reality.
+  const assetPhotosRef = useRef(assetPhotos);
+  const supportingDocsRef = useRef(supportingDocs);
+  const uploadPromisesRef = useRef(uploadPromises);
+  useEffect(() => {
+    assetPhotosRef.current = assetPhotos;
+  }, [assetPhotos]);
+  useEffect(() => {
+    supportingDocsRef.current = supportingDocs;
+  }, [supportingDocs]);
+  useEffect(() => {
+    uploadPromisesRef.current = uploadPromises;
+  }, [uploadPromises]);
+
+  // Blocks the final Create Asset action while any upload is still running.
+  const hasActiveUploads =
+    uploadPromises.size > 0 ||
+    assetPhotos.some(f => f.status === 'uploading') ||
+    supportingDocs.some(f => f.status === 'uploading');
 
   // Get categories grouped by category group
   const categoriesByGroup = useMemo(() => {
@@ -186,8 +210,8 @@ export default function AddAssetPage() {
         // Wait for all uploads to complete first
         console.log('⏳ Waiting for all file uploads to complete...');
         
-        // Get all active upload promises
-        let activeUploads = Array.from(uploadPromises.values());
+        // Get all active upload promises (from the ref — never stale)
+        let activeUploads = Array.from(uploadPromisesRef.current.values());
         if (activeUploads.length > 0) {
           console.log(`⏳ Waiting for ${activeUploads.length} active upload(s) to complete...`);
           try {
@@ -203,8 +227,8 @@ export default function AddAssetPage() {
         // Re-check for any remaining active uploads (in case new ones started)
         let maxWaitTime = 30000; // 30 seconds max wait
         const startTime = Date.now();
-        while (uploadPromises.size > 0 && (Date.now() - startTime) < maxWaitTime) {
-          activeUploads = Array.from(uploadPromises.values());
+        while (uploadPromisesRef.current.size > 0 && (Date.now() - startTime) < maxWaitTime) {
+          activeUploads = Array.from(uploadPromisesRef.current.values());
           if (activeUploads.length > 0) {
             console.log(`⏳ Still waiting for ${activeUploads.length} upload(s)...`);
             await Promise.allSettled(activeUploads);
@@ -217,10 +241,12 @@ export default function AddAssetPage() {
         const documentIds = [];
         const uploadErrors = [];
 
-        // Collect photo IDs from completed uploads
+        // Collect photo IDs from completed uploads — read the ref, not the
+        // render-time closure, so completed uploads are seen as completed.
         console.log('📸 Checking photo upload status...');
-        for (let i = 0; i < assetPhotos.length; i++) {
-          const photo = assetPhotos[i];
+        const photosNow = assetPhotosRef.current;
+        for (let i = 0; i < photosNow.length; i++) {
+          const photo = photosNow[i];
           if (photo.status === 'completed' && photo.uploadedId) {
             photoIds.push(photo.uploadedId);
             console.log(`✅ Photo ${i + 1} ready: ${photo.uploadedId} (${photo.name})`);
@@ -247,10 +273,11 @@ export default function AddAssetPage() {
           }
         }
 
-        // Collect document IDs from completed uploads
+        // Collect document IDs from completed uploads (ref — see above)
         console.log('📄 Checking document upload status...');
-        for (let i = 0; i < supportingDocs.length; i++) {
-          const doc = supportingDocs[i];
+        const docsNow = supportingDocsRef.current;
+        for (let i = 0; i < docsNow.length; i++) {
+          const doc = docsNow[i];
           if (doc.status === 'completed' && doc.uploadedId) {
             documentIds.push(doc.uploadedId);
             console.log(`✅ Document ${i + 1} ready: ${doc.uploadedId} (${doc.name})`);
@@ -445,7 +472,12 @@ export default function AddAssetPage() {
         
         // Extract detailed error message
         let errorMessage = 'Failed to create asset. Please try again.';
-        if (err.data) {
+        if (err.code === 'INVALID_MEDIA_REFERENCES') {
+          // Backend rejected the create because one or more photo/document
+          // references don't exist or belong to someone else; its message
+          // names each offending reference.
+          errorMessage = `Some uploaded files couldn't be attached to this asset. Remove the affected files below, re-upload them, and try again.\n\n${err.message || ''}`.trim();
+        } else if (err.data) {
           if (Array.isArray(err.data.detail)) {
             // Backend validation errors (422)
             const validationErrors = err.data.detail.map(error => {
@@ -1968,14 +2000,18 @@ export default function AddAssetPage() {
                 )}
                 <button
                   onClick={handleNext}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || hasActiveUploads}
                   className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-                    isSubmitting
+                    isSubmitting || hasActiveUploads
                       ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                       : 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
                   }`}
                 >
-                  {isSubmitting ? 'Creating Asset...' : 'Finish'}
+                  {isSubmitting
+                    ? 'Creating Asset...'
+                    : hasActiveUploads
+                    ? 'Uploading files…'
+                    : 'Finish'}
                 </button>
               </div>
             </div>

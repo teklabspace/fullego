@@ -237,6 +237,38 @@ export const getListingOffers = async (listingId) => {
 };
 
 /**
+ * Get Listing Performance (valuation history + metrics)
+ * GET /api/v1/marketplace/listings/{listing_id}/performance
+ */
+export const getListingPerformance = async (listingId, params = {}) => {
+  const queryParams = new URLSearchParams();
+  // 30d | 90d | 1y | all
+  if (params.timeRange) queryParams.append('time_range', params.timeRange);
+  // daily | weekly | monthly
+  if (params.granularity) queryParams.append('granularity', params.granularity);
+
+  const endpoint = `${API_ENDPOINTS.MARKETPLACE.LISTING_PERFORMANCE(listingId)}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await apiGet(endpoint);
+
+  return transformKeys(response);
+};
+
+/**
+ * Get Listing Documents (seller-exposed only)
+ * GET /api/v1/marketplace/listings/{listing_id}/documents
+ */
+export const getListingDocuments = async (listingId) => {
+  const endpoint = API_ENDPOINTS.MARKETPLACE.LISTING_DOCUMENTS(listingId);
+  const response = await apiGet(endpoint);
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
+  return response;
+};
+
+/**
  * Search Marketplace Listings
  * GET /api/v1/marketplace/search
  */
@@ -391,11 +423,35 @@ export const getMyOffers = async (params = {}) => {
   
   const endpoint = `${API_ENDPOINTS.MARKETPLACE.MY_OFFERS}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
+
   if (response.data) {
     response.data = transformKeys(response.data);
   }
-  
+
+  return response;
+};
+
+/**
+ * Get User's Own Listings (all statuses, newest first)
+ * GET /api/v1/marketplace/listings/my
+ */
+export const getMyListings = async (params = {}) => {
+  const queryParams = new URLSearchParams();
+  // draft | pending_approval | approved | active | rejected | sold | cancelled
+  if (params.statusFilter) queryParams.append('status_filter', params.statusFilter);
+  if (params.page) queryParams.append('page', params.page);
+  if (params.limit) queryParams.append('limit', params.limit);
+
+  const endpoint = `${API_ENDPOINTS.MARKETPLACE.MY_LISTINGS}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await apiGet(endpoint);
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+  if (response.pagination) {
+    response.pagination = transformKeys(response.pagination);
+  }
+
   return response;
 };
 
@@ -551,8 +607,12 @@ export const getWatchlist = async (params = {}) => {
   const queryParams = new URLSearchParams();
   if (params.statusFilter) queryParams.append('status_filter', params.statusFilter);
   if (params.category) queryParams.append('category', params.category);
+  if (params.minPrice) queryParams.append('min_price', params.minPrice);
+  if (params.maxPrice) queryParams.append('max_price', params.maxPrice);
+  // added_at | price | name
   if (params.sortBy) queryParams.append('sort_by', params.sortBy);
-  
+  if (params.sortOrder) queryParams.append('sort_order', params.sortOrder);
+
   const endpoint = `${API_ENDPOINTS.MARKETPLACE.WATCHLIST}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
   

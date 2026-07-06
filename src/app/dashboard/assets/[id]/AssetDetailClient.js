@@ -831,7 +831,16 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     } catch (err) {
       console.error('Error deleting asset:', err);
       let msg = err.message || 'Failed to delete asset';
-      if (err.status === 409 || msg.toLowerCase().includes('listed') || msg.toLowerCase().includes('marketplace')) {
+      if (err.code === 'ASSET_HAS_TRANSACTIONS') {
+        // Offers/escrow exist — removing the listing won't help; deletion is
+        // permanently blocked to preserve financial history.
+        msg =
+          "This asset has marketplace transaction history and can't be deleted.";
+      } else if (
+        err.status === 409 ||
+        msg.toLowerCase().includes('listed') ||
+        msg.toLowerCase().includes('marketplace')
+      ) {
         msg = 'Cannot delete this asset while it has an active marketplace listing. Remove the listing first.';
       }
       toast.error(msg);
