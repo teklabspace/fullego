@@ -119,6 +119,45 @@ export const rejectVerification = (type, id, reason) =>
     { reason }
   );
 
+// ── Marketplace Escrow (oversight table) ─────────────────────────────────────
+
+/**
+ * List all escrows for the admin oversight table.
+ * @param {object} params - { statusFilter?, page?, limit? }
+ *   statusFilter: pending|funded|released|refunded|disputed (optional).
+ * Response payload: { items, total, page, limit, pages }.
+ */
+export const listEscrows = ({ statusFilter, page, limit } = {}) =>
+  apiGet(
+    `${API_ENDPOINTS.ADMIN.ESCROW_LIST}${buildQuery({
+      status_filter: statusFilter,
+      page,
+      limit,
+    })}`
+  );
+
+/** Single escrow detail (same item shape as the list, unwrapped). */
+export const getEscrowAdmin = (id) =>
+  apiGet(API_ENDPOINTS.ADMIN.ESCROW_DETAIL(id));
+
+/**
+ * Admin force-release a (non-disputed) escrow's funds to the seller.
+ * Pending backend deployment — see the backend request note.
+ * @param {string} id - escrow id
+ * @param {string} [reason] - optional admin note
+ */
+export const adminReleaseEscrow = (id, reason = '') =>
+  apiPost(API_ENDPOINTS.ADMIN.ESCROW_RELEASE(id), reason ? { reason } : {});
+
+/**
+ * Admin force-refund a (non-disputed) escrow to the buyer (Stripe refund).
+ * Pending backend deployment — see the backend request note.
+ * @param {string} id - escrow id
+ * @param {string} [reason] - optional admin note
+ */
+export const adminRefundEscrow = (id, reason = '') =>
+  apiPost(API_ENDPOINTS.ADMIN.ESCROW_REFUND(id), reason ? { reason } : {});
+
 // ── Marketplace Escrow Disputes ──────────────────────────────────────────────
 
 export const listDisputes = (params = {}) =>
@@ -129,12 +168,12 @@ export const getDispute = (id) =>
 
 /**
  * Resolve a marketplace escrow dispute.
- * @param {string} id - dispute id
+ * @param {string} id - escrow id (the dispute is keyed by its escrow id)
  * @param {'release'|'refund'} resolution - release funds to seller or refund the buyer
- * @param {string} [notes] - admin resolution notes
+ * @param {string} [reason] - admin resolution reason (spec body field is `reason`)
  */
-export const resolveDispute = (id, resolution, notes = '') =>
+export const resolveDispute = (id, resolution, reason = '') =>
   apiPost(API_ENDPOINTS.ADMIN.RESOLVE_DISPUTE(id), {
     resolution,
-    ...(notes ? { notes } : {}),
+    ...(reason ? { reason } : {}),
   });

@@ -728,7 +728,10 @@ export default function ConciergeServicePage() {
           formatDate={formatDate}
           getStatusColor={getStatusColor}
           isStaff={isStaff}
-          onAssign={isStaff ? () => setAssignmentModalOpen(true) : undefined}
+          // Assigning a request to a CRM user is an admin-only action (matches the
+          // support dashboard, which gates re-assign behind isAdmin). Advisors do
+          // the appraisal work (upload, reject, finalize) but don't assign it.
+          onAssign={isAdmin ? () => setAssignmentModalOpen(true) : undefined}
           onDocumentUpload={() => setDocumentModalOpen(true)}
           onReject={isStaff ? () => setRejectTarget(selectedAppraisal) : undefined}
           onFinalizeValuation={isStaff ? () => setFinalizeTarget(selectedAppraisal) : undefined}

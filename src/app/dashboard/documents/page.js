@@ -360,6 +360,13 @@ export default function DocumentsPage() {
               size: rawSize ? rawSize / (1024 * 1024) : 0, // MB, used for sorting
               sizeBytes: rawSize, // raw bytes, used by the preview modal's formatter
               url: doc.url || doc.fileUrl || doc.downloadUrl || doc.download_url || doc.path || '',
+              // Real uploader for the preview modal (was hardcoded). Backend field
+              // name varies; fall back to the current viewer since this page only
+              // lists the viewer's own documents.
+              uploadedBy:
+                doc.uploadedBy || doc.uploaded_by || doc.ownerName || doc.owner_name ||
+                doc.userName || doc.user_name || doc.uploaderName || null,
+              uploadedAtValue: validDate ? validDate.toISOString() : null,
             };
           }));
         }

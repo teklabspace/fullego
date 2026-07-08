@@ -118,6 +118,38 @@ export default function SupportDashboardPage() {
     }
   }, [selectedItem]);
 
+  // Live updates without a chat socket: while a conversation/ticket is open,
+  // poll its messages every 5s so replies from the other party show up without
+  // a manual refresh. The fetchers reuse the message cache, so the skeleton
+  // (gated on an empty cache) never flashes during a background refresh. Skip
+  // polling while the tab is hidden to avoid needless traffic.
+  useEffect(() => {
+    if (!selectedItem) return;
+    const intervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (selectedItem.type === 'ticket') {
+        fetchTicketComments(selectedItem.id);
+      } else if (selectedItem.type === 'chat') {
+        fetchConversationMessages(selectedItem.id);
+      }
+    }, 5000);
+    return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItem]);
+
+  // Refresh the list itself every 20s so new tickets/chats (and updated
+  // previews/timestamps) appear without a manual reload.
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      fetchTickets();
+      fetchConversations();
+      fetchAssetRequests();
+    }, 20000);
+    return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilter, searchQuery]);
+
   // Reports tab analytics, refetched when the range changes. Admin gets the
   // richer all-tickets dashboard endpoint; advisor/investor get the
   // role-scoped /support/analytics (assigned tickets / own tickets).
@@ -536,14 +568,23 @@ export default function SupportDashboardPage() {
 
   // Filter items based on active filter and search
   const filteredItems = allItems.filter(item => {
+    const status = String(item.status || '').toLowerCase();
+    // Asset requests (concierge appraisals / sale requests) use their own status
+    // enum — pending, ai_appraised, needs_more_information, etc. — none of which
+    // is literally "open". Bucket every non-terminal status as "open" so an
+    // active concierge request shows under the Open tab, not just All/Requests.
+    const isClosed = ['resolved', 'closed', 'completed', 'cancelled', 'appraisal_failed'].includes(status);
+    const isInProgress = status === 'in_progress' || status === 'inprogress';
+    const isOpen = !isClosed && !isInProgress; // open, pending, ai_appraised, awaiting info, …
+
     const matchesFilter =
       activeFilter === 'all' ||
       (activeFilter === 'chats' && item.type === 'chat') ||
       (activeFilter === 'tickets' && item.type === 'ticket') ||
       (activeFilter === 'requests' && item.type === 'asset_request') ||
-      (activeFilter === 'open' && item.status === 'open') ||
-      (activeFilter === 'inprogress' && (item.status === 'in_progress' || item.status === 'inprogress')) ||
-      (activeFilter === 'closed' && (item.status === 'resolved' || item.status === 'closed'));
+      (activeFilter === 'open' && isOpen) ||
+      (activeFilter === 'inprogress' && isInProgress) ||
+      (activeFilter === 'closed' && isClosed);
 
     const matchesSearch =
       searchQuery === '' ||

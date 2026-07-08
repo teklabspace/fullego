@@ -559,7 +559,14 @@ export const API_ENDPOINTS = {
     REJECT_KYC: (id) => `/admin/verifications/kyc/${id}/reject`,
     APPROVE_KYB: (id) => `/admin/verifications/kyb/${id}/approve`,
     REJECT_KYB: (id) => `/admin/verifications/kyb/${id}/reject`,
-    // Marketplace escrow disputes
+    // Marketplace escrow oversight (all escrows table) + disputes queue.
+    ESCROW_LIST: '/admin/escrow',
+    ESCROW_DETAIL: (id) => `/admin/escrow/${id}`,
+    // Admin force-release / force-refund on a non-disputed escrow (see backend
+    // request note). Complements /admin/disputes/{id}/resolve which is
+    // disputed-only. NOTE: pending backend deployment — 404s until then.
+    ESCROW_RELEASE: (id) => `/admin/escrow/${id}/release`,
+    ESCROW_REFUND: (id) => `/admin/escrow/${id}/refund`,
     LIST_DISPUTES: '/admin/disputes',
     GET_DISPUTE: (id) => `/admin/disputes/${id}`,
     RESOLVE_DISPUTE: (id) => `/admin/disputes/${id}/resolve`,

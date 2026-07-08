@@ -346,7 +346,11 @@ export default function MarketplacePage() {
           counterpartyId: offer.counterpartyId || offer.sellerId || '',
           dateUpdated: offer.updatedAt || offer.createdAt || new Date().toISOString(),
           listingId: offer.listingId || offer.id,
-          message: offer.message || '',
+          // The note the buyer attached to the offer. Field name can vary by
+          // backend shape, so probe the common ones.
+          message:
+            offer.message || offer.note || offer.buyerMessage ||
+            offer.offerMessage || offer.comment || '',
           // Escrow is created when an offer is accepted
           escrowId: offer.escrowId || offer.escrow?.id || null,
         }));
@@ -1637,6 +1641,31 @@ function OfferCard({
         </div>
       </div>
 
+      {/* Message attached to the offer — shown to both parties (buyer sees
+          their own note, seller sees the buyer's). Hidden when empty. */}
+      {offer.message && (
+        <div
+          className={`mb-4 rounded-lg p-3 ${
+            isDarkMode ? 'bg-white/5' : 'bg-gray-50'
+          }`}
+        >
+          <p
+            className={`text-xs mb-1 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}
+          >
+            {offer.role === 'Buyer' ? 'Your message' : 'Buyer’s message'}
+          </p>
+          <p
+            className={`text-sm whitespace-pre-wrap break-words ${
+              isDarkMode ? 'text-gray-200' : 'text-gray-800'
+            }`}
+          >
+            {offer.message}
+          </p>
+        </div>
+      )}
+
       {/* Actions */}
       <div className='flex flex-wrap gap-2 pt-4 border-t border-[#FFFFFF14]'>
         {actions.map((action, index) => (
@@ -1736,13 +1765,26 @@ function OfferTableRow({
             alt={offer.assetName}
             className='w-12 h-12 rounded-lg object-cover'
           />
-          <span
-            className={`text-sm font-medium ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
-            }`}
-          >
-            {offer.assetName}
-          </span>
+          <div className='min-w-0'>
+            <span
+              className={`block text-sm font-medium ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}
+            >
+              {offer.assetName}
+            </span>
+            {/* Buyer's note attached to the offer, shown to both parties. */}
+            {offer.message && (
+              <span
+                className={`block text-xs mt-0.5 max-w-[240px] truncate ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}
+                title={offer.message}
+              >
+                “{offer.message}”
+              </span>
+            )}
+          </div>
         </div>
       </td>
       <td className='px-4 py-3'>
@@ -2224,6 +2266,14 @@ function EscrowModal({ offer, isDarkMode, onClose, onChanged }) {
 
   useEffect(() => { loadEscrow(); }, [loadEscrow]);
 
+  // The counterparty or an admin can change the escrow status out from under
+  // us, so re-fetch when the window regains focus (spec §2d).
+  useEffect(() => {
+    const onFocus = () => loadEscrow();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [loadEscrow]);
+
   const run = async (action, fn, msg) => {
     setActionBusy(action);
     try {
@@ -2243,6 +2293,22 @@ function EscrowModal({ offer, isDarkMode, onClose, onChanged }) {
   const textMain = isDarkMode ? 'text-white' : 'text-gray-900';
   const textMuted = isDarkMode ? 'text-gray-400' : 'text-gray-600';
 
+  // Escrow detail is self-contained (spec §2d): prefer its own title/thumbnail,
+  // falling back to the offer's asset info when the new fields aren't deployed yet.
+  const cardTitle = escrow?.listingTitle || escrow?.assetName || offer.assetName;
+  const thumbnail = escrow?.thumbnailUrl || offer.assetThumbnail;
+
+  // Non-actor status messages, per the spec's state → action map.
+  const infoMessage = () => {
+    if (status === 'pending' && isSeller) return 'Waiting for the buyer to fund the escrow.';
+    if (status === 'funded' && isBuyer) return 'Funds are in escrow — waiting for the seller to release them.';
+    if (status === 'disputed') return 'This escrow is under review by an admin.';
+    if (status === 'released') return isSeller ? 'Funds released ✓' : 'Completed ✓';
+    if (status === 'refunded') return isBuyer ? 'Refunded ✓' : 'Refunded';
+    return '';
+  };
+  const message = infoMessage();
+
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70' onClick={onClose}>
       <div className={`w-full max-w-md rounded-2xl p-6 ${panel}`} onClick={(e) => e.stopPropagation()}>
@@ -2257,12 +2323,28 @@ function EscrowModal({ offer, isDarkMode, onClose, onChanged }) {
           <p className={`text-sm ${textMuted}`}>Loading escrow…</p>
         ) : (
           <>
+            {/* Self-contained escrow card: title + thumbnail + amount + status */}
             <div className={`rounded-lg p-4 mb-4 ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+              <div className='flex items-center gap-3 mb-3'>
+                {thumbnail ? (
+                  <img src={thumbnail} alt={cardTitle} className='w-12 h-12 rounded-lg object-cover' />
+                ) : (
+                  <div className={`w-12 h-12 rounded-lg ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`} />
+                )}
+                <span className={`text-sm font-semibold ${textMain} truncate`}>{cardTitle}</span>
+              </div>
               <Row label='Escrow ID' value={escrowId} mono textMain={textMain} textMuted={textMuted} />
-              <Row label='Asset' value={offer.assetName} textMain={textMain} textMuted={textMuted} />
               <Row label='Amount' value={escrow?.amount ? `$${Number(escrow.amount).toLocaleString()}` : offer.offerAmount} textMain={textMain} textMuted={textMuted} />
+              {escrow?.commission != null && (
+                <Row label='Commission' value={`$${Number(escrow.commission).toLocaleString()}`} textMain={textMain} textMuted={textMuted} />
+              )}
               <Row label='Status' value={escrow?.status || 'unknown'} textMain={textMain} textMuted={textMuted} />
             </div>
+
+            {/* Informational state for the party with no action this turn. */}
+            {message && (
+              <p className={`text-sm mb-4 ${textMuted}`}>{message}</p>
+            )}
 
             {showDispute && (
               <div className='mb-4'>
@@ -2273,28 +2355,30 @@ function EscrowModal({ offer, isDarkMode, onClose, onChanged }) {
             )}
 
             <div className='flex flex-wrap gap-2'>
-              {/* Buyer funds the escrow */}
-              {isBuyer && status !== 'funded' && status !== 'released' && status !== 'refunded' && (
+              {/* pending → only the BUYER can fund (spec §2e). */}
+              {isBuyer && status === 'pending' && (
                 <button onClick={() => run('fund', () => fundEscrow(escrowId), 'Escrow funded')} disabled={!!actionBusy}
                   className='flex-1 min-w-[120px] py-2 rounded-lg text-sm font-semibold bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] disabled:opacity-60'>
-                  {actionBusy === 'fund' ? 'Funding…' : 'Fund Escrow'}
+                  {actionBusy === 'fund' ? 'Funding…' : 'Fund / Pay'}
                 </button>
               )}
-              {/* Buyer releases funds to seller on receipt */}
-              {isBuyer && status === 'funded' && (
+              {/* funded → only the SELLER can release (spec §2f). This was
+                  incorrectly wired to the buyer, which the backend rejects with
+                  401 "Only seller can release escrow". */}
+              {isSeller && status === 'funded' && (
                 <button onClick={() => run('release', () => releaseEscrow(escrowId), 'Funds released to seller')} disabled={!!actionBusy}
                   className='flex-1 min-w-[120px] py-2 rounded-lg text-sm font-semibold bg-green-500 text-white hover:bg-green-600 disabled:opacity-60'>
                   {actionBusy === 'release' ? 'Releasing…' : 'Release Funds'}
                 </button>
               )}
-              {/* Seller can refund the buyer */}
+              {/* funded → the seller may refund the buyer (spec §2h). */}
               {isSeller && status === 'funded' && (
                 <button onClick={() => run('refund', () => refundEscrow(escrowId), 'Buyer refunded')} disabled={!!actionBusy}
                   className='flex-1 min-w-[120px] py-2 rounded-lg text-sm font-semibold border border-red-400/30 text-red-400 hover:bg-red-400/10 disabled:opacity-60'>
                   {actionBusy === 'refund' ? 'Refunding…' : 'Refund Buyer'}
                 </button>
               )}
-              {/* Either party can raise a dispute while funds are held */}
+              {/* funded → either party can raise a dispute (spec §2g). */}
               {status === 'funded' && (
                 showDispute ? (
                   <button

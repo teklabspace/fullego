@@ -2,10 +2,54 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getKYCStatus, getKYCRejectionReason, KYC_STATUS } from '@/utils/kycApi';
+import {
+  getKYCStatus,
+  getKYCRejectionReason,
+  resubmitKYC,
+  KYC_STATUS,
+} from '@/utils/kycApi';
+import { getUserProfile } from '@/utils/authApi';
+import { getStoredUser } from '@/utils/permissions';
+import { resolveOnboardingRoute } from '@/utils/onboarding';
 
 const POLL_INTERVAL_MS = 2500;
 const MAX_POLL_MS = 60000;
+
+// Refresh the cached profile so the KYC gate (SecureRoute/useAuth read
+// user_info.is_kyc_verified) lifts without a re-login.
+const refreshStoredProfile = async () => {
+  try {
+    const profile = await getUserProfile();
+    if (profile && (profile.role || 'is_kyc_verified' in profile)) {
+      let stored = null;
+      try {
+        stored = JSON.parse(localStorage.getItem('user_info'));
+      } catch {
+        /* ignore */
+      }
+      localStorage.setItem(
+        'user_info',
+        JSON.stringify({ ...(stored || {}), ...profile })
+      );
+    }
+  } catch {
+    // Non-fatal — useAuth re-fetches the profile on next mount anyway.
+  }
+};
+
+// After approval, hand the user to the step they still owe: checkout when a
+// plan was pre-picked (pendingPlan), the plan picker otherwise, dashboard for
+// staff and existing subscribers. resolveOnboardingRoute is the single source
+// of truth for that order.
+const destinationAfterApproval = async () => {
+  await refreshStoredProfile();
+  try {
+    const dest = await resolveOnboardingRoute(getStoredUser());
+    return dest || '/dashboard';
+  } catch {
+    return '/dashboard';
+  }
+};
 
 function KycCompleteContent() {
   const router = useRouter();
@@ -14,6 +58,7 @@ function KycCompleteContent() {
   const [rejectionReason, setRejectionReason] = useState(null);
   const [pollAttempt, setPollAttempt] = useState(0);
   const [error, setError] = useState(null);
+  const [resubmitting, setResubmitting] = useState(false);
   const pollStartedAt = useRef(null);
 
   const loadRejectionReason = useCallback(async () => {
@@ -50,7 +95,9 @@ function KycCompleteContent() {
 
         if (kycStatus.status === KYC_STATUS.APPROVED) {
           setUiStatus('approved');
-          timeoutId = setTimeout(() => router.replace('/dashboard'), 1500);
+          const dest = await destinationAfterApproval();
+          if (cancelled) return;
+          timeoutId = setTimeout(() => router.replace(dest), 1500);
           return;
         }
 
@@ -97,7 +144,7 @@ function KycCompleteContent() {
       setKycData(kycStatus);
       if (kycStatus.status === KYC_STATUS.APPROVED) {
         setUiStatus('approved');
-        router.replace('/dashboard');
+        router.replace(await destinationAfterApproval());
       } else if (kycStatus.status === KYC_STATUS.REJECTED) {
         setUiStatus('rejected');
         if (kycStatus.rejection_reason) {
@@ -116,7 +163,16 @@ function KycCompleteContent() {
     }
   };
 
-  const handleRetry = () => {
+  // Contract: rejected users restart via POST /kyc/resubmit (fresh Persona
+  // inquiry), then go back through the verification flow.
+  const handleRetry = async () => {
+    setResubmitting(true);
+    try {
+      await resubmitKYC();
+    } catch {
+      // If resubmit fails (e.g. not in a resubmittable state) the
+      // verification page still handles starting/continuing a flow.
+    }
     router.push('/kyc-verification');
   };
 
@@ -162,7 +218,7 @@ function KycCompleteContent() {
       <div className='min-h-screen bg-[#0B0D12] flex items-center justify-center p-4'>
         <div className='text-center max-w-md'>
           <h1 className='text-white text-2xl font-bold mb-2'>Verification approved</h1>
-          <p className='text-gray-400 text-sm'>Redirecting to your dashboard…</p>
+          <p className='text-gray-400 text-sm'>Taking you to the next step…</p>
         </div>
       </div>
     );
@@ -222,12 +278,15 @@ function KycCompleteContent() {
             <button
               type='button'
               onClick={handleRetry}
-              className='px-6 py-3 rounded-full font-semibold text-[#0B0D12]'
+              disabled={resubmitting}
+              className={`px-6 py-3 rounded-full font-semibold text-[#0B0D12] ${
+                resubmitting ? 'opacity-60 cursor-wait' : ''
+              }`}
               style={{
                 background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
               }}
             >
-              Try again
+              {resubmitting ? 'Restarting…' : 'Try again'}
             </button>
             <button
               type='button'
