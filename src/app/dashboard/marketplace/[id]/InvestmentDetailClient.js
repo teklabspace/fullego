@@ -1346,7 +1346,13 @@ function MakeOfferModal({
 
       const response = await createOffer(listingId, offerData);
 
-      if (response.data) {
+      // The API client already unwraps the { data } envelope, so `response` IS
+      // the created offer object (no nested `.data`). Reaching here means the
+      // backend returned 2xx — it throws on any error status — so the previous
+      // `response.data` check was always false and reported a false failure on a
+      // successful 201. Accept either shape defensively.
+      const createdOffer = response?.data ?? response;
+      if (createdOffer) {
         toast.success('Offer submitted successfully!');
         if (onOfferCreated) {
           onOfferCreated();

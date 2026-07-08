@@ -36,6 +36,33 @@ const DocumentPreviewModal = ({
     };
   }, [fileUrl]);
 
+  // Real "Uploaded by" (was hardcoded to a placeholder name). Prefer the
+  // document's own uploader field; fall back to the current viewer, since a
+  // freshly-picked file and the personal documents list both belong to them.
+  const uploadedByName = useMemo(() => {
+    const fromFile =
+      file?.uploadedBy || file?.uploaded_by || file?.ownerName || file?.owner_name;
+    if (fromFile) return fromFile;
+    if (typeof window === 'undefined') return 'You';
+    try {
+      const u = JSON.parse(localStorage.getItem('user_info') || '{}');
+      const full = [u.first_name, u.last_name].filter(Boolean).join(' ');
+      return full || u.name || u.email?.split('@')[0] || 'You';
+    } catch {
+      return 'You';
+    }
+  }, [file]);
+
+  // Real upload date (was hardcoded to "today"). Fall back to today only when
+  // the document genuinely carries no date.
+  const uploadedDateLabel = useMemo(() => {
+    const raw =
+      file?.uploadedAtValue || file?.uploadedDate || file?.createdAt || file?.created_at;
+    const d = raw ? new Date(raw) : new Date();
+    const valid = !Number.isNaN(d.getTime()) ? d : new Date();
+    return valid.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  }, [file]);
+
   const formatFileSize = bytes => {
     if (!bytes) return '0 Bytes';
     const k = 1024;
@@ -462,7 +489,7 @@ const DocumentPreviewModal = ({
               }`}>Uploaded by</p>
               <p className={`font-medium ${
                 isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>Olivia Benson</p>
+              }`}>{uploadedByName}</p>
             </div>
 
             <div>
@@ -472,11 +499,7 @@ const DocumentPreviewModal = ({
               <p className={`font-medium ${
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}>
-                {new Date().toLocaleDateString('en-US', {
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
+                {uploadedDateLabel}
               </p>
             </div>
 

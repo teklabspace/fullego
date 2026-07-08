@@ -23,6 +23,10 @@ const steps = [
   { id: 3, title: 'Asset Valuation' },
 ];
 
+// Today's date as YYYY-MM-DD, used as the max for acquisition/purchase date
+// pickers so a native date input can't accept a future or overflowed year.
+const TODAY_ISO = new Date().toISOString().split('T')[0];
+
 const conditions = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor'];
 const ownershipTypes = ['Sole', 'Joint', 'Trust', 'Corporate'];
 const riskLevels = ['Low', 'Medium', 'High', 'Very High'];
@@ -845,9 +849,14 @@ export default function AddAssetPage() {
             </label>
             <input
               type='text'
+              inputMode='numeric'
               name='year'
               value={formData.year || ''}
-              onChange={handleChange}
+              // Manufacture year: digits only, capped at 4 (e.g. 1998, 2024).
+              onChange={e => {
+                const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+                setFormData(prev => ({ ...prev, year: digits }));
+              }}
               placeholder='Enter year'
               className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
             />
@@ -889,6 +898,11 @@ export default function AddAssetPage() {
               name={fieldKey}
               value={value}
               onChange={handleChange}
+              // Bound the picker so the native year segment can't accept a
+              // 5–6 digit year (e.g. "2026445"): no earlier than 1900, and an
+              // acquisition/purchase date can't be in the future.
+              min='1900-01-01'
+              max={TODAY_ISO}
               className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
             />
           </div>
