@@ -7,7 +7,14 @@ import { motion } from 'framer-motion';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { toast } from 'react-toastify';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
-import { getAvailablePlans, createSubscription, updateSubscriptionPlan } from '@/utils/subscriptionsApi';
+import {
+  getAvailablePlans,
+  createSubscription,
+  updateSubscriptionPlan,
+  waitForActiveSubscription,
+  extractClientSecret,
+  SUBSCRIPTION_STATUS,
+} from '@/utils/subscriptionsApi';
 import { clearSubscriptionCache, hasActiveSubscription } from '@/utils/onboarding';
 import { FALLBACK_PRICING } from '@/config/plans';
 import { ERROR_CODES } from '@/config/apiErrorCodes';
@@ -38,27 +45,42 @@ const cardStyle = {
   },
 };
 
-// Pull the 3DS client_secret out of POST /subscriptions, which the backend may
-// expose at the top level, nested under `data`, or under `payment_intent`.
-const extractClientSecret = (res) => {
-  const top = res || {};
-  const data = top.data || {};
-  const pi = top.payment_intent || top.paymentIntent || data.payment_intent || data.paymentIntent || {};
-  return (
-    top.client_secret || top.clientSecret ||
-    data.client_secret || data.clientSecret ||
-    pi.client_secret || pi.clientSecret ||
-    null
-  );
-};
-
 function CheckoutForm({ mode = 'subscribe', billingCycle, price, planId, planReady, onDone, onAlreadySubscribed }) {
   const router = useRouter();
   const stripe = useStripe();
   const elements = useElements();
   const [busy, setBusy] = useState(false);
   const [cardError, setCardError] = useState(null);
+  // Set when the card cleared but the webhook hasn't landed within our patience.
+  // The money HAS moved — this is never an error state.
+  const [awaitingWebhook, setAwaitingWebhook] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const isUpgrade = mode === 'upgrade';
+
+  // Poll until the backend agrees the plan is live, then hand off. Purchase waits
+  // for status === 'active'; an upgrade's status is already active, so it waits
+  // for plan_id to actually flip to the plan we asked for.
+  const settleAndFinish = async () => {
+    setConfirming(true);
+    const settled = await waitForActiveSubscription(
+      isUpgrade
+        ? { isSettled: (sub) => String(sub?.planId || '').toLowerCase() === String(planId).toLowerCase() }
+        : {}
+    );
+    setConfirming(false);
+
+    if (!settled) {
+      // Don't navigate. /dashboard's SecureRoute would re-read `incomplete`,
+      // decide they have no plan, and bounce them to /select-plan — where they
+      // could pay a second time for what they just bought.
+      setAwaitingWebhook(true);
+      setBusy(false);
+      return;
+    }
+
+    toast.success(isUpgrade ? 'Payment confirmed — your plan has been upgraded.' : 'Subscription activated. Welcome aboard!');
+    onDone();
+  };
 
   const handlePay = async (e) => {
     e.preventDefault();
@@ -72,16 +94,16 @@ function CheckoutForm({ mode = 'subscribe', billingCycle, price, planId, planRea
     setCardError(null);
 
     try {
-      // 1) Create the subscription (or request the plan upgrade) — the backend
-      // returns a client_secret when a payment must be confirmed first.
+      // 1) Create the subscription (or request the plan upgrade). Neither grants
+      // the plan: both return status "incomplete" plus a client_secret.
       const res = isUpgrade
         ? await updateSubscriptionPlan({ planId, billingCycle })
         : await createSubscription({ planId, billingCycle });
       const clientSecret = extractClientSecret(res);
 
-      // 2) Client-confirmed charge (option A): confirm the PaymentIntent with the
-      // card entered here. confirmCardPayment also resolves any 3DS challenge.
-      // The plan only becomes active once Stripe confirms this payment.
+      // 2) Confirm the PaymentIntent with the card entered here; this also
+      // resolves any 3DS challenge. Clearing the card proves the money moved —
+      // it does NOT mean our backend knows yet. Stripe tells it via webhook.
       if (clientSecret) {
         const card = elements.getElement(CardElement);
         const { error } = await stripe.confirmCardPayment(clientSecret, {
@@ -92,13 +114,38 @@ function CheckoutForm({ mode = 'subscribe', billingCycle, price, planId, planRea
           setBusy(false);
           return;
         }
+      } else if (String(res?.subscription?.status || '').toLowerCase() === SUBSCRIPTION_STATUS.INCOMPLETE) {
+        // Incomplete with nothing to confirm means we can't finish the payment
+        // and must not pretend we did.
+        setCardError('We couldn’t start the payment. Please try again or contact support.');
+        setBusy(false);
+        return;
       }
 
-      toast.success(isUpgrade ? 'Payment confirmed — your plan has been upgraded.' : 'Subscription activated. Welcome aboard!');
-      onDone();
+      // 3) Only now is it safe to believe anything.
+      await settleAndFinish();
+      return;
     } catch (err) {
-      // 409 backstop: a subscription already exists (e.g. created in another tab
-      // between the mount-check and pay). Route to the upgrade flow, no charge.
+      // Pre-Stripe subscriptions have no Stripe subscription to proration-invoice.
+      // Nothing was charged; the only way onto a new plan is cancel + re-subscribe.
+      if (err?.code === ERROR_CODES.SUBSCRIPTION_NOT_STRIPE_BACKED) {
+        toast.error(err?.message || 'This plan can’t be upgraded. Please cancel it and subscribe again.');
+        router.push('/dashboard/settings?tab=payment');
+        return;
+      }
+      // 409 on purchase no longer just means "you have an active plan, go upgrade".
+      // It ALSO fires when our DB says `incomplete` but Stripe says the invoice is
+      // already paid — a missed webhook. In that state the user's money is gone and
+      // they DO have a plan. Telling them to buy again, or nudging them toward
+      // upgrade, would ask them to pay for something they already own. Treat it as
+      // a successful purchase whose confirmation we're still waiting on: re-read
+      // the subscription and let the poll decide.
+      if (!isUpgrade && err?.code === ERROR_CODES.SUBSCRIPTION_ALREADY_EXISTS) {
+        clearSubscriptionCache();
+        await settleAndFinish();
+        return;
+      }
+      // On the upgrade path a 409 keeps its original meaning.
       if (err?.code === ERROR_CODES.SUBSCRIPTION_ALREADY_EXISTS) {
         toast.info('You already have an active plan. Manage it in settings.');
         onAlreadySubscribed?.();
@@ -141,6 +188,38 @@ function CheckoutForm({ mode = 'subscribe', billingCycle, price, planId, planRea
     }
   };
 
+  // Card cleared, webhook still in flight. Never offer a "pay again" affordance
+  // here — the charge succeeded and a second submit would double-charge.
+  if (awaitingWebhook) {
+    return (
+      <div className="text-center">
+        <div className="w-14 h-14 rounded-full bg-[#F1CB68]/15 border border-[#F1CB68]/40 flex items-center justify-center mx-auto mb-4">
+          <svg className="animate-spin h-6 w-6 text-[#F1CB68]" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+        </div>
+        <h2 className="text-lg font-semibold mb-2">Payment received</h2>
+        <p className="text-sm text-gray-400 mb-6">
+          Your card was charged successfully. We’re still activating your plan — this
+          usually takes a few seconds. You will not be charged again.
+        </p>
+        <button
+          type="button"
+          onClick={() => { setAwaitingWebhook(false); setBusy(true); settleAndFinish(); }}
+          disabled={confirming}
+          className="w-full rounded-full px-6 py-3 font-semibold text-[#0B0D12] disabled:opacity-50"
+          style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)' }}
+        >
+          {confirming ? 'Checking…' : 'Check again'}
+        </button>
+        <p className="text-[11px] text-gray-500 mt-3">
+          Still stuck after a minute? Contact support — don’t re-enter your card.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handlePay}>
       <label className="block text-sm font-medium text-gray-300 mb-2">Card details</label>
@@ -165,7 +244,9 @@ function CheckoutForm({ mode = 'subscribe', billingCycle, price, planId, planRea
         className="w-full rounded-full px-6 py-3 font-semibold transition-all shadow-lg text-[#0B0D12] disabled:opacity-50"
         style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)' }}
       >
-        {busy
+        {confirming
+          ? 'Confirming payment…'
+          : busy
           ? 'Processing…'
           : `Pay ${formatUSD(price)} / ${billingCycle === 'annual' ? 'year' : 'month'}`}
       </button>
@@ -318,7 +399,7 @@ export default function CheckoutPage() {
           </h1>
           <p className="text-sm text-gray-400 mb-6">
             {isUpgrade
-              ? 'Review your new plan and confirm payment. Your plan is upgraded only after the payment succeeds.'
+              ? 'Review your new plan and confirm payment. Your plan is upgraded only after the payment succeeds. Stripe prorates the change, so the amount charged today may be less than the full plan price shown.'
               : 'You’re one step away. Review your plan and add a payment method to activate it.'}
           </p>
 

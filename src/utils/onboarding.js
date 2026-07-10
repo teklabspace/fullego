@@ -26,12 +26,17 @@ const hasPendingPlan = () => {
  *   GET /subscriptions always returns 200. Body is `null` (no subscription),
  *   the subscription object directly (investor with one), or
  *   `{ subscription: null, ... }` (staff). status enum:
- *   "active" | "past_due" | "expired" | "cancelled".
+ *   "incomplete" | "active" | "past_due" | "expired" | "cancelled".
  *
  * We grant access for "active" and "past_due" (so a payment-retry user can still
  * reach settings to fix billing instead of being pushed to re-subscribe, which
  * would overwrite their subscription and double-charge). Fails open on unexpected
  * errors so a transient hiccup never traps the user in a redirect loop.
+ *
+ * "incomplete" means a subscription row exists but no money has moved yet, so it
+ * grants nothing. That's correct — but it also means anything that navigates to a
+ * gated route straight after a successful card charge will race Stripe's webhook
+ * and get bounced. Callers must waitForActiveSubscription() before navigating.
  */
 export async function hasActiveSubscription({ force = false } = {}) {
   if (!force && subCache !== null) return subCache;

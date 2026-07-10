@@ -18,6 +18,43 @@ import SubscriptionHistory from '@/components/settings/SubscriptionHistory';
 import PlanChangeModal from '@/components/settings/PlanChangeModal';
 import AddPaymentMethodModal from '@/components/settings/AddPaymentMethodModal';
 
+// Invoice rows come straight from Stripe: `total` (not `amount`), and a status
+// from Stripe's vocabulary rather than our old PaymentStatus enum.
+const formatInvoiceTotal = (invoice) =>
+  invoice?.total == null
+    ? '—'
+    : `${Number(invoice.total).toFixed(2)} ${invoice.currency || 'USD'}`;
+
+const formatInvoiceDate = (invoice) => {
+  const raw = invoice?.createdAt;
+  if (!raw) return '—';
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? raw : d.toLocaleDateString();
+};
+
+// Only `paid` is good news. `open` is owed, `uncollectible` is written off, and
+// `void`/`draft` are neither. Painting them all green (as we used to) reads as
+// "settled" for invoices that very much aren't.
+//
+// The lower block is our pre-Stripe PaymentStatus vocabulary. Both are listed
+// because we deploy before the backend does, so for that window the endpoint
+// still speaks the old language. The values are never rewritten into each other.
+const INVOICE_STATUS_CLASS = {
+  paid: 'bg-green-500/20 text-green-400',
+  open: 'bg-[#F1CB68]/20 text-[#F1CB68]',
+  draft: 'bg-gray-500/20 text-gray-400',
+  uncollectible: 'bg-red-500/20 text-red-400',
+  void: 'bg-gray-500/20 text-gray-400',
+
+  completed: 'bg-green-500/20 text-green-400',
+  pending: 'bg-[#F1CB68]/20 text-[#F1CB68]',
+  failed: 'bg-red-500/20 text-red-400',
+  refunded: 'bg-gray-500/20 text-gray-400',
+};
+
+const invoiceStatusClass = (status) =>
+  INVOICE_STATUS_CLASS[String(status || '').toLowerCase()] || 'bg-gray-500/20 text-gray-400';
+
 export default function PaymentBilling({ isDarkMode }) {
   const router = useRouter();
   const { isAdmin, isAdvisor } = useAuth();
@@ -39,6 +76,8 @@ export default function PaymentBilling({ isDarkMode }) {
   // Payment methods / payment history / invoices stay on paymentsApi.
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
+  // Distinct from `paymentHistory.length === 0` — see fetchPayments.
+  const [historyUnavailable, setHistoryUnavailable] = useState(false);
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -72,7 +111,15 @@ export default function PaymentBilling({ isDarkMode }) {
         setPaymentMethods(methodsRes.value.data || methodsRes.value.paymentMethods || []);
       }
       if (historyRes.status === 'fulfilled') {
-        setPaymentHistory(historyRes.value.data || historyRes.value || []);
+        setPaymentHistory(historyRes.value?.data || []);
+        setHistoryUnavailable(false);
+      } else {
+        // /payments/history reads live from Stripe and 502s when Stripe is
+        // unreachable. An empty array means "never paid us"; a rejection means
+        // "we can't see your invoices right now". Rendering the outage as the
+        // empty state tells a paying customer they've never paid us.
+        setPaymentHistory([]);
+        setHistoryUnavailable(true);
       }
       if (invoicesRes.status === 'fulfilled') {
         setInvoices(invoicesRes.value.data || invoicesRes.value || []);
@@ -347,44 +394,69 @@ export default function PaymentBilling({ isDarkMode }) {
             <thead>
               <tr className={`border-b ${isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'}`}>
                 <th className={`text-left py-3 px-4 text-xs font-semibold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>CREATION DATE</th>
-                <th className={`text-left py-3 px-4 text-xs font-semibold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>DETAILS</th>
+                <th className={`text-left py-3 px-4 text-xs font-semibold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>INVOICE #</th>
                 <th className={`text-left py-3 px-4 text-xs font-semibold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>INVOICE TOTAL</th>
                 <th className={`text-left py-3 px-4 text-xs font-semibold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>INVOICE</th>
                 <th className={`text-left py-3 px-4 text-xs font-semibold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>STATUS</th>
               </tr>
             </thead>
             <tbody>
-              {paymentHistory.length === 0 && !loading ? (
+              {historyUnavailable && !loading ? (
+                <tr>
+                  <td colSpan={5} className="py-6 px-4 text-center text-sm text-amber-400">
+                    We couldn’t load your invoices right now. This is a temporary problem on
+                    our side — your payment history is safe. Please try again shortly.
+                  </td>
+                </tr>
+              ) : paymentHistory.length === 0 && !loading ? (
                 <tr>
                   <td colSpan={5} className={`py-6 px-4 text-center text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                     No payments found.
                   </td>
                 </tr>
               ) : (
-                paymentHistory.map((payment, index) => (
-                  <tr key={index} className={`border-b last:border-0 ${isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'}`}>
+                paymentHistory.map((payment) => (
+                  <tr key={payment.id} className={`border-b last:border-0 ${isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'}`}>
                     <td className={`py-4 px-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {payment.createdAt || payment.created_at || payment.date}
+                      {formatInvoiceDate(payment)}
                     </td>
-                    <td className={`py-4 px-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{payment.description || payment.details}</td>
+                    <td className={`py-4 px-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {payment.invoiceNumber || '—'}
+                    </td>
                     <td className={`py-4 px-4 font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {payment.amount != null ? `${payment.amount} ${payment.currency || 'USD'}` : ''}
+                      {formatInvoiceTotal(payment)}
                     </td>
                     <td className="py-4 px-4">
-                      <a
-                        href={payment.invoiceUrl || payment.invoice_url || '#'}
-                        className={`inline-flex items-center gap-1 text-sm ${isDarkMode ? 'text-[#F1CB68]' : 'text-[#BF9B30]'} hover:opacity-80 transition-opacity`}
-                      >
-                        PDF
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                          <polyline points="15 3 21 3 21 9" />
-                          <line x1="10" y1="14" x2="21" y2="3" />
-                        </svg>
-                      </a>
+                      <div className="flex items-center gap-3">
+                        {payment.hostedInvoiceUrl && (
+                          <a
+                            href={payment.hostedInvoiceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`text-sm ${isDarkMode ? 'text-[#F1CB68]' : 'text-[#BF9B30]'} hover:opacity-80 transition-opacity`}
+                          >
+                            View
+                          </a>
+                        )}
+                        {payment.invoicePdf && (
+                          <a
+                            href={payment.invoicePdf}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`text-sm ${isDarkMode ? 'text-[#F1CB68]' : 'text-[#BF9B30]'} hover:opacity-80 transition-opacity`}
+                          >
+                            Download
+                          </a>
+                        )}
+                        {!payment.hostedInvoiceUrl && !payment.invoicePdf && (
+                          <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>—</span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className="inline-block px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-semibold">{payment.status}</span>
+                      <span className={`inline-block px-3 py-1 text-xs rounded-full font-semibold capitalize ${invoiceStatusClass(payment.status)}`}>
+                        {payment.status}
+                      </span>
                     </td>
                   </tr>
                 ))
@@ -393,36 +465,56 @@ export default function PaymentBilling({ isDarkMode }) {
           </table>
         </div>
         <div className="md:hidden space-y-4">
-          {paymentHistory.length === 0 && !loading ? (
+          {historyUnavailable && !loading ? (
+            <p className="text-sm text-amber-400">
+              We couldn’t load your invoices right now. This is a temporary problem on our
+              side — your payment history is safe. Please try again shortly.
+            </p>
+          ) : paymentHistory.length === 0 && !loading ? (
             <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>No payments found.</p>
           ) : (
-            paymentHistory.map((payment, index) => (
+            paymentHistory.map((payment) => (
               <div
-                key={index}
+                key={payment.id}
                 className={`p-4 rounded-lg border ${isDarkMode ? 'bg-white/5 border-[#FFFFFF14]' : 'bg-gray-50 border-gray-200'}`}
               >
                 <div className="flex justify-between items-start mb-2">
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {payment.createdAt || payment.created_at || payment.date}
+                    {formatInvoiceDate(payment)}
                   </p>
-                  <span className="inline-block px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-semibold">{payment.status}</span>
+                  <span className={`inline-block px-3 py-1 text-xs rounded-full font-semibold capitalize ${invoiceStatusClass(payment.status)}`}>
+                    {payment.status}
+                  </span>
                 </div>
-                <p className={`text-sm mb-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{payment.description || payment.details}</p>
+                <p className={`text-sm mb-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {payment.invoiceNumber || '—'}
+                </p>
                 <div className="flex justify-between items-center">
                   <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {payment.amount != null ? `${payment.amount} ${payment.currency || 'USD'}` : ''}
+                    {formatInvoiceTotal(payment)}
                   </span>
-                  <a
-                    href={payment.invoiceUrl || payment.invoice_url || '#'}
-                    className={`inline-flex items-center gap-1 text-sm ${isDarkMode ? 'text-[#F1CB68]' : 'text-[#BF9B30]'} hover:opacity-80 transition-opacity`}
-                  >
-                    PDF
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                  </a>
+                  <div className="flex items-center gap-3">
+                    {payment.hostedInvoiceUrl && (
+                      <a
+                        href={payment.hostedInvoiceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`text-sm ${isDarkMode ? 'text-[#F1CB68]' : 'text-[#BF9B30]'} hover:opacity-80 transition-opacity`}
+                      >
+                        View
+                      </a>
+                    )}
+                    {payment.invoicePdf && (
+                      <a
+                        href={payment.invoicePdf}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`text-sm ${isDarkMode ? 'text-[#F1CB68]' : 'text-[#BF9B30]'} hover:opacity-80 transition-opacity`}
+                      >
+                        Download
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             ))

@@ -25,7 +25,69 @@ const steps = [
 
 // Today's date as YYYY-MM-DD, used as the max for acquisition/purchase date
 // pickers so a native date input can't accept a future or overflowed year.
-const TODAY_ISO = new Date().toISOString().split('T')[0];
+// Must be the LOCAL date, not toISOString()'s UTC date: east of UTC those differ
+// for part of the day, and a UTC max would stop a user in, say, UTC+13 from
+// picking their own today. The server allows 24h of slack for exactly this.
+const TODAY_ISO = new Date().toLocaleDateString('en-CA');
+
+// Open the native calendar from a click anywhere in a date input. Guarded twice:
+// showPicker is absent on older Safari/Firefox (which open on click anyway), and
+// it throws if the browser judges the call to lack user activation.
+const openDatePicker = event => {
+  const input = event.currentTarget;
+  if (typeof input.showPicker !== 'function') return;
+  try {
+    input.showPicker();
+  } catch {
+    // Fall back to the browser's own indicator icon.
+  }
+};
+
+// The backend's `asset_type` enum — send these exact lowercase strings. It is
+// independent of `category` and `category_group`; all three are sent.
+//
+// Omitting it is not neutral: the backend then DERIVES one (Portfolio → "stock",
+// everything else → "other"). That default is why a crypto holding can sit in the
+// database labelled a stock. Making the user choose is the whole point of this
+// field, so it starts blank and we only fall back to a derived seed below.
+const assetTypes = [
+  { value: 'stock', label: 'Stock' },
+  { value: 'bond', label: 'Bond' },
+  { value: 'real_estate', label: 'Real Estate' },
+  { value: 'luxury_asset', label: 'Luxury Asset' },
+  { value: 'crypto', label: 'Crypto' },
+  { value: 'other', label: 'Other' },
+];
+
+// Where a category unambiguously implies an asset_type, pre-select it so the
+// common cases are right by default and the user only corrects the ambiguous
+// ones. Anything absent here starts blank rather than guessing.
+const ASSET_TYPE_BY_CATEGORY = {
+  'Crypto Assets': 'crypto',
+  'Stablecoins & CBDCs': 'crypto',
+  'DeFi Instruments': 'crypto',
+  'Public Equities': 'stock',
+  'Stock Options / RSUs': 'stock',
+  'Fixed Income': 'bond',
+  'Convertible Notes': 'bond',
+  'Real Estate': 'real_estate',
+  'REITs & Real Estate Funds': 'real_estate',
+  'Farmland & Agri Land': 'real_estate',
+  Yachts: 'luxury_asset',
+  'Private Jets': 'luxury_asset',
+  Vehicles: 'luxury_asset',
+  'Art & Collectibles': 'luxury_asset',
+  'Watches & Jewelry': 'luxury_asset',
+};
+
+// Currency inputs are free text ("$61,500", "61500"). Strip the decoration and
+// return a number, or undefined for blank/garbage so the key is dropped from the
+// payload rather than sent as NaN.
+const toAmount = raw => {
+  if (raw === null || raw === undefined || raw === '') return undefined;
+  const n = parseFloat(String(raw).replace(/[^0-9.-]+/g, ''));
+  return Number.isFinite(n) ? n : undefined;
+};
 
 const conditions = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor'];
 const ownershipTypes = ['Sole', 'Joint', 'Trust', 'Corporate'];
@@ -71,9 +133,11 @@ const getFieldType = fieldName => {
   return 'text';
 };
 
-// Helper function to get select options
+// Helper function to get select options. Entries are either plain strings (value
+// === label) or { value, label } when the wire value differs from what we show.
 const getSelectOptions = fieldName => {
   const lowerName = fieldName.toLowerCase();
+  if (lowerName.includes('asset type')) return assetTypes;
   if (lowerName.includes('condition')) return conditions;
   if (lowerName.includes('ownership type')) return ownershipTypes;
   if (lowerName.includes('risk level')) return riskLevels;
@@ -175,9 +239,14 @@ export default function AddAssetPage() {
       const initialData = {};
       fields.forEach(field => {
         const key = fieldNameToKey(field);
-        if (getFieldType(field) === 'select') {
-          const options = getSelectOptions(field);
-          initialData[key] = options[0] || '';
+        if (key === 'asset_type') {
+          // Seed from the category where it's unambiguous, else leave blank so the
+          // user picks. Never default to the first option — that's how every
+          // Portfolio asset ended up stamped "stock".
+          initialData[key] = ASSET_TYPE_BY_CATEGORY[categoryId] || '';
+        } else if (getFieldType(field) === 'select') {
+          const [first] = getSelectOptions(field);
+          initialData[key] = (typeof first === 'string' ? first : first?.value) || '';
         } else {
           initialData[key] = '';
         }
@@ -343,20 +412,29 @@ export default function AddAssetPage() {
           name: formData.asset_name || formData.name || '',
           category: categoryObj?.name || selectedCategory,
           categoryGroup: selectedCategoryGroup || categoryObj?.categoryGroup || 'Assets',
-          description: formData.description || '',
-          location: formData.location || '',
-          estimatedValue: estimatedValue ? parseFloat(estimatedValue.replace(/[^0-9.-]+/g, '')) : undefined,
-          currentValue: estimatedValue ? parseFloat(estimatedValue.replace(/[^0-9.-]+/g, '')) : undefined,
+          // Omit rather than send "". On update the backend guards on `is not
+          // None`, so "" overwrites and null leaves the field alone — sending ""
+          // for a field the user never saw would wipe their existing text.
+          description: formData.description || undefined,
+          location: formData.location || undefined,
+          // The backend derives this when omitted (Portfolio → "stock"), which is
+          // how a crypto holding gets labelled a stock. Send what the user chose.
+          assetType: formData.asset_type || undefined,
+          // Step 3's valuation wins when given, but a "Current Value" typed on the
+          // step-1 form is a real number the user entered and used to be dropped
+          // on the floor — it was stripped from specifications and never promoted.
+          estimatedValue: toAmount(estimatedValue) ?? toAmount(formData.current_value),
+          currentValue: toAmount(estimatedValue) ?? toAmount(formData.current_value),
           condition: formData.condition || undefined,
           ownershipType: formData.ownership_type || undefined,
           acquisitionDate: formData.acquisition_date || formData.purchase_date || undefined,
-          purchasePrice: formData.purchase_price ? parseFloat(formData.purchase_price.replace(/[^0-9.-]+/g, '')) : undefined,
+          purchasePrice: toAmount(formData.purchase_price),
           currency: formData.currency || 'USD',
           valuationType: valuationType || 'manual',
-          // Backend expects UUIDs (IDs), not URLs!
-          // Send both 'images' and 'photos' arrays with IDs to support different backend expectations
+          // Backend expects UUIDs (IDs), not URLs. Create merges `photos` and
+          // `images` and de-duplicates, so sending both was harmless but dead
+          // weight — `images` is only a backward-compatibility alias.
           photos: photoIds.length > 0 ? photoIds : undefined,
-          images: photoIds.length > 0 ? photoIds : undefined, // Some backends expect 'images'
           documents: documentIds.length > 0 ? documentIds : undefined,
           specifications: {
             // Include all category-specific fields
@@ -366,6 +444,8 @@ export default function AddAssetPage() {
             name: undefined,
             category: undefined,
             categoryGroup: undefined,
+            // Promoted to the top level of the payload above.
+            asset_type: undefined,
             description: undefined,
             location: undefined,
             estimated_value: undefined,
@@ -900,10 +980,16 @@ export default function AddAssetPage() {
               onChange={handleChange}
               // Bound the picker so the native year segment can't accept a
               // 5–6 digit year (e.g. "2026445"): no earlier than 1900, and an
-              // acquisition/purchase date can't be in the future.
+              // acquisition/purchase date can't be in the future. The calendar
+              // popup greys out everything outside this range for free.
               min='1900-01-01'
               max={TODAY_ISO}
-              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
+              // Chrome opens the calendar only from its indicator icon. Open it
+              // from anywhere in the field instead. showPicker() needs transient
+              // user activation, so bind it to click and never to focus — a
+              // keyboard tab into the field would throw NotAllowedError.
+              onClick={openDatePicker}
+              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white cursor-pointer [color-scheme:dark] focus:outline-none focus:border-[#F1CB68] transition-colors'
             />
           </div>
         );
@@ -969,8 +1055,10 @@ export default function AddAssetPage() {
           </div>
         );
 
-      case 'select':
-        const options = getSelectOptions(fieldName);
+      case 'select': {
+        const options = getSelectOptions(fieldName).map(opt =>
+          typeof opt === 'string' ? { value: opt, label: opt } : opt
+        );
         return (
           <div key={fieldKey} className='mb-6'>
             <label className='block text-sm font-medium text-white mb-2'>
@@ -982,18 +1070,18 @@ export default function AddAssetPage() {
               onChange={handleChange}
               className="w-full"
             >
-              {options.length > 0 ? (
-                options.map(option => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))
-              ) : (
-                <option value=''>Select {fieldName}</option>
-              )}
+              {/* A blank first option only where one isn't pre-selected, so the
+                  user makes a real choice instead of accepting a silent default. */}
+              {!value && <option value=''>Select {fieldName}</option>}
+              {options.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
         );
+      }
 
       default:
         return (

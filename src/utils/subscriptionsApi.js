@@ -60,6 +60,79 @@ const transformToSnake = (obj) => {
 // ============================================================================
 
 /**
+ * The full status set the backend can report. All lowercase, like kyc_status.
+ * `incomplete` means the subscription row exists but no money has moved — it
+ * grants NO access. Everything else is self-explanatory.
+ */
+export const SUBSCRIPTION_STATUS = {
+  INCOMPLETE: 'incomplete',
+  ACTIVE: 'active',
+  CANCELLED: 'cancelled',
+  EXPIRED: 'expired',
+  PAST_DUE: 'past_due',
+};
+
+/** Dig the subscription object out of either response shape. */
+const unwrapSubscription = (res) =>
+  res && typeof res === 'object' && 'subscription' in res ? res.subscription : res;
+
+/**
+ * Pull the 3DS/confirmation client_secret out of a subscribe/renew/upgrade
+ * response. The backend exposes it at the top level, but has historically also
+ * nested it under `data` or `payment_intent`, so check all three. Both casings,
+ * because only `data` and `subscription` go through transformKeys.
+ */
+export const extractClientSecret = (res) => {
+  const top = res || {};
+  const data = top.data || {};
+  const pi =
+    top.payment_intent || top.paymentIntent ||
+    data.payment_intent || data.paymentIntent || {};
+  return (
+    top.client_secret || top.clientSecret ||
+    data.client_secret || data.clientSecret ||
+    pi.client_secret || pi.clientSecret ||
+    null
+  );
+};
+
+/**
+ * Block until Stripe's webhook has landed and the subscription is really live.
+ *
+ * Purchase, renewal and upgrade all return `incomplete` now: confirming the card
+ * with Stripe.js only proves the charge cleared, not that our backend knows it.
+ * The webhook lands a beat later. Anything that reads the subscription in that
+ * window — the dashboard's SecureRoute gate above all — sees `incomplete`, reads
+ * it as "no plan", and bounces a paying user back to /select-plan, where they can
+ * cheerfully buy the same plan a second time.
+ *
+ * So: never navigate, never toast success, until this resolves truthy.
+ *
+ * @param {(sub) => boolean} [isSettled] - override the "we're done" test. Upgrade
+ *        passes one that waits for plan_id to flip, not just for `active`.
+ * @returns {Promise<object|null>} the settled subscription, or null on timeout.
+ *          A timeout is NOT a failure — the money moved. Say so in the UI.
+ */
+export const waitForActiveSubscription = async ({
+  timeoutMs = 20000,
+  intervalMs = 1500,
+  isSettled = (sub) => String(sub?.status || '').toLowerCase() === SUBSCRIPTION_STATUS.ACTIVE,
+} = {}) => {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const sub = unwrapSubscription(await getCurrentSubscription());
+      if (sub && isSettled(sub)) return sub;
+    } catch {
+      // A transient read failure mid-poll is not a payment failure. Keep trying
+      // until the deadline; the caller's timeout copy covers the rest.
+    }
+    if (Date.now() >= deadline) return null;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+};
+
+/**
  * Get Available Plans
  * GET /api/v1/subscriptions/plans
  */
@@ -95,17 +168,18 @@ export const getCurrentSubscription = async () => {
 /**
  * Create Subscription
  * POST /api/v1/subscriptions
+ *
+ * Returns status "incomplete" plus a client_secret. The user does NOT have the
+ * plan yet — confirm the payment with Stripe.js, then waitForActiveSubscription().
  */
 export const createSubscription = async (subscriptionData) => {
   const transformedData = transformToSnake(subscriptionData);
   const endpoint = API_ENDPOINTS.SUBSCRIPTIONS.CREATE;
   const response = await apiPost(endpoint, transformedData);
 
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-
-  return response;
+  // camelCase the whole envelope, not just `data` — requires_action,
+  // client_secret and pending_plan_id all live at the top level now.
+  return response ? transformKeys(response) : response;
 };
 
 /**
@@ -134,11 +208,9 @@ export const renewSubscription = async () => {
   const endpoint = API_ENDPOINTS.SUBSCRIPTIONS.RENEW;
   const response = await apiPost(endpoint);
 
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-
-  return response;
+  // Renewal is now payment-gated like purchase: the response carries
+  // requires_action + client_secret and the subscription reads "incomplete".
+  return response ? transformKeys(response) : response;
 };
 
 /**
@@ -148,6 +220,14 @@ export const renewSubscription = async () => {
  * @param {Object} updateData - Update data
  * @param {string} updateData.planId - New plan ID (optional)
  * @param {string} updateData.billingCycle - New billing cycle: 'monthly' or 'annual' (optional)
+ *
+ * WARNING: the returned `subscription.planId` is still the user's OLD plan. The
+ * new plan isn't written locally until Stripe's proration invoice is paid and the
+ * webhook syncs it. Read `pendingPlanId` for what they're moving to, and never
+ * render the new plan from `subscription.planId` after calling this.
+ *
+ * Stripe computes the proration, so the amount charged may differ from any figure
+ * we calculated locally. Stripe's is correct.
  */
 export const updateSubscriptionPlan = async (updateData) => {
   const endpoint = API_ENDPOINTS.SUBSCRIPTIONS.UPGRADE;
@@ -157,14 +237,7 @@ export const updateSubscriptionPlan = async (updateData) => {
   };
   const response = await apiPut(endpoint, body);
 
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  if (response.subscription) {
-    response.subscription = transformKeys(response.subscription);
-  }
-
-  return response;
+  return response ? transformKeys(response) : response;
 };
 
 /**

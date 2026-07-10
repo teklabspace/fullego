@@ -11,7 +11,9 @@ import {
   updateSubscriptionPlan,
   cancelSubscription,
   renewSubscription,
+  waitForActiveSubscription,
 } from '@/utils/subscriptionsApi';
+import { clearSubscriptionCache } from '@/utils/onboarding';
 import { getStripe } from '@/lib/stripe';
 
 // Backend response shapes are inconsistent; prefer `data`, then a named key,
@@ -104,14 +106,25 @@ export function useSubscription() {
             await load();
             return false;
           }
+          // A cleared card is not an active plan. Purchase, renewal and upgrade
+          // all stay `incomplete` until Stripe's webhook reaches our backend, so
+          // announcing success here would be a lie the UI immediately contradicts.
+          const settled = await waitForActiveSubscription();
+          await load();
+          if (!settled) {
+            toast.info('Payment received — we’re still activating your plan. Refresh in a moment.');
+            return true;
+          }
           toast.success(successMsg);
-        } else {
-          toast.info('Additional authentication is required to complete payment.');
+          clearSubscriptionCache();
+          return true;
         }
+        toast.info('Additional authentication is required to complete payment.');
       } else {
         toast.success(successMsg);
       }
       await load();
+      clearSubscriptionCache();
       return true;
     } catch (err) {
       toast.error(err?.message || failMsg);

@@ -600,7 +600,10 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
       // Pull the freshly-created record into the Past Appraisals history.
       refreshAppraisalHistory();
     } catch (err) {
-      if (err.status === 403) {
+      if (err.code === 'KYC_REQUIRED') {
+        // Also a 403. lib/api/client.js already routes to /choose-profile on this
+        // code, so say nothing — an "upgrade your plan" toast would be a lie.
+      } else if (err.status === 403) {
         // Monthly limit hit — surface the backend message and re-sync quota so
         // the button disables.
         toast.info(apiErrorMessage(err, 'You have reached your monthly AI appraisal limit. Upgrade for more.'));
@@ -641,9 +644,15 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
         prev ? { ...prev, aiReviewStatus: review.decision } : prev
       );
     } catch (err) {
-      if (err.status === 403) {
+      // Quota-exhausted and KYC-blocked both come back 403 — only error.code
+      // separates them, so never branch on the status alone here.
+      if (err.code === 'KYC_REQUIRED') {
+        // lib/api/client.js already routes to /choose-profile on this code.
+      } else if (err.status === 403) {
         toast.info(apiErrorMessage(err, 'You have reached your monthly AI review limit. Upgrade for more.'));
         getAiUsage().then(setAiUsage).catch(() => {});
+      } else if (err.status === 404) {
+        toast.error(apiErrorMessage(err, 'This asset no longer exists.'));
       } else if (err.status === 503) {
         toast.error(apiErrorMessage(err, 'The AI service is temporarily unavailable. Please try again.'));
       } else {

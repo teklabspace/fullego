@@ -33,9 +33,12 @@ export const categoryGroupConfig = {
     ],
   },
   Portfolio: {
+    // 'Asset Type' maps to the backend's `asset_type`. It used to read
+    // 'Investment Type' — a field that exists nowhere in the backend, so every
+    // value the user picked was silently dropped by Pydantic's `extra: ignore`.
     formFields: [
       'Asset Name',
-      'Investment Type',
+      'Asset Type',
       'Category',
       'Institution',
       'Account Number (masked)',
@@ -48,7 +51,7 @@ export const categoryGroupConfig = {
     ],
     cardFields: [
       'Asset Name',
-      'Investment Type',
+      'Asset Type',
       'Category',
       'Institution',
       'Current Value',
