@@ -161,7 +161,39 @@ export const shareDocument = async (documentId, shareData) => {
 export const getDocumentStatistics = async () => {
   const endpoint = API_ENDPOINTS.DOCUMENTS.STATISTICS;
   const response = await apiGet(endpoint);
-  return transformKeys(response);
+  return normalizeDocumentStats(response);
+};
+
+/**
+ * Platform-wide document category counts across ALL users.
+ * GET /api/v1/admin/documents/statistics  — admin only (403 otherwise).
+ *
+ * Returns { categories: { <label>: n }, total } where total is the platform-wide
+ * document count. Call this only for admin; branch on role in the page.
+ */
+export const getAdminDocumentStatistics = async () => {
+  const endpoint = API_ENDPOINTS.ADMIN.DOCUMENTS_STATISTICS;
+  const response = await apiGet(endpoint);
+  return normalizeDocumentStats(response);
+};
+
+/**
+ * The document category labels ARE the backend enum values, verbatim: Title Case,
+ * and "Bank Statements" contains a space. They must be read exactly — never
+ * lowercased or slugified (same casing trap as kyc_status). transformKeys only
+ * rewrites snake_case (an "_x" -> "X"), so these particular labels pass through
+ * untouched; even so we transform the envelope but hand the `categories` map back
+ * exactly as the backend sent it, so a future label with an underscore can't be
+ * silently mangled.
+ */
+const normalizeDocumentStats = (response) => {
+  if (!response || typeof response !== 'object') return response;
+  const rawCategories = response.categories;
+  const shaped = transformKeys(response);
+  if (rawCategories && typeof rawCategories === 'object') {
+    shaped.categories = rawCategories; // verbatim, keys are the enum values
+  }
+  return shaped;
 };
 
 /**

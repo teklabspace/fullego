@@ -141,9 +141,20 @@ function KYCVerificationContent() {
           });
         };
 
-        // Use existing hosted URL from GET /kyc/status before POST /kyc/start
-        let flow = applyResponse(kycResponse);
-        if (flow === 'done' || flow === 'redirected' || flow === 'embedded') return;
+        // Reuse the GET /kyc/status response directly ONLY when it can move the
+        // user forward without embedding: an approved record, or one that already
+        // carries a hosted verification_url. A record with a persona_inquiry_id
+        // but no URL — e.g. an inquiry left half-created by the earlier backend
+        // outage — must NOT be embedded: Persona's hosted page refuses to load in
+        // an iframe (X-Frame-Options), and that is the "Verification failed" dead
+        // end users are hitting. Fall through to POST /kyc/start for a fresh URL.
+        if (
+          kycResponse?.status === KYC_STATUS.APPROVED ||
+          kycResponse?.verification_url
+        ) {
+          const flow = applyResponse(kycResponse);
+          if (flow === 'done' || flow === 'redirected') return;
+        }
 
         const needsStart =
           kycResponse.status === KYC_STATUS.NOT_STARTED ||

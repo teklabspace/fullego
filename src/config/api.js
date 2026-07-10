@@ -574,6 +574,10 @@ export const API_ENDPOINTS = {
     // GET_ASSET_BY_CODE looks up by asset code (e.g. AK-01). Both attach `owner`.
     LIST_ASSETS: '/admin/assets',
     GET_ASSET_BY_CODE: (code) => `/admin/assets/${code}`,
+    // Platform-wide document category counts (all users), admin-gated — 403 for
+    // advisor/investor. Same shape as GET /documents/statistics' `categories`
+    // plus a platform-wide `total`. Mirrors the /admin/assets scoping pattern.
+    DOCUMENTS_STATISTICS: '/admin/documents/statistics',
     // Support Dashboard (admin-only, dedicated endpoints)
     SUPPORT_TICKETS: '/admin/support/tickets',
     ASSET_REQUESTS: '/admin/asset-requests',

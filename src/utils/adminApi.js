@@ -44,11 +44,42 @@ export const createAdvisor = ({ email, firstName, lastName, phone, password } = 
     ...(password ? { password } : {}),
   });
 
+// De-dupe KYC documents by stable file path. The Persona completion webhook can
+// process the same event more than once, inserting duplicate document rows, so an
+// admin would see each ID image / selfie listed twice. Backend fix (idempotent
+// webhook) is separate scheduled work; until then, guard on display. Key on the
+// file path, NOT view_url — that's a short-lived signed URL whose query changes
+// every fetch, so it would never match. Fall back to id so distinct documents are
+// never collapsed if no path field is present.
+const dedupeKycDocuments = (detail) => {
+  if (!detail || !Array.isArray(detail.documents)) return detail;
+  const seen = new Set();
+  const documents = [];
+  for (const doc of detail.documents) {
+    const key =
+      doc.file_path || doc.filePath || doc.storage_path || doc.storagePath ||
+      (typeof doc.view_url === 'string' ? doc.view_url.split('?')[0] : null) ||
+      doc.id;
+    if (key != null && seen.has(key)) continue;
+    if (key != null) seen.add(key);
+    documents.push(doc);
+  }
+  return { ...detail, documents };
+};
+
 // Full KYC review detail for one user: status, capture_status, extracted
 // fields, Persona checks, and documents (each with a short-lived signed
 // view_url, ~600s — re-call this to refresh expired links).
-export const getUserKyc = (userId) =>
-  apiGet(API_ENDPOINTS.ADMIN.GET_USER_KYC(userId));
+export const getUserKyc = async (userId) => {
+  const res = await apiGet(API_ENDPOINTS.ADMIN.GET_USER_KYC(userId));
+  // The client unwraps the envelope, so `res` is the detail object; keep the
+  // `res.data` branch as defense in case an un-migrated shape slips through.
+  if (res && Array.isArray(res.documents)) return dedupeKycDocuments(res);
+  if (res?.data && Array.isArray(res.data.documents)) {
+    return { ...res, data: dedupeKycDocuments(res.data) };
+  }
+  return res;
+};
 
 // Manually approve a user's KYC (fallback when Persona doesn't succeed). Admin
 // only; rejected for admin targets / already-approved KYC.
