@@ -210,6 +210,33 @@ akunuba/
 
 ---
 
+## 🔗 Backend contracts — read these, don't guess
+
+This repo has no backend. When you need the exact shape of a response, read it
+from the backend source rather than inferring it from a sample payload, a DB row,
+or an existing stub. Sample payloads have been wrong before, in ways that pass a
+green test and fail in production.
+
+| What | Where it's defined (backend repo) |
+|------|-----------------------------------|
+| KYC status values | `KYCStatus` in `app/models/kyc.py` |
+| `GET /users/me` shape | `UserProfileResponse` in `app/api/v1/users.py:105` |
+| Login / register / refresh shape | `LoginUserResponse` in `app/schemas/user.py:43` |
+
+Two traps that have already bitten us:
+
+- **KYC status is lowercase snake_case** (`approved`, `pending_review`), because the
+  API serializes the enum *value*. The DB column stores the enum *name*
+  (`APPROVED`), so anything copied out of a raw DB row looks uppercase and won't
+  match. `kycApi.js` normalizes to lowercase on the way in.
+- **`GET /users/me` does not return `is_kyc_verified`.** It returns `kyc_status`.
+  Only the login/register/refresh responses carry `is_kyc_verified`. Reading it
+  off `/users/me` yields `undefined`, which is falsy, which silently reads as
+  "KYC not cleared" and bounces a verified user back into onboarding.
+  `authApi.getUserProfile()` derives the flag so callers see one shape.
+
+---
+
 ## 🌐 Deployment
 
 ### Cloudflare Pages Deployment

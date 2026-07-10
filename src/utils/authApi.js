@@ -225,9 +225,24 @@ export const isAuthenticated = () => {
 /**
  * Get current user profile
  * GET /api/v1/users/me
+ *
+ * Unlike the login/register/refresh responses, /users/me does NOT return
+ * `is_kyc_verified` — it returns `kyc_status` (lowercase KYCStatus enum value).
+ * Callers merge this profile over the stored user_info, so without deriving the
+ * flag here the stale `is_kyc_verified: false` from login survives and a
+ * freshly-approved user reads as "KYC not cleared" and gets bounced back into
+ * onboarding. Derive it so every consumer sees one consistent shape.
  */
 export const getUserProfile = async () => {
-  return await apiGet(API_ENDPOINTS.USERS.PROFILE);
+  const profile = await apiGet(API_ENDPOINTS.USERS.PROFILE);
+  if (profile && typeof profile === 'object' && 'kyc_status' in profile) {
+    return {
+      ...profile,
+      is_kyc_verified:
+        String(profile.kyc_status || '').toLowerCase() === 'approved',
+    };
+  }
+  return profile;
 };
 
 /**
