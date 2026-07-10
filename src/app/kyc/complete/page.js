@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   getKYCStatus,
@@ -12,11 +12,15 @@ import { getUserProfile } from '@/utils/authApi';
 import { getStoredUser } from '@/utils/permissions';
 import { resolveOnboardingRoute } from '@/utils/onboarding';
 
-const POLL_INTERVAL_MS = 2500;
-const MAX_POLL_MS = 60000;
+// Persona redirects the browser here after the hosted inquiry finishes and
+// appends its own query params (inquiry-id, reference-id, status). We ignore
+// all of them: they're client-controlled and a user could edit them. The only
+// source of truth is GET /kyc/status, which reads the result from Persona
+// server-side, so a single fetch is enough — no polling, no delay.
 
-// Refresh the cached profile so the KYC gate (SecureRoute/useAuth read
-// user_info.is_kyc_verified) lifts without a re-login.
+// Refresh the cached profile so the KYC gate (useAuth and resolveOnboardingRoute
+// read user_info.is_kyc_verified) lifts without a re-login. Note is_verified is
+// NOT the KYC signal — it's true for a merely email-verified user.
 const refreshStoredProfile = async () => {
   try {
     const profile = await getUserProfile();
@@ -44,137 +48,119 @@ const refreshStoredProfile = async () => {
 const destinationAfterApproval = async () => {
   await refreshStoredProfile();
   try {
-    const dest = await resolveOnboardingRoute(getStoredUser());
-    return dest || '/dashboard';
+    return (await resolveOnboardingRoute(getStoredUser())) || '/dashboard';
   } catch {
     return '/dashboard';
   }
 };
 
-function KycCompleteContent() {
+// IN_PROGRESS means Persona hasn't finalized the inquiry yet; it's a pending
+// state, never an error. NOT_STARTED/EXPIRED shouldn't reach this page, but a
+// pending screen with a refresh is a safer landing than an error.
+const uiStateFor = status => {
+  switch (status) {
+    case KYC_STATUS.APPROVED:
+      return 'approved';
+    case KYC_STATUS.REJECTED:
+      return 'rejected';
+    case KYC_STATUS.PENDING_REVIEW:
+      return 'pending_review';
+    default:
+      return 'pending';
+  }
+};
+
+export default function KycCompletePage() {
   const router = useRouter();
   const [uiStatus, setUiStatus] = useState('loading');
   const [kycData, setKycData] = useState(null);
   const [rejectionReason, setRejectionReason] = useState(null);
-  const [pollAttempt, setPollAttempt] = useState(0);
   const [error, setError] = useState(null);
   const [resubmitting, setResubmitting] = useState(false);
-  const pollStartedAt = useRef(null);
 
-  const loadRejectionReason = useCallback(async () => {
+  const checkStatus = useCallback(async () => {
+    setError(null);
+    setUiStatus('loading');
+
     try {
-      const reason = await getKYCRejectionReason();
-      setRejectionReason(reason?.reason || reason?.detail || reason);
-    } catch {
-      // Optional endpoint
-    }
-  }, []);
+      const kyc = await getKYCStatus();
+      setKycData(kyc);
+      const next = uiStateFor(kyc.status);
 
-  useEffect(() => {
-    let cancelled = false;
-    let timeoutId;
-
-    const poll = async () => {
-      if (cancelled) return;
-
-      const elapsed = Date.now() - (pollStartedAt.current ?? Date.now());
-      if (elapsed >= MAX_POLL_MS) {
-        setUiStatus('pending');
-        setError(
-          'Verification is taking longer than expected. You can refresh or check back shortly.'
-        );
+      if (next === 'rejected') {
+        // /kyc/status carries no rejection_reason, so this second call is the
+        // only way to get one. It 400s unless status is exactly `rejected`,
+        // which is why it lives in this branch and nowhere else.
+        try {
+          const detail = await getKYCRejectionReason();
+          setRejectionReason(detail?.reason || detail?.detail || null);
+        } catch {
+          // Generic copy covers it.
+        }
+        setUiStatus('rejected');
         return;
       }
 
-      try {
-        setPollAttempt(prev => prev + 1);
-        const kycStatus = await getKYCStatus();
-        if (cancelled) return;
-
-        setKycData(kycStatus);
-
-        if (kycStatus.status === KYC_STATUS.APPROVED) {
-          setUiStatus('approved');
-          const dest = await destinationAfterApproval();
-          if (cancelled) return;
-          timeoutId = setTimeout(() => router.replace(dest), 1500);
-          return;
-        }
-
-        if (kycStatus.status === KYC_STATUS.REJECTED) {
-          setUiStatus('rejected');
-          await loadRejectionReason();
-          if (kycStatus.rejection_reason) {
-            setRejectionReason(kycStatus.rejection_reason);
-          }
-          return;
-        }
-
-        if (kycStatus.status === KYC_STATUS.PENDING_REVIEW) {
-          setUiStatus('pending_review');
-          return;
-        }
-
-        timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
-      } catch (err) {
-        if (cancelled) return;
-        const message =
-          err.data?.detail || err.message || 'Failed to check verification status';
-        setError(message);
-        setUiStatus('error');
-      }
-    };
-
-    pollStartedAt.current = Date.now();
-    poll();
-
-    return () => {
-      cancelled = true;
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [router, loadRejectionReason]);
-
-  const handleRefresh = async () => {
-    setError(null);
-    setUiStatus('loading');
-    pollStartedAt.current = Date.now();
-    setPollAttempt(0);
-    try {
-      const kycStatus = await getKYCStatus();
-      setKycData(kycStatus);
-      if (kycStatus.status === KYC_STATUS.APPROVED) {
+      if (next === 'approved') {
         setUiStatus('approved');
         router.replace(await destinationAfterApproval());
-      } else if (kycStatus.status === KYC_STATUS.REJECTED) {
-        setUiStatus('rejected');
-        if (kycStatus.rejection_reason) {
-          setRejectionReason(kycStatus.rejection_reason);
-        } else {
-          await loadRejectionReason();
-        }
-      } else if (kycStatus.status === KYC_STATUS.PENDING_REVIEW) {
-        setUiStatus('pending_review');
-      } else {
-        setUiStatus('pending');
+        return;
       }
+
+      setUiStatus(next);
     } catch (err) {
-      setError(err.data?.detail || err.message || 'Failed to refresh status');
+      if (err.status === 401) {
+        router.replace('/login');
+        return;
+      }
+      setError(
+        err.data?.detail || err.message || 'Failed to check verification status'
+      );
       setUiStatus('error');
     }
-  };
+  }, [router]);
 
-  // Contract: rejected users restart via POST /kyc/resubmit (fresh Persona
-  // inquiry), then go back through the verification flow.
+  useEffect(() => {
+    // KYC endpoints are authenticated; Persona returns the user in the same
+    // browser, so the session should still be here. If not, sign in.
+    if (typeof window !== 'undefined' && !localStorage.getItem('access_token')) {
+      router.replace('/login');
+      return;
+    }
+    checkStatus();
+  }, [router, checkStatus]);
+
+  // Contract: POST /kyc/resubmit 400s unless status is exactly `rejected`, so
+  // it's only ever reachable from the rejected screen. On success it mints a
+  // fresh Persona inquiry and returns the verification_url — that URL is the
+  // ONLY way back into the flow, so never swallow a failure here and route on
+  // regardless; that walks the user into a dead end with no inquiry.
   const handleRetry = async () => {
     setResubmitting(true);
     try {
-      await resubmitKYC();
-    } catch {
-      // If resubmit fails (e.g. not in a resubmittable state) the
-      // verification page still handles starting/continuing a flow.
+      const res = await resubmitKYC();
+      if (res?.verification_url) {
+        window.location.href = res.verification_url;
+        return;
+      }
+      setError('Could not start a new verification. Please contact support.');
+      setUiStatus('error');
+    } catch (err) {
+      setError(
+        err.data?.detail ||
+          err.message ||
+          'Could not restart verification. Please contact support.'
+      );
+      setUiStatus('error');
+    } finally {
+      setResubmitting(false);
     }
-    router.push('/kyc-verification');
   };
+
+  // in_progress means Persona has an open inquiry; reuse the URL already on the
+  // /kyc/status response rather than minting a new one.
+  const resumeUrl =
+    kycData?.status === KYC_STATUS.IN_PROGRESS ? kycData?.verification_url : null;
 
   if (uiStatus === 'loading') {
     return (
@@ -205,9 +191,6 @@ function KycCompleteContent() {
           <p className='text-gray-400 text-sm'>
             Please wait while we confirm your verification with Persona.
           </p>
-          {pollAttempt > 0 && (
-            <p className='text-gray-500 text-xs mt-3'>Checking status…</p>
-          )}
         </div>
       </div>
     );
@@ -217,7 +200,23 @@ function KycCompleteContent() {
     return (
       <div className='min-h-screen bg-[#0B0D12] flex items-center justify-center p-4'>
         <div className='text-center max-w-md'>
-          <h1 className='text-white text-2xl font-bold mb-2'>Verification approved</h1>
+          <div className='w-16 h-16 rounded-full bg-green-500/15 border border-green-500/40 flex items-center justify-center mx-auto mb-6'>
+            <svg
+              width='28'
+              height='28'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='#4ADE80'
+              strokeWidth='2.5'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <path d='M20 6L9 17l-5-5' />
+            </svg>
+          </div>
+          <h1 className='text-white text-2xl font-bold mb-2'>
+            Identity verified
+          </h1>
           <p className='text-gray-400 text-sm'>Taking you to the next step…</p>
         </div>
       </div>
@@ -231,23 +230,33 @@ function KycCompleteContent() {
           <h1 className='text-white text-2xl font-bold mb-2'>Under review</h1>
           <p className='text-gray-400 text-sm mb-6'>
             {uiStatus === 'pending_review'
-              ? 'Your identity verification is being reviewed. This usually takes 1–2 business days.'
-              : 'Your verification is still processing. You can refresh status or return later.'}
+              ? 'We’re reviewing your documents. We’ll email you as soon as it’s done — this usually takes 1–2 business days.'
+              : 'Your verification is still processing. You can refresh the status or come back later.'}
           </p>
-          {error && (
-            <p className='text-yellow-400/90 text-sm mb-4'>{error}</p>
-          )}
+          {error && <p className='text-yellow-400/90 text-sm mb-4'>{error}</p>}
           <div className='flex flex-col sm:flex-row gap-3 justify-center'>
-            <button
-              type='button'
-              onClick={handleRefresh}
-              className='px-6 py-3 rounded-full font-semibold text-[#0B0D12]'
-              style={{
-                background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
-              }}
-            >
-              Refresh status
-            </button>
+            {resumeUrl ? (
+              <a
+                href={resumeUrl}
+                className='px-6 py-3 rounded-full font-semibold text-[#0B0D12]'
+                style={{
+                  background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
+                }}
+              >
+                Continue verification
+              </a>
+            ) : (
+              <button
+                type='button'
+                onClick={checkStatus}
+                className='px-6 py-3 rounded-full font-semibold text-[#0B0D12]'
+                style={{
+                  background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
+                }}
+              >
+                Refresh status
+              </button>
+            )}
             <button
               type='button'
               onClick={() => router.push('/dashboard')}
@@ -264,13 +273,28 @@ function KycCompleteContent() {
   if (uiStatus === 'rejected') {
     const reason =
       rejectionReason ||
-      kycData?.rejection_reason ||
-      'Your verification could not be completed. Please try again.';
+      'Your verification could not be completed. Please try again with clearer documents.';
 
     return (
       <div className='min-h-screen bg-[#0B0D12] flex items-center justify-center p-4'>
         <div className='text-center max-w-md w-full'>
-          <h1 className='text-white text-2xl font-bold mb-2'>Verification rejected</h1>
+          <div className='w-16 h-16 rounded-full bg-red-500/15 border border-red-500/40 flex items-center justify-center mx-auto mb-6'>
+            <svg
+              width='28'
+              height='28'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='#F87171'
+              strokeWidth='2.5'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <path d='M18 6L6 18M6 6l12 12' />
+            </svg>
+          </div>
+          <h1 className='text-white text-2xl font-bold mb-2'>
+            Verification unsuccessful
+          </h1>
           <div className='bg-red-500/10 border border-red-500/50 rounded-xl p-4 mb-6 text-left'>
             <p className='text-gray-300 text-sm'>{reason}</p>
           </div>
@@ -304,14 +328,16 @@ function KycCompleteContent() {
   return (
     <div className='min-h-screen bg-[#0B0D12] flex items-center justify-center p-4'>
       <div className='text-center max-w-md w-full'>
-        <h1 className='text-white text-xl font-semibold mb-2'>Something went wrong</h1>
+        <h1 className='text-white text-xl font-semibold mb-2'>
+          Something went wrong
+        </h1>
         <p className='text-red-400 text-sm mb-6'>
           {error || 'We could not confirm your verification status.'}
         </p>
         <div className='flex flex-col sm:flex-row gap-3 justify-center'>
           <button
             type='button'
-            onClick={handleRefresh}
+            onClick={checkStatus}
             className='px-6 py-3 rounded-full font-semibold text-[#0B0D12]'
             style={{
               background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
@@ -329,19 +355,5 @@ function KycCompleteContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function KycCompletePage() {
-  return (
-    <Suspense
-      fallback={
-        <div className='min-h-screen bg-[#0B0D12] flex items-center justify-center text-white'>
-          Loading…
-        </div>
-      }
-    >
-      <KycCompleteContent />
-    </Suspense>
   );
 }

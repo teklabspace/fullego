@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { startKYC, uploadKYCDocument, getKYCStatus } from '@/utils/kycApi';
+import { startKYC, uploadKYCDocument, getKYCStatus, KYC_STATUS } from '@/utils/kycApi';
 
 const steps = [
   { id: 1, title: 'Account Setup', status: 'completed' },
@@ -31,7 +31,7 @@ export default function DocumentVerificationPage() {
         setKycStatus(status);
         console.log('KYC Status:', status);
         
-        if (status.status === 'NOT_STARTED') {
+        if (status.status === KYC_STATUS.NOT_STARTED) {
           // Start KYC if not already started
           const startResponse = await startKYC();
           console.log('KYC Started:', startResponse);

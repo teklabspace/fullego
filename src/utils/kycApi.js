@@ -12,6 +12,19 @@ import { isPersonaInquiryCreateDisabledError } from '@/utils/kycErrors';
  */
 const logger = apiLogger;
 
+/**
+ * The API serializes KYCStatus by enum *value* — lowercase snake_case
+ * ('pending_review'). The DB column stores the enum *name* ('PENDING_REVIEW'),
+ * so raw DB rows and hand-copied payloads look uppercase. Normalizing on the way
+ * in keeps every `status === KYC_STATUS.X` comparison honest either way: an
+ * un-normalized mismatch silently fails the check and would strand a verified
+ * user on the "under review" screen.
+ */
+const normalizeKycStatus = (response) =>
+  response && typeof response.status === 'string'
+    ? { ...response, status: response.status.toLowerCase() }
+    : response;
+
 // ==================== KYC APIs ====================
 
 /**
@@ -44,7 +57,7 @@ export const startKYC = async (verificationLevel = null, verificationType = null
       verificationLevel: response.verification_level,
     });
 
-    return response;
+    return normalizeKycStatus(response);
   } catch (error) {
     if (!isPersonaInquiryCreateDisabledError(error)) {
       logger.error('Failed to start KYC verification', error);
@@ -68,7 +81,7 @@ export const getKYCStatus = async () => {
       verificationLevel: response.verification_level,
     });
 
-    return response;
+    return normalizeKycStatus(response);
   } catch (error) {
     logger.error('Failed to fetch KYC status', {
       error: error.message,
@@ -93,7 +106,7 @@ export const submitKYC = async () => {
       status: response.status,
     });
 
-    return response;
+    return normalizeKycStatus(response);
   } catch (error) {
     logger.error('Failed to submit KYC', {
       error: error.message,
@@ -198,7 +211,7 @@ export const resubmitKYC = async () => {
       personaInquiryId: response.persona_inquiry_id,
     });
 
-    return response;
+    return normalizeKycStatus(response);
   } catch (error) {
     logger.error('Failed to resubmit KYC', {
       error: error.message,
@@ -250,7 +263,7 @@ export const syncKYCStatus = async () => {
       verifiedAt: response.verified_at,
     });
 
-    return response;
+    return normalizeKycStatus(response);
   } catch (error) {
     logger.error('Failed to sync KYC status', {
       error: error.message,
@@ -405,13 +418,10 @@ export const submitKYB = async () => {
 // ==================== KYC Status Constants ====================
 
 /**
- * KYC Status Constants
- * These match the backend enum values (lowercase with underscores)
- * Backend maps Persona statuses:
- * - approved → 'approved'
- * - pending → 'pending_review'  
- * - failed → 'rejected'
- * - processing → 'in_progress'
+ * KYC Status Constants — the exact values of KYCStatus in the backend's
+ * app/models/kyc.py. Compare only against statuses that went through
+ * normalizeKycStatus (i.e. anything returned by the functions in this file).
+ * `not_started` is also what you get for a user with no account or no KYC record.
  */
 export const KYC_STATUS = {
   NOT_STARTED: 'not_started',
