@@ -13,9 +13,22 @@ import {
   downloadDocument,
   shareDocument,
   getDocumentStatistics,
+  getAdminDocumentStatistics,
   getDocumentPreview,
 } from '@/utils/documentsApi';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'react-toastify';
+
+// The document category labels, verbatim as the backend enum. Casing and the
+// space in "Bank Statements" are load-bearing — these strings are sent on upload
+// and used as keys into the stats `categories` map. Don't lowercase or slugify.
+const DOCUMENT_CATEGORIES = [
+  'Identity',
+  'Tax',
+  'Investments',
+  'Legal',
+  'Bank Statements',
+];
 
 // Document type icon mapping
 const getDocumentIcon = type => {
@@ -167,10 +180,11 @@ const buildStatsCards = (statistics) => [
   },
 ];
 
-// BUG-10: GET /documents/statistics is shadowed by GET /documents/{document_id}
-// on the backend, so it returns 422 (uuid_parsing on "statistics"). Until the
-// backend route ordering is fixed, derive the same stats client-side from the
-// documents list we already fetched so the page still renders useful values.
+// Defensive fallback: derive the storage cards from the already-fetched document
+// list if GET /documents/statistics is unavailable. This originally worked around
+// BUG-10 (the route was shadowed by GET /documents/{document_id} and 422'd on
+// "statistics"); the backend has since fixed the route ordering, so this is now
+// just a safety net rather than the expected path.
 const computeStatisticsFromDocuments = (docs) => {
   const totalBytes = docs.reduce((sum, d) => sum + (d.size || d.fileSize || 0), 0);
   const lastUploadedMs = docs.reduce((latest, d) => {
@@ -288,13 +302,20 @@ export default function DocumentsPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const tabs = [
-    { name: 'Identity', count: 12 },
-    { name: 'Tax', count: 24 },
-    { name: 'Investments', count: 37 },
-    { name: 'Legal', count: 18 },
-    { name: 'Bank Statements', count: 37 },
-  ];
+  const { isAdmin } = useAuth();
+
+  // Real per-category counts, zero-filled so a tile always has a number even
+  // before the fetch lands (the backend also zero-fills, so an absent key never
+  // happens). For admin these are platform-wide (all users); for everyone else,
+  // their own. Was previously hardcoded (Identity 12 / Tax 24 / …) against a
+  // documents table that is empty in production, so those numbers were fiction.
+  const [categoryCounts, setCategoryCounts] = useState(() =>
+    Object.fromEntries(DOCUMENT_CATEGORIES.map(name => [name, 0]))
+  );
+  const tabs = DOCUMENT_CATEGORIES.map(name => ({
+    name,
+    count: categoryCounts[name] ?? 0,
+  }));
 
   const [documents, setDocuments] = useState([]);
   const [stats, setStats] = useState([
@@ -371,15 +392,43 @@ export default function DocumentsPage() {
           }));
         }
 
+        let perUserStats = null;
         if (statsResponse.status === 'fulfilled') {
-          const statistics = statsResponse.value.data || statsResponse.value;
-          setStats(buildStatsCards(statistics));
+          perUserStats = statsResponse.value;
+          setStats(buildStatsCards(perUserStats));
         } else {
-          // BUG-10: the statistics endpoint 422s because it's shadowed by the
-          // dynamic /documents/{document_id} route on the backend. Compute the
-          // stats from the documents we already loaded so the page still renders.
+          // Defensive fallback: if the statistics endpoint is unavailable, compute
+          // the storage cards from the documents we already loaded so the page
+          // still renders. (This used to be the norm — BUG-10, where the route was
+          // shadowed by /documents/{id} and 422'd — but the backend has since
+          // fixed the route ordering; this is now just belt-and-suspenders.)
           console.warn('Document statistics endpoint failed; computing from documents list', statsResponse.reason);
           setStats(buildStatsCards(computeStatisticsFromDocuments(rawDocs)));
+        }
+
+        // Category tiles are role-scoped: admin sees platform-wide counts (all
+        // users) via the admin endpoint; everyone else sees their own, which ride
+        // along on the per-user statistics response. Keys are the exact enum
+        // labels — read verbatim, zero-filled per category by the backend.
+        let categories = perUserStats?.categories || null;
+        if (isAdmin) {
+          try {
+            const adminStats = await getAdminDocumentStatistics();
+            categories = adminStats?.categories || categories;
+          } catch (adminErr) {
+            // Non-fatal: fall back to the admin's own counts rather than blanking
+            // the tiles. A 403 here would mean the role check disagrees with ours.
+            console.warn('Platform-wide document stats unavailable; showing own counts', adminErr);
+          }
+        }
+        if (categories) {
+          setCategoryCounts(prev => {
+            const next = { ...prev };
+            for (const name of DOCUMENT_CATEGORIES) {
+              if (categories[name] != null) next[name] = categories[name];
+            }
+            return next;
+          });
         }
       } catch (error) {
         console.error('Failed to fetch documents:', error);
@@ -390,7 +439,7 @@ export default function DocumentsPage() {
     };
 
     fetchDocuments();
-  }, [activeTab, sortBy]);
+  }, [activeTab, sortBy, isAdmin]);
 
   // Filter and sort documents
   const filteredDocuments = documents
@@ -732,6 +781,11 @@ export default function DocumentsPage() {
 
       {/* Tabs */}
       <div className='mb-6'>
+        {isAdmin && (
+          <p className={`text-xs mb-2 ${isDarkMode ? 'text-[#F1CB68]' : 'text-[#BF9B30]'}`}>
+            Showing document counts across all users (platform-wide).
+          </p>
+        )}
         <div
           className='flex gap-2 flex-wrap pb-4'
           style={{

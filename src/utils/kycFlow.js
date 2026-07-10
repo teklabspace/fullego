@@ -124,9 +124,12 @@ export async function startKycWithHostedFlowFirst({
     if (status?.status === KYC_STATUS.APPROVED) {
       return { outcome: 'approved', data: status };
     }
-    const fromStatus = handleKycStartResponse(status, { onEmbeddedInquiryId });
-    if (fromStatus !== 'error') {
-      return { outcome: fromStatus, data: status };
+    // Only reuse an existing hosted URL. A record with a persona_inquiry_id but
+    // no verification_url must NOT be embedded — Persona's hosted page can't be
+    // iframed (X-Frame-Options), so embedding it is the "Verification failed"
+    // dead end. Fall through to POST /kyc/start, which mints a fresh hosted URL.
+    if (status?.verification_url && redirectToVerificationUrl(status)) {
+      return { outcome: 'redirected', data: status };
     }
   } catch (err) {
     if (err?.status !== 404) {
