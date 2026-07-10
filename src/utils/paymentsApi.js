@@ -91,28 +91,74 @@ export const handlePaymentWebhook = async (webhookData) => {
 };
 
 /**
+ * Stripe's invoice status vocabulary, which is what /payments/history now
+ * reports. Do NOT rewrite our old PaymentStatus (completed/failed/…) into these
+ * — they mean different things and a false `paid` is worse than an odd label.
+ */
+export const INVOICE_STATUS = {
+  DRAFT: 'draft',
+  OPEN: 'open',
+  PAID: 'paid',
+  UNCOLLECTIBLE: 'uncollectible',
+  VOID: 'void',
+};
+
+/**
+ * Normalize a payment-history row to the post-Stripe shape.
+ *
+ * We ship ahead of the backend's billing rewrite, so for the length of that
+ * window this endpoint still returns the OLD shape: `amount` not `total`,
+ * `invoice_url` not `hosted_invoice_url`, no `invoice_number`, and our own
+ * completed/failed status vocabulary. Reading only the new keys would blank out
+ * every amount and break every invoice link on production until they deploy.
+ *
+ * Renaming keys is safe. Rewriting `status` values is not — it's carried through
+ * untouched so a stale `completed` never masquerades as a Stripe `paid`.
+ */
+const normalizeInvoice = (row) => ({
+  ...row,
+  total: row.total ?? row.amount ?? null,
+  hostedInvoiceUrl: row.hostedInvoiceUrl ?? row.invoiceUrl ?? null,
+  invoicePdf: row.invoicePdf ?? null,
+  // Old rows have a free-text description where new ones carry an invoice number.
+  invoiceNumber: row.invoiceNumber ?? row.description ?? null,
+});
+
+/**
  * Get Payment History
  * GET /api/v1/payments/history
- * 
- * @param {Object} params - Query parameters
- * @param {number} params.limit - Number of payments (default: 20, max: 100)
- * @param {number} params.offset - Pagination offset (default: 0)
- * @param {string} params.status - Filter by status: 'completed', 'pending', 'failed', 'refunded' (optional)
+ *
+ * Reads live from Stripe. Each row is an invoice:
+ *   { id, invoiceNumber, createdAt, total, currency, status,
+ *     hostedInvoiceUrl, invoicePdf }
+ * Note `total`, not `amount`.
+ *
+ * Pagination is cursor-based — Stripe's API can't honour an offset, and faking
+ * one silently returns wrong pages. Pass the previous response's
+ * `nextStartingAfter` as `startingAfter`.
+ *
+ * Throws on 502 (Stripe unreachable). An empty `data` array means the user has
+ * genuinely never paid us. Callers MUST render those two differently: telling a
+ * customer they have no invoices during a billing outage is its own incident.
+ *
+ * @param {Object} params
+ * @param {number} params.limit - Page size (default 20)
+ * @param {string} params.startingAfter - Invoice id cursor from nextStartingAfter
  */
 export const getPaymentHistory = async (params = {}) => {
   const queryParams = new URLSearchParams();
   if (params.limit) queryParams.append('limit', params.limit.toString());
-  if (params.offset) queryParams.append('offset', params.offset.toString());
-  if (params.status) queryParams.append('status', params.status);
-  
+  if (params.startingAfter) queryParams.append('starting_after', params.startingAfter);
+
   const endpoint = `${API_ENDPOINTS.PAYMENTS.HISTORY}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  if (!response) return response;
+
+  const shaped = transformKeys(response);
+  return {
+    ...shaped,
+    data: Array.isArray(shaped.data) ? shaped.data.map(normalizeInvoice) : [],
+  };
 };
 
 /**

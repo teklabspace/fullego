@@ -38,6 +38,10 @@ export const SUBSCRIPTION_ERROR_CODES = {
   NO_ACTIVE_SUBSCRIPTION: 400,
   SUBSCRIPTION_ALREADY_ACTIVE: 400,
   SUBSCRIPTION_NOT_ACTIVE: 400,
+  // Upgrading a subscription created before Stripe backed them. No Stripe
+  // subscription exists to proration-invoice, so the only path is cancel +
+  // re-subscribe.
+  SUBSCRIPTION_NOT_STRIPE_BACKED: 400,
   // 403s when a user isn't eligible to subscribe/upgrade/renew.
   EMAIL_NOT_VERIFIED: 403,
   KYC_NOT_APPROVED: 403,

@@ -12,6 +12,9 @@ export default function TransactionsPage() {
   const { isDarkMode } = useTheme();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Stripe was unreachable (502). Distinct from "this user has no payments" —
+  // without this the outage merges into the list as a silent absence of rows.
+  const [paymentsUnavailable, setPaymentsUnavailable] = useState(false);
   const [filter, setFilter] = useState('all'); // 'all' | 'trading' | 'payment' | 'banking'
   const [dateRange, setDateRange] = useState({
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -42,8 +45,10 @@ export default function TransactionsPage() {
         try {
           const paymentTxs = await fetchPaymentTransactions();
           allTransactions.push(...paymentTxs);
+          setPaymentsUnavailable(false);
         } catch (error) {
           console.error('Failed to fetch payment transactions:', error);
+          setPaymentsUnavailable(true);
         }
       }
 
@@ -107,26 +112,31 @@ export default function TransactionsPage() {
     }
   };
 
+  // Rows are Stripe invoices now: `total` (not `amount`), `invoiceNumber`, and a
+  // Stripe status (paid/open/void/…) rather than our old completed/failed enum.
+  // Pagination is a `startingAfter` cursor; `offset` no longer exists.
   const fetchPaymentTransactions = async () => {
     try {
-      const response = await getPaymentHistory({
-        limit: 100,
-        offset: 0,
-      });
-      const paymentsData = response.data || [];
+      const response = await getPaymentHistory({ limit: 100 });
+      const paymentsData = response?.data || [];
       return paymentsData.map((payment) => ({
-        id: payment.id || `payment_${payment.createdAt}`,
+        id: payment.id,
         type: 'payment',
-        name: payment.description || 'Payment',
-        amount: `-$${payment.amount?.toFixed(2) || '0.00'}`,
+        name: payment.invoiceNumber ? `Invoice ${payment.invoiceNumber}` : 'Payment',
+        amount: payment.total != null ? `-$${Number(payment.total).toFixed(2)}` : '—',
         date: payment.createdAt ? new Date(payment.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
         time: payment.createdAt ? new Date(payment.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
-        status: payment.status || 'completed',
+        status: payment.status,
         category: 'payment',
         rawDate: payment.createdAt,
       }));
     } catch (error) {
-      return [];
+      // /payments/history 502s when Stripe is unreachable. Returning [] here
+      // would silently merge "billing outage" into "no payments" in a list that
+      // shows other transaction sources too — so the user sees a plausible,
+      // wrong history. Surface it instead.
+      console.error('Could not load payment history:', error);
+      throw error;
     }
   };
 
@@ -265,6 +275,12 @@ export default function TransactionsPage() {
       </div>
 
       <GlassCard className='p-6'>
+        {paymentsUnavailable && !loading && (
+          <div className='mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-400'>
+            Payments couldn’t be loaded right now, so this list may be incomplete. Your
+            payment history is safe — please try again shortly.
+          </div>
+        )}
         <div className='overflow-x-auto'>
           <table className='w-full'>
             <thead>
