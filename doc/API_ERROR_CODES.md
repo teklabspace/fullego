@@ -37,6 +37,7 @@ Returned by the global exception handlers when an error carries no domain code.
 | `NOT_FOUND` | 404 | Resource not found |
 | `METHOD_NOT_ALLOWED` | 405 | Wrong HTTP method for the route |
 | `CONFLICT` | 409 | Conflicts with current state |
+| `GONE` | 410 | Resource permanently gone |
 | `VALIDATION_ERROR` | 422 | Field validation failed — see `error.details` |
 | `RATE_LIMITED` | 429 | Too many requests |
 | `INTERNAL_ERROR` | 500 | Unhandled server error (internals hidden in prod) |
@@ -55,6 +56,19 @@ Returned by the global exception handlers when an error carries no domain code.
 | `NO_ACTIVE_SUBSCRIPTION` | 400 | Cancel called with nothing active |
 | `SUBSCRIPTION_ALREADY_ACTIVE` | 400 | Renew called on an already-active sub |
 | `SUBSCRIPTION_NOT_ACTIVE` | 400 | Upgrade/downgrade requires an active sub |
+
+## Domain codes — Assets / sharing
+
+| code | HTTP | raised when |
+|------|------|-------------|
+| `SHARE_LINK_EXPIRED` | 410 | `GET /assets/{id}/shared` with a share link past its expiry (unknown/deactivated codes are a plain 404) |
+
+## Domain codes — Marketplace / listings
+
+| code | HTTP | raised when |
+|------|------|-------------|
+| `ASSET_UNDER_APPRAISAL` | 409 | Create/approve/activate a listing while the asset has an open human appraisal (listing auto-suspends until the appraisal ends) |
+| `LISTING_NOT_OPEN` | 409 | Accept an offer on a listing that is off-market (`suspended` during valuation, `sold`, `cancelled`) |
 
 ## Validation error details
 

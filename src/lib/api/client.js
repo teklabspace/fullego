@@ -168,6 +168,14 @@ export const apiRequest = async (endpoint, options = {}) => {
   // Prepare headers
   const headers = getDefaultHeaders(options.headers);
 
+  // Public endpoints (options.auth === false) must NOT carry a Bearer token.
+  // getDefaultHeaders() attaches whatever token localStorage holds — a stale/
+  // expired one turns a public 200 into a 401 "Invalid authentication
+  // credentials" (hit by shared-asset links opened after a session died).
+  if (options.auth === false) {
+    delete headers['Authorization'];
+  }
+
   // Parse request body for logging
   let requestBody = null;
   try {
@@ -216,8 +224,11 @@ export const apiRequest = async (endpoint, options = {}) => {
       console.log('[API RESPONSE]', method, endpoint, response.status, responseData);
     } else {
       // Expired/invalid access token → try a one-time silent refresh + retry.
+      // Public (auth:false) calls never sent a token, so a 401 there is a real
+      // backend answer — refreshing wouldn't change it.
       const eligibleForRefresh =
         response.status === 401 &&
+        options.auth !== false &&
         !options._retry &&
         !NO_REFRESH_ENDPOINTS.some((p) => endpoint.includes(p)) &&
         !!readStoredToken('refresh_token');

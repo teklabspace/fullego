@@ -754,13 +754,43 @@ export const cancelAssetTransfer = async (assetId, transferId) => {
 export const getSharedAsset = async (assetId, accessCode) => {
   const query = accessCode ? `?code=${encodeURIComponent(accessCode)}` : '';
   const endpoint = `${API_ENDPOINTS.ASSETS.GET_SHARED(assetId)}${query}`;
-  const response = await apiGet(endpoint);
+  // auth:false — never send a Bearer token here. This is a public endpoint;
+  // a stale token in localStorage (dead session) would 401 a valid link.
+  const response = await apiGet(endpoint, { auth: false });
 
   if (response?.data) {
     response.data = transformKeys(response.data);
   }
 
   return response;
+};
+
+/**
+ * 23c. Assets shared with the signed-in user ("Shared with me").
+ * GET /api/v1/assets/shared-with-me   (bearer required)
+ *
+ * Grants are keyed by email and claimed by VERIFYING the email — there is no
+ * claim call. 403 { error.code: "EMAIL_NOT_VERIFIED" } until then (deliberately
+ * not KYC-gated). Each item: { asset (standard shape), permissions, shared_at,
+ * expires_at, access_code, share_link }. These are view-only grants — the
+ * assets do NOT appear in GET /assets; open them via the public share page
+ * using access_code.
+ *
+ * Returns { items: [...camelCase], count }.
+ */
+export const getSharedWithMe = async () => {
+  const response = await apiGet(API_ENDPOINTS.ASSETS.SHARED_WITH_ME);
+  // Envelope nests the list as data.data (same shape family as GET /shared).
+  const outer = response?.data || response || {};
+  const rawItems = Array.isArray(outer.data)
+    ? outer.data
+    : Array.isArray(outer)
+    ? outer
+    : [];
+  return {
+    items: transformKeys(rawItems),
+    count: typeof outer.count === 'number' ? outer.count : rawItems.length,
+  };
 };
 
 /**

@@ -29,6 +29,20 @@ export default function SharedAssetPage() {
   const [expiresAt, setExpiresAt] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  // { assetId, accessCode, sharedWithEmail } — feeds the signup CTA so a new
+  // account created from this link can be tied back to the share.
+  const [shareContext, setShareContext] = useState(null);
+  // Whether the visitor already has a session (set post-mount to avoid a
+  // hydration mismatch — localStorage isn't available at build time).
+  const [hasSession, setHasSession] = useState(false);
+
+  useEffect(() => {
+    try {
+      setHasSession(!!localStorage.getItem('access_token'));
+    } catch {
+      /* private mode — treat as logged out */
+    }
+  }, []);
 
   useEffect(() => {
     // Resolve the asset id from the route params, falling back to the pathname
@@ -67,10 +81,22 @@ export default function SharedAssetPage() {
         const response = await getSharedAsset(assetId, accessCode);
         if (cancelled) return;
 
-        const data = response?.data || response || {};
+        // Envelope is { success, data: { data: { asset, … } } } — unwrap both
+        // nestings defensively so a single-level payload also works.
+        const outer = response?.data || response || {};
+        const data = outer.data || outer;
         setAsset(data.asset || null);
         setPermissions(Array.isArray(data.permissions) ? data.permissions : []);
         setExpiresAt(data.expiresAt ?? data.expires_at ?? null);
+        // shared_with (→ sharedWith post-transform): the email the share was
+        // addressed to, null for open link-shares. Prefills signup so the new
+        // account matches the share grant — verifying that email IS the claim
+        // (backend auto-lists the asset under /assets/shared-with-me).
+        setShareContext({
+          assetId,
+          accessCode,
+          sharedWithEmail: data.sharedWith || data.shared_with || null,
+        });
         setStatus(data.asset ? 'ready' : 'invalid');
       } catch (err) {
         if (cancelled) return;
@@ -78,6 +104,14 @@ export default function SharedAssetPage() {
           setStatus('expired');
         } else if (err?.status === 404) {
           setStatus('invalid');
+        } else if (err?.status === 401 || err?.status === 403) {
+          // Should no longer happen — the backend made this endpoint public
+          // (2026-07-11, with a route-placement regression test). Kept as a
+          // defensive net so a visitor never sees "Not authenticated".
+          setStatus('error');
+          setErrorMessage(
+            'This share link could not be opened right now. Please try again later or ask the owner to send a new link.'
+          );
         } else {
           setStatus('error');
           setErrorMessage(
@@ -171,6 +205,8 @@ export default function SharedAssetPage() {
             isDarkMode={isDarkMode}
             cardBg={cardBg}
             subtext={subtext}
+            shareContext={shareContext}
+            hasSession={hasSession}
           />
         )}
       </div>
@@ -210,7 +246,16 @@ function SharedAssetView({
   isDarkMode,
   cardBg,
   subtext,
+  shareContext,
+  hasSession,
 }) {
+  // Signup CTA target. Only the email rides along (prefills the form) — no
+  // claim context is needed: share grants are keyed by email server-side, and
+  // VERIFYING the email is the claim. After signup + verification the asset
+  // appears under GET /assets/shared-with-me automatically.
+  const signupParams = new URLSearchParams();
+  if (shareContext?.sharedWithEmail) signupParams.set('email', shareContext.sharedWithEmail);
+  const signupHref = `/signup${signupParams.toString() ? `?${signupParams.toString()}` : ''}`;
   const images =
     asset.images && asset.images.length > 0
       ? asset.images
@@ -331,6 +376,49 @@ function SharedAssetView({
                 <p className={`text-xs mb-1 ${subtext}`}>Estimated Value</p>
                 <p className='text-lg font-semibold'>{estimatedValue}</p>
               </div>
+            )}
+          </div>
+
+          {/* Account CTA — the shared view stays read-only for visitors; any
+              further action goes through an account. Signing up with the email
+              the share was addressed to puts this asset in that account. */}
+          <div className={`border rounded-2xl p-6 ${cardBg}`}>
+            {hasSession ? (
+              <>
+                <h2 className='text-lg font-semibold mb-2'>You&apos;re signed in</h2>
+                <p className={`text-sm mb-4 ${subtext}`}>
+                  Open your dashboard to manage your own assets and portfolio.
+                </p>
+                <a
+                  href='/dashboard'
+                  className='block w-full text-center px-4 py-3 rounded-lg font-semibold text-sm bg-gradient-to-r from-white to-[#F1CB68] text-black hover:opacity-90 transition-opacity'
+                >
+                  Go to Dashboard
+                </a>
+              </>
+            ) : (
+              <>
+                <h2 className='text-lg font-semibold mb-2'>Want to do more with this asset?</h2>
+                <p className={`text-sm mb-4 ${subtext}`}>
+                  Create a free Akunuba account
+                  {shareContext?.sharedWithEmail ? (
+                    <> using <span className='font-semibold'>{shareContext.sharedWithEmail}</span></>
+                  ) : null}
+                  {' '}and this shared asset will be available in it.
+                </p>
+                <a
+                  href={signupHref}
+                  className='block w-full text-center px-4 py-3 rounded-lg font-semibold text-sm bg-gradient-to-r from-white to-[#F1CB68] text-black hover:opacity-90 transition-opacity'
+                >
+                  Sign Up to Continue
+                </a>
+                <p className={`text-xs mt-3 text-center ${subtext}`}>
+                  Already have an account?{' '}
+                  <a href='/login' className='text-[#F1CB68] hover:underline'>
+                    Log in
+                  </a>
+                </p>
+              </>
             )}
           </div>
         </div>
