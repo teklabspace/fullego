@@ -231,13 +231,15 @@ export default function InvestmentDetailClient() {
               ? 'Pending Approval'
               : listing.status === 'approved'
                 ? 'Approved'
-                : listing.status === 'rejected'
-                  ? 'Rejected'
-                  : listing.status === 'sold'
-                    ? 'Sold'
-                    : listing.status === 'cancelled'
-                      ? 'Cancelled'
-                      : 'Closed',
+                : listing.status === 'suspended'
+                  ? 'Under Valuation'
+                  : listing.status === 'rejected'
+                    ? 'Rejected'
+                    : listing.status === 'sold'
+                      ? 'Sold'
+                      : listing.status === 'cancelled'
+                        ? 'Cancelled'
+                        : 'Closed',
         rejectionReason: listing.rejectionReason || listing.rejection_reason || '',
         minimum: listing.askingPrice
           ? `$${listing.askingPrice.toLocaleString()}`
@@ -442,8 +444,13 @@ export default function InvestmentDetailClient() {
                           : 'Activate Listing'}
                       </button>
                     )}
+                    {/* Suspended (under valuation) is excluded too: the listing
+                        is off-market and the backend will re-publish/restore it
+                        when the appraisal ends — cancelling mid-valuation has
+                        undefined restore semantics. */}
                     {listingStatus !== 'sold' &&
-                      listingStatus !== 'cancelled' && (
+                      listingStatus !== 'cancelled' &&
+                      listingStatus !== 'suspended' && (
                         <button
                           onClick={handleCancel}
                           disabled={!!ownerActionBusy}
@@ -507,7 +514,7 @@ export default function InvestmentDetailClient() {
                   className={`w-2 h-2 rounded-full ${
                     listingStatus === 'rejected' || listingStatus === 'cancelled'
                       ? 'bg-red-500'
-                      : listingStatus === 'pending_approval'
+                      : listingStatus === 'pending_approval' || listingStatus === 'suspended'
                         ? 'bg-yellow-500'
                         : 'bg-green-500'
                   }`}
@@ -516,7 +523,7 @@ export default function InvestmentDetailClient() {
                   className={`text-sm font-medium ${
                     listingStatus === 'rejected' || listingStatus === 'cancelled'
                       ? 'text-red-500'
-                      : listingStatus === 'pending_approval'
+                      : listingStatus === 'pending_approval' || listingStatus === 'suspended'
                         ? 'text-yellow-500'
                         : 'text-green-500'
                   }`}

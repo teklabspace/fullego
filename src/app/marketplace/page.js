@@ -257,8 +257,9 @@ export default function Marketplace() {
         }
 
         // No status_filter: the default returns all publicly visible listings
-        // (APPROVED + ACTIVE) — auto-listed assets come back as APPROVED, so
-        // filtering by 'active' alone would hide them.
+        // (APPROVED + ACTIVE) — concierge-published listings come back as
+        // APPROVED (and typically stay there), so filtering by 'active' alone
+        // would hide the main publish path.
         const listingsRes = await searchMarketplace({
           ...filterParams,
           page,

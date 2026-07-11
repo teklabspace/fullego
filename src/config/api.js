@@ -147,6 +147,10 @@ export const API_ENDPOINTS = {
     SHARE: (id) => `/assets/${id}/share`,
     // Public resolve of a shared asset link (BUG-02) — no auth required.
     GET_SHARED: (id) => `/assets/${id}/shared`,
+    // Assets shared with the signed-in user (grants keyed by email; verifying
+    // the email claims them — no claim call). Bearer required; 403
+    // EMAIL_NOT_VERIFIED until verified. View access — not in GET /assets.
+    SHARED_WITH_ME: '/assets/shared-with-me',
     GENERATE_REPORT: (id) => `/assets/${id}/reports`,
     GET_REPORT: (id, reportId) => `/assets/${id}/reports/${reportId}`,
     // Analytics

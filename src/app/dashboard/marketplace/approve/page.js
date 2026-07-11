@@ -62,7 +62,10 @@ export default function ApproveListingsPage() {
       toast.success('Listing approved — now live in the marketplace.');
       setListings((prev) => prev.filter((l) => l.id !== listing.id));
     } catch (err) {
-      toast.error(err?.message || 'Failed to approve listing');
+      // Surface the server's message — notably the 409s the backend now
+      // returns (ASSET_UNDER_APPRAISAL: can't approve while a human appraisal
+      // is open on the asset).
+      toast.error(err?.data?.detail || err?.message || 'Failed to approve listing');
     } finally {
       setActionLoading((p) => ({ ...p, [listing.id]: false }));
     }
@@ -82,7 +85,7 @@ export default function ApproveListingsPage() {
       setRejectTarget(null);
       setRejectReason('');
     } catch (err) {
-      toast.error(err?.message || 'Failed to reject listing');
+      toast.error(err?.data?.detail || err?.message || 'Failed to reject listing');
     } finally {
       setRejectBusy(false);
     }

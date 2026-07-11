@@ -45,6 +45,9 @@ const statusLabel = status => {
   if (s === 'sold') return { text: 'Sold', live: false };
   if (s === 'pending' || s === 'pending_approval')
     return { text: 'Coming soon', live: false };
+  // Suspended listings 404 publicly (pulled while a human appraisal runs),
+  // but staff/owner responses can still carry the status — never say live.
+  if (s === 'suspended') return { text: 'Under valuation', live: false };
   return null;
 };
 

@@ -1068,7 +1068,7 @@ function ActiveOffersContent({
   };
 
   // Listing status badge (draft | pending_approval | approved | active |
-  // rejected | sold | cancelled)
+  // suspended | rejected | sold | cancelled)
   const getListingStatusColor = status => {
     switch (status) {
       case 'active':
@@ -1077,6 +1077,9 @@ function ActiveOffersContent({
         return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
       case 'pending_approval':
         return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20';
+      // Auto-pulled while a human appraisal runs; re-published on completion.
+      case 'suspended':
+        return 'text-[#F1CB68] bg-[#F1CB68]/10 border-[#F1CB68]/20';
       case 'rejected':
         return 'text-red-500 bg-red-500/10 border-red-500/20';
       case 'sold':
@@ -1089,10 +1092,13 @@ function ActiveOffersContent({
   };
 
   const formatListingStatus = status =>
-    (status || 'draft')
-      .split('_')
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
+    // Per backend: present `suspended` as "Under valuation", not the raw word.
+    status === 'suspended'
+      ? 'Under Valuation'
+      : (status || 'draft')
+          .split('_')
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ');
 
   // Get role badge color
   const getRoleColor = role => {

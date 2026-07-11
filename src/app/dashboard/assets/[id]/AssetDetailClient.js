@@ -20,7 +20,7 @@ import
     shareAssetDetails,
     transferAssetOwnership,
   } from '@/utils/assetsApi';
-import { listListings } from '@/utils/marketplaceApi';
+import { getMyListings, listListings } from '@/utils/marketplaceApi';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -195,10 +195,22 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showAppraisalModal, setShowAppraisalModal] = useState(false);
 
-  // Marketplace listing is automatic (active assets are auto-listed; a
-  // completed concierge valuation re-prices the same listing) — this check
-  // only powers the "Listed on Marketplace" indicator.
-  const [hasExistingListing, setHasExistingListing] = useState(false);
+  // Marketplace listing lifecycle (confirmed with backend 2026-07-11): assets
+  // are NOT auto-listed at creation. A listing exists only after (a) the owner
+  // self-lists via POST /marketplace/listings (starts at pending_approval), or
+  // (b) staff complete a concierge valuation, which auto-publishes straight to
+  // approved — it creates the listing if none exists, or re-prices an open one
+  // and forces it to approved (even from pending_approval, clearing any
+  // rejection reason). Statuses (exactly these): draft | pending_approval |
+  // approved | active | suspended | rejected | sold | cancelled. LIVE on the
+  // public marketplace = approved OR active ("active" is a later owner
+  // fee/activate step that does not change visibility; active listings
+  // auto-cancel after 90 days). Opening a human appraisal auto-SUSPENDS a live
+  // listing server-side (hidden publicly, offers blocked/expired); completion
+  // re-publishes it as approved at the appraised value, cancel/fail restores
+  // the previous status/price. Track the matching listing itself (not a
+  // boolean) so the indicator can say "Listed" vs "Pending approval" truthfully.
+  const [existingListing, setExistingListing] = useState(null);
 
   const [appraisalType, setAppraisalType] = useState('');
   // Optional free-text note the investor adds with the appraisal request.
@@ -208,12 +220,29 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   useEffect(() => {
     if (!asset?.id) return;
     let cancelled = false;
-    listListings({ limit: 100 })
+    // Owner-scoped endpoint: returns the viewer's listings in ALL statuses, so
+    // the indicator can distinguish a live listing from one still awaiting
+    // approval. Fall back to the public browse endpoint (live listings only)
+    // if /listings/my is unavailable — there a match is live by definition.
+    getMyListings({ limit: 100 })
+      .catch(() => listListings({ limit: 100 }))
       .then(res => {
         if (cancelled) return;
         const list = res?.data || res || [];
         const arr = Array.isArray(list) ? list : Array.isArray(list?.listings) ? list.listings : [];
-        setHasExistingListing(arr.some(l => (l.assetId || l.asset_id) === asset.id));
+        const mine = arr.filter(l => (l.assetId || l.asset_id) === asset.id);
+        // An asset can accumulate listings over time (cancelled, re-listed…).
+        // Prefer a live one, then one awaiting approval ("draft" is legacy rows
+        // only — nothing creates it anymore), then whatever's left (newest
+        // first per the endpoint), so the chip reflects the current listing
+        // rather than a stale terminal one.
+        const statusOf = l => (l.status || '').toString().toLowerCase();
+        const pick =
+          mine.find(l => ['active', 'approved'].includes(statusOf(l))) ||
+          mine.find(l => ['pending_approval', 'draft'].includes(statusOf(l))) ||
+          mine[0] ||
+          null;
+        setExistingListing(pick);
       })
       .catch(() => {
         // Non-fatal — the indicator just won't show.
@@ -732,9 +761,11 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
       setShowTransferModal(false);
       setTransferData({ newOwnerEmail: '', transferType: 'gift', notes: '' });
       setTransferError(null);
-      
-      // Optionally refresh asset data to show updated ownership
-      // You can add a refresh function here if needed
+
+      // The asset now belongs to someone else — leave the detail page rather
+      // than keep showing stale data we may no longer be allowed to fetch
+      // (same exit as delete).
+      router.replace('/dashboard/assets');
     } catch (err) {
       console.error('❌ Error transferring ownership:', err);
       
@@ -962,9 +993,47 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
               isDarkMode ? 'text-white' : 'text-gray-900'
             }`}>{asset.name}</h1>
             <div className='flex items-center gap-3 flex-wrap'>
-              <span className='px-3 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full'>
-                {asset.status}
-              </span>
+              {/* Product rule (2026-07-11): while a human appraisal is OPEN
+                  (pending / in progress / …) the asset must NOT present as an
+                  active investment — the appraisal chip below carries the
+                  state instead. asset.status renders only once the appraisal
+                  history has loaded and no human appraisal is open. The
+                  marketplace side is now enforced server-side (the listing
+                  auto-suspends), but asset.status itself still comes back
+                  unchanged — hiding it here remains a frontend rule. */}
+              {!loadingHistory && !openHumanAppraisal && (
+                <span className='px-3 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full'>
+                  {asset.status}
+                </span>
+              )}
+              {/* Open human-appraisal chip. Mirrors the "· <status>" appraisal
+                  tag on the assets list card so the two views agree — the list
+                  card previously showed e.g. "Comprehensive Appraisal · Pending"
+                  while this header only showed the asset's own status ("Active
+                  Investment"), which read as a contradiction. This is the
+                  appraisal *request's* status, distinct from asset.status above. */}
+              {openHumanAppraisal && (() => {
+                const meta = APPRAISAL_STATUS_META[
+                  (openHumanAppraisal.status || '').toLowerCase()
+                ] || {
+                  // Fallback for any status not in the map: "in_progress" → "In Progress".
+                  label: (openHumanAppraisal.status || 'Open')
+                    .toString()
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, (c) => c.toUpperCase()),
+                  darkClass: 'bg-[#F1CB68]/10 text-[#F1CB68]',
+                  lightClass: 'bg-yellow-50 text-yellow-700',
+                };
+                const type = openHumanAppraisal.appraisalType || 'Appraisal';
+                return (
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full ${
+                    isDarkMode ? meta.darkClass : meta.lightClass
+                  }`}>
+                    <span className='w-1.5 h-1.5 rounded-full bg-current animate-pulse' aria-hidden='true' />
+                    {type} Appraisal · {meta.label}
+                  </span>
+                );
+              })()}
               {/* AI review verdict chip (latest review or the asset's own field) */}
               {(() => {
                 const decision = aiReview?.decision || asset.aiReviewStatus;
@@ -1023,17 +1092,66 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
             </button>
             {isInvestor && (
               <>
-            {/* Listing is automatic — active assets are published to the
-                marketplace on creation and re-priced when a concierge
-                valuation completes. No manual "Initiate Sale" step. */}
-            {hasExistingListing && (
-              <span className='inline-flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm bg-green-500/10 text-green-400 border border-green-500/30'>
-                <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5'>
-                  <polyline points='20 6 9 17 4 12' />
-                </svg>
-                Listed on Marketplace
-              </span>
-            )}
+            {/* Listing indicator. There is NO auto-listing at asset creation —
+                a listing appears when the owner self-lists (pending_approval)
+                or a completed concierge valuation auto-publishes (approved,
+                immediately live — the main publish path). Live = approved OR
+                active; a "pending" listing can flip straight to live when a
+                valuation completes, with no admin approve call. Only claim
+                "Listed on Marketplace" for live statuses; while it awaits
+                approval say so, and stay silent for terminal ones. */}
+            {existingListing && (() => {
+              const status = (existingListing.status || '').toString().toLowerCase();
+              // No status field (public-endpoint fallback) → it's live there.
+              if (['active', 'approved', ''].includes(status)) {
+                // Product rule (2026-07-11): while a human appraisal is open
+                // the asset must not present as listed/marketable. The backend
+                // now enforces this too (opening an appraisal suspends the
+                // listing server-side); this guard just covers the gap until
+                // this page refetches a listing that is mid-flip.
+                if (openHumanAppraisal) return null;
+                return (
+                  <span className='inline-flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm bg-green-500/10 text-green-400 border border-green-500/30'>
+                    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5'>
+                      <polyline points='20 6 9 17 4 12' />
+                    </svg>
+                    Listed on Marketplace
+                  </span>
+                );
+              }
+              // "draft" is legacy rows only — nothing creates it anymore.
+              if (['pending_approval', 'draft'].includes(status)) {
+                return (
+                  <span className='inline-flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm bg-[#F1CB68]/10 text-[#F1CB68] border border-[#F1CB68]/30'>
+                    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5'>
+                      <circle cx='12' cy='12' r='9' />
+                      <polyline points='12 7 12 12 15 14' />
+                    </svg>
+                    Listing pending approval
+                  </span>
+                );
+              }
+              if (status === 'rejected') {
+                // /listings/my includes rejection_reason (→ rejectionReason)
+                // on rejected items — surface it as a tooltip.
+                const reason = existingListing.rejectionReason || existingListing.rejection_reason || '';
+                return (
+                  <span
+                    title={reason ? `Rejected: ${reason}` : undefined}
+                    className='inline-flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm bg-red-500/10 text-red-400 border border-red-500/30'
+                  >
+                    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5'>
+                      <line x1='6' y1='6' x2='18' y2='18' />
+                      <line x1='18' y1='6' x2='6' y2='18' />
+                    </svg>
+                    Listing rejected
+                  </span>
+                );
+              }
+              // suspended (under valuation — the appraisal chip carries the
+              // state) | sold | cancelled | unknown → no indicator
+              return null;
+            })()}
             <button
               onClick={() => {
                 // No preselection — the investor picks one of the four types.
@@ -2140,56 +2258,48 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
             </div>
             )}
 
-            {/* Financial Summary */}
-            <div className={`border rounded-2xl p-6 ${
-              isDarkMode
-                ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
-                : 'bg-white border-gray-300'
-            }`}>
-              <h3 className={`text-lg font-semibold mb-4 ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                Financial Summary
-              </h3>
-              <div className='space-y-4'>
-                <div>
-                  <p className={`text-sm mb-1 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    Monthly Rental Income
-                  </p>
-                  <p className={`font-semibold text-lg ${
+            {/* Financial Summary — fields come from asset.specifications and
+                are property-specific (rental income, property tax,
+                maintenance). Only render rows that have values, and hide the
+                whole card when none do (art, watches, crypto, …) instead of
+                showing three blank lines. */}
+            {(() => {
+              const rows = [
+                ['Monthly Rental Income', asset.monthlyRentalIncome],
+                ['Annual Property Tax', asset.annualPropertyTax],
+                ['Maintenance Costs (YTD)', asset.maintenanceCosts],
+              ].filter(([, value]) => value);
+              if (!rows.length) return null;
+              return (
+                <div className={`border rounded-2xl p-6 ${
+                  isDarkMode
+                    ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
+                    : 'bg-white border-gray-300'
+                }`}>
+                  <h3 className={`text-lg font-semibold mb-4 ${
                     isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
-                    {asset.monthlyRentalIncome}
-                  </p>
+                    Financial Summary
+                  </h3>
+                  <div className='space-y-4'>
+                    {rows.map(([label, value]) => (
+                      <div key={label}>
+                        <p className={`text-sm mb-1 ${
+                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          {label}
+                        </p>
+                        <p className={`font-semibold text-lg ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <p className={`text-sm mb-1 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    Annual Property Tax
-                  </p>
-                  <p className={`font-semibold text-lg ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    {asset.annualPropertyTax}
-                  </p>
-                </div>
-                <div>
-                  <p className={`text-sm mb-1 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    Maintenance Costs (YTD)
-                  </p>
-                  <p className={`font-semibold text-lg ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    {asset.maintenanceCosts}
-                  </p>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         </div>
 

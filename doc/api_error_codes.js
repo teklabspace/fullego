@@ -21,6 +21,7 @@ export const GENERIC_ERROR_CODES = {
   NOT_FOUND: 404,
   METHOD_NOT_ALLOWED: 405,
   CONFLICT: 409,
+  GONE: 410,
   VALIDATION_ERROR: 422,
   RATE_LIMITED: 429,
   INTERNAL_ERROR: 500,
@@ -54,11 +55,31 @@ export const USER_ERROR_CODES = {
   KYC_REQUIRED: 403, // resource needs an approved KYC
 };
 
+// Domain codes — Assets / sharing.
+export const ASSET_ERROR_CODES = {
+  // GET /assets/{id}/shared with a share link past its expiry. (Unknown or
+  // deactivated codes are a plain 404 NOT_FOUND.)
+  SHARE_LINK_EXPIRED: 410,
+};
+
+// Domain codes — Marketplace / listings.
+export const MARKETPLACE_ERROR_CODES = {
+  // The asset has an OPEN human appraisal: creating/approving/activating a
+  // listing for it is blocked until the appraisal completes (auto re-publish)
+  // or is cancelled/failed (previous listing status restored).
+  ASSET_UNDER_APPRAISAL: 409,
+  // Accepting an offer on a listing that is off-market (suspended during
+  // valuation, sold, cancelled, …).
+  LISTING_NOT_OPEN: 409,
+};
+
 // code → fixed HTTP status (everything except the varies-status `ERROR` fallback).
 export const ERROR_CODE_STATUS = {
   ...GENERIC_ERROR_CODES,
   ...SUBSCRIPTION_ERROR_CODES,
   ...USER_ERROR_CODES,
+  ...ASSET_ERROR_CODES,
+  ...MARKETPLACE_ERROR_CODES,
 };
 
 // Stable string constants for branching without magic strings / typos.

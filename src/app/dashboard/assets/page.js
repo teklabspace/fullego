@@ -14,6 +14,7 @@ import {
   requestAssetSale,
   requestAssetAppraisal,
   runAiAppraisal,
+  getSharedWithMe,
   formatCurrency,
 } from '@/utils/assetsApi';
 import AssetCardSkeleton from '@/components/skeletons/AssetCardSkeleton';
@@ -192,6 +193,37 @@ export default function AssetsPage() {
   // "Approved" tag). The asset list itself doesn't carry appraisal state, so
   // this is how the cards know what tag to show. An open appraisal wins over a
   // completed one — it's the actionable state (and it blocks a new request).
+  // "Shared with me" — view-only grants keyed to this account's email (the
+  // backend claims them automatically when the email is verified; there is no
+  // claim call). Not part of the portfolio/GET /assets; each item opens via
+  // the public share page with its access code.
+  const [sharedWithMe, setSharedWithMe] = useState([]);
+  const [sharedEmailUnverified, setSharedEmailUnverified] = useState(false);
+
+  useEffect(() => {
+    if (!authMounted || isAdmin) return;
+    let cancelled = false;
+    getSharedWithMe()
+      .then(({ items }) => {
+        if (!cancelled) setSharedWithMe(Array.isArray(items) ? items : []);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        // Fresh signups may not have verified their email yet — that's the
+        // one error worth surfacing (with a prompt). Anything else is
+        // non-fatal: the section simply doesn't render.
+        if (
+          err?.data?.error?.code === 'EMAIL_NOT_VERIFIED' ||
+          err?.status === 403
+        ) {
+          setSharedEmailUnverified(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authMounted, isAdmin]);
+
   const fetchOpenAppraisals = useCallback(async () => {
     try {
       const res = await listAppraisals({ limit: 100 });
@@ -600,6 +632,95 @@ export default function AssetsPage() {
           </div>
         );
       })()}
+
+      {/* Shared with me — view-only assets other users shared to this
+          account's email. Rendered below the owner's own assets (also when
+          they have none — fresh recipients start with zero own assets). */}
+      {!isAdmin && (sharedWithMe.length > 0 || sharedEmailUnverified) && (
+        <div className='mt-10'>
+          <div className='flex items-center gap-3 mb-4'>
+            <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              Shared with me
+            </h2>
+            <span className={`text-xs px-2.5 py-1 rounded-full ${
+              isDarkMode ? 'bg-white/5 text-gray-300' : 'bg-gray-100 text-gray-600'
+            }`}>
+              View only
+            </span>
+          </div>
+          {sharedEmailUnverified ? (
+            <div className={`p-4 rounded-lg border text-sm ${
+              isDarkMode
+                ? 'border-[#F1CB68]/30 bg-[#F1CB68]/5 text-gray-300'
+                : 'border-yellow-300 bg-yellow-50 text-gray-700'
+            }`}>
+              Verify your email address to see assets that were shared with you.
+            </div>
+          ) : (
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+              {sharedWithMe.map(item => {
+                const a = item.asset || {};
+                const img = (a.images && a.images[0]) || a.image || null;
+                const sharedDate = item.sharedAt
+                  ? new Date(item.sharedAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : null;
+                const value =
+                  typeof a.currentValue === 'number'
+                    ? formatCurrency(a.currentValue, a.currency)
+                    : a.currentValue;
+                return (
+                  <div
+                    key={a.id || item.accessCode}
+                    className={`bg-transparent border rounded-2xl overflow-hidden hover:border-[#F1CB68]/50 transition-all ${
+                      isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-300'
+                    }`}
+                  >
+                    <div className='relative h-40 overflow-hidden'>
+                      {img ? (
+                        <img src={img} alt={a.name} className='w-full h-full object-cover' />
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center ${
+                          isDarkMode
+                            ? 'bg-gradient-to-br from-[#2A2A2D] to-[#1a1a1d]'
+                            : 'bg-gradient-to-br from-gray-200 to-gray-300'
+                        }`}>
+                          <span className='text-4xl'>📦</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className='p-4'>
+                      <h3 className={`font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {a.name || 'Shared asset'}
+                      </h3>
+                      <p className={`text-xs mb-2 capitalize ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {a.category}
+                        {sharedDate && ` · Shared ${sharedDate}`}
+                      </p>
+                      {value && (
+                        <p className={`text-lg font-bold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {value}
+                        </p>
+                      )}
+                      <button
+                        onClick={() =>
+                          router.push(`/assets/${a.id}/shared?code=${encodeURIComponent(item.accessCode || '')}`)
+                        }
+                        className='w-full px-4 py-2 rounded-lg text-sm font-semibold bg-[#F1CB68]/10 text-[#F1CB68] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20 transition-colors'
+                      >
+                        View Asset
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sell Request Modal */}
       {showSellModal && selectedAsset && (

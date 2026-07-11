@@ -60,6 +60,9 @@ export default function SignupClient() {
     const lastParam = searchParams.get('last_name');
     const oauthParam = searchParams.get('oauth');
 
+    // Shared-asset links prefill the email only. No claim context is needed:
+    // share grants are keyed by email server-side and VERIFYING the email is
+    // the claim — the asset then shows up under GET /assets/shared-with-me.
     if (emailParam) setEmail(emailParam);
     if (firstParam) setFirstName(firstParam);
     if (lastParam) setLastName(lastParam);

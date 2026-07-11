@@ -1365,10 +1365,11 @@ function AppraisalDetailModal({
   const chatScrollRef = useRef(null);
 
   // Marketplace listing status — visible to BOTH staff and investor once the
-  // appraisal is completed. Listings are fully automatic now: active assets are
-  // auto-listed at creation, and completing a concierge valuation re-prices the
-  // same listing to the appraised amount. This check only CONFIRMS the listing
-  // exists (there is no manual "List on Marketplace" action anymore).
+  // appraisal is completed. Assets are NOT auto-listed at creation (backend
+  // confirmed 2026-07-11): completing a concierge valuation is what publishes —
+  // it creates an approved (immediately live) listing if none exists, or
+  // re-prices an existing open one and forces it to approved. This check only
+  // CONFIRMS the listing exists after completion.
   //
   // Known limitation: this scans up to 100 public listings client-side for an
   // assetId match, since no server-side "listings for this asset" filter exists.
@@ -2067,9 +2068,10 @@ function AppraisalDetailModal({
                   >
                     Download Report
                   </button>
-                  {/* Listing is automatic (active assets are auto-listed; the
-                      finished valuation re-prices the same listing) — this just
-                      confirms it to both staff and investor. */}
+                  {/* The completed valuation is what publishes: it creates an
+                      approved (live) listing or re-prices an existing one and
+                      forces it to approved — this just confirms it to both
+                      staff and investor. */}
                   {marketListing.state === 'found' && (
                     <p
                       className={`mt-3 text-xs text-center font-medium ${

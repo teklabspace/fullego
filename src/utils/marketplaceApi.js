@@ -437,7 +437,10 @@ export const getMyOffers = async (params = {}) => {
  */
 export const getMyListings = async (params = {}) => {
   const queryParams = new URLSearchParams();
-  // draft | pending_approval | approved | active | rejected | sold | cancelled
+  // draft | pending_approval | approved | active | suspended | rejected | sold | cancelled
+  // ("suspended" = live listing auto-pulled while a human appraisal is open;
+  // re-published on completion, restored on cancel/fail. Owner/staff only —
+  // public surfaces never return it.)
   if (params.statusFilter) queryParams.append('status_filter', params.statusFilter);
   if (params.page) queryParams.append('page', params.page);
   if (params.limit) queryParams.append('limit', params.limit);
