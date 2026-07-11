@@ -209,14 +209,21 @@ export default function AssetsPage() {
       })
       .catch(err => {
         if (cancelled) return;
-        // Fresh signups may not have verified their email yet — that's the
-        // one error worth surfacing (with a prompt). Anything else is
-        // non-fatal: the section simply doesn't render.
-        if (
-          err?.data?.error?.code === 'EMAIL_NOT_VERIFIED' ||
-          err?.status === 403
-        ) {
+        // Only the specific EMAIL_NOT_VERIFIED code gets the verify prompt.
+        // Never map a bare 403 to it — that mislabeled other permission
+        // errors as "verify your email" for already-verified users.
+        const code = err?.code || err?.data?.error?.code;
+        if (code === 'EMAIL_NOT_VERIFIED') {
           setSharedEmailUnverified(true);
+        } else {
+          // Non-fatal — the section just doesn't render. Leave a trace so a
+          // real backend error here is diagnosable from the console.
+          console.warn(
+            '[shared-with-me] unavailable:',
+            err?.status,
+            code || '(no code)',
+            err?.message
+          );
         }
       });
     return () => {
