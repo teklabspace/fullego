@@ -1080,6 +1080,24 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
             )}
           </div>
           <div className='flex gap-3'>
+            {/* Edit is only available while the asset is still pending review
+                or was rejected — once approved, the record is locked for the
+                investor and changes go through support/appraisal flows. */}
+            {isInvestor &&
+              (aiReview?.decision || asset.aiReviewStatus) !== 'approved' && (
+                <button
+                  onClick={() =>
+                    router.push(`/dashboard/assets/add?edit=${asset.id}`)
+                  }
+                  className={`px-4 py-3 rounded-lg font-semibold transition-colors border ${
+                    isDarkMode
+                      ? 'border-[#F1CB68]/50 text-[#F1CB68] hover:bg-[#F1CB68]/10'
+                      : 'border-yellow-400 text-yellow-700 hover:bg-yellow-50'
+                  }`}
+                >
+                  Edit Asset
+                </button>
+              )}
             <button
               onClick={() => setShowDeleteModal(true)}
               className={`px-4 py-3 rounded-lg font-semibold transition-colors border ${

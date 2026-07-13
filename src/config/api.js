@@ -172,7 +172,10 @@ export const API_ENDPOINTS = {
   // Files endpoints
   FILES: {
     BASE: '/files',
+    // Asset-scoped uploader — validates file_type against photo/document.
     UPLOAD: '/assets/files/upload',
+    // Generic uploader — accepts other file types (e.g. avatar).
+    GENERIC_UPLOAD: '/files/upload',
   },
   // Investment Management endpoints ⭐ INTEGRATED
   INVESTMENT: {

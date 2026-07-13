@@ -52,6 +52,20 @@ export default function ProfileDropdown() {
     }
   }, [mounted]);
 
+  // Settings broadcasts `profile-updated` after an avatar/profile change so
+  // the navbar reflects it immediately without a refetch.
+  useEffect(() => {
+    const handleProfileUpdated = event => {
+      setUserProfile(prev => ({ ...(prev || {}), ...(event.detail || {}) }));
+    };
+    window.addEventListener('profile-updated', handleProfileUpdated);
+    return () =>
+      window.removeEventListener('profile-updated', handleProfileUpdated);
+  }, []);
+
+  // The uploaded profile picture, falling back to the generic placeholder.
+  const avatarSrc = userProfile?.avatar_url || '/icons/user-avatar.svg';
+
   // Track previous pathname to detect changes
   const prevPathnameRef = useRef(pathname);
   const [, forceUpdate] = useState(0);
@@ -236,7 +250,7 @@ export default function ProfileDropdown() {
         }`}>
           <div className='w-10 h-10 rounded-full overflow-hidden bg-[#F1CB68] flex items-center justify-center'>
             <Image
-              src='/icons/user-avatar.svg'
+              src={avatarSrc}
               alt='User'
               width={40}
               height={40}
@@ -264,7 +278,7 @@ export default function ProfileDropdown() {
         {/* Mobile Profile Button (Avatar Only) */}
         <button className='flex md:hidden w-10 h-10 rounded-full overflow-hidden bg-[#F1CB68] items-center justify-center cursor-pointer'>
           <Image
-            src='/icons/user-avatar.svg'
+            src={avatarSrc}
             alt='User'
             width={40}
             height={40}
@@ -288,7 +302,7 @@ export default function ProfileDropdown() {
       >
         <div className='w-10 h-10 rounded-full overflow-hidden bg-[#F1CB68] flex items-center justify-center'>
           <Image
-            src='/icons/user-avatar.svg'
+            src={avatarSrc}
             alt='User'
             width={40}
             height={40}
@@ -315,7 +329,7 @@ export default function ProfileDropdown() {
         className='flex md:hidden w-10 h-10 rounded-full overflow-hidden bg-[#F1CB68] items-center justify-center cursor-pointer'
       >
         <Image
-          src='/icons/user-avatar.svg'
+          src={avatarSrc}
           alt='User'
           width={40}
           height={40}
@@ -345,7 +359,7 @@ export default function ProfileDropdown() {
               <div className='flex items-center gap-4'>
                 <div className='w-14 h-14 rounded-full overflow-hidden bg-[#F1CB68] flex items-center justify-center'>
                   <Image
-                    src='/icons/user-avatar.svg'
+                    src={avatarSrc}
                     alt='User'
                     width={56}
                     height={56}

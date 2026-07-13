@@ -1,10 +1,12 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   getUserProfile,
   updateUserProfile,
+  uploadAvatarImage,
+  updateStoredUserInfo,
   getNotificationPreferences,
   updateNotificationPreferences,
   getPrivacyPreferences,
@@ -21,6 +23,7 @@ import {
 } from '@/utils/authApi';
 import LinkedAccounts from '@/components/settings/LinkedAccounts';
 import PaymentBilling from '@/components/settings/PaymentBilling';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 export default function SettingsPage() {
   const { isDarkMode } = useTheme();
@@ -237,7 +240,8 @@ function ProfileSettings({
           phone: profile.phone || '',
           country: profile.country || '',
         });
-        
+        setAvatarUrl(profile.avatar_url || '');
+
         // Fetch 2FA status
         try {
           const status = await get2FAStatus();
@@ -265,6 +269,80 @@ function ProfileSettings({
 
     fetchData();
   }, []);
+
+  // Profile picture: uploaded via the generic file endpoint, then saved to
+  // the profile as avatar_url. Saved immediately (not via Save Changes) so
+  // the navbar/chat avatar updates right away.
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const avatarInputRef = useRef(null);
+
+  const handleAvatarSelect = async e => {
+    const file = e.target.files?.[0];
+    // Reset so picking the same file again still fires onChange.
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Profile picture must be an image (JPG or PNG).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Profile picture must be 5MB or smaller.');
+      return;
+    }
+    try {
+      setAvatarSaving(true);
+      setError(null);
+      const { url } = await uploadAvatarImage(file);
+      if (!url) {
+        throw new Error(
+          'Upload succeeded but the server returned no file URL.'
+        );
+      }
+      await updateUserProfile({ avatar_url: url });
+      setAvatarUrl(url);
+      updateStoredUserInfo({ avatar_url: url });
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error updating profile picture:', err);
+      // Surface the backend's per-field validation details instead of the
+      // generic "check the highlighted fields" message (there are no
+      // highlighted fields here).
+      const detailText = Array.isArray(err.details)
+        ? err.details
+            .map(d => d?.msg || d?.message || (typeof d === 'string' ? d : ''))
+            .filter(Boolean)
+            .join(' ')
+        : '';
+      setError(
+        detailText ||
+          err.message ||
+          'Failed to update profile picture. Please try again.'
+      );
+    } finally {
+      setAvatarSaving(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    try {
+      setAvatarSaving(true);
+      setError(null);
+      await updateUserProfile({ avatar_url: null });
+      setAvatarUrl('');
+      updateStoredUserInfo({ avatar_url: null });
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error removing profile picture:', err);
+      setError(
+        err.message || 'Failed to remove profile picture. Please try again.'
+      );
+    } finally {
+      setAvatarSaving(false);
+    }
+  };
 
   // Handle input changes
   const handleChange = (field, value) => {
@@ -630,6 +708,63 @@ function ProfileSettings({
         {error && (
           <div className='mb-4 p-3 bg-red-500/20 border border-red-500/50 text-red-400 rounded-lg text-sm'>
             {error}
+          </div>
+        )}
+
+        {/* Profile Picture */}
+        {!loading && (
+          <div
+            className={`flex items-center gap-4 mb-6 pb-6 border-b ${
+              isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+            }`}
+          >
+            <UserAvatar
+              src={avatarUrl}
+              name={`${profileData.first_name} ${profileData.last_name}`.trim()}
+              size={80}
+            />
+            <div>
+              <div className='flex flex-wrap gap-3'>
+                <button
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarSaving}
+                  className='px-4 py-2 rounded-lg bg-[#F1CB68] text-[#101014] text-sm font-semibold hover:bg-[#BF9B30] transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                >
+                  {avatarSaving
+                    ? 'Saving...'
+                    : avatarUrl
+                    ? 'Change Photo'
+                    : 'Upload Photo'}
+                </button>
+                {avatarUrl && !avatarSaving && (
+                  <button
+                    onClick={handleAvatarRemove}
+                    className={`px-4 py-2 rounded-lg border text-sm transition-colors ${
+                      isDarkMode
+                        ? 'border-[#FFFFFF14] text-white hover:bg-white/5'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <p
+                className={`text-xs mt-2 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                }`}
+              >
+                JPG or PNG, max 5MB. Shown on your profile, chat, and across
+                the dashboard.
+              </p>
+              <input
+                ref={avatarInputRef}
+                type='file'
+                accept='image/*'
+                onChange={handleAvatarSelect}
+                className='hidden'
+              />
+            </div>
           </div>
         )}
 
