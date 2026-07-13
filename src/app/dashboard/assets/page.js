@@ -596,6 +596,9 @@ export default function AssetsPage() {
               appraisal={appraisalByAsset[asset.id]}
               isDarkMode={isDarkMode}
               onViewDetails={() => handleViewDetails(asset)}
+              onEdit={() =>
+                router.push(`/dashboard/assets/add?edit=${asset.id}`)
+              }
               onRequestSell={() => handleRequestSell(asset)}
               onRequestAppraisal={() => handleRequestAppraisal(asset)}
               onDelete={handleDeleteAsset}
@@ -767,6 +770,7 @@ function AssetCard({
   appraisal,
   isDarkMode,
   onViewDetails,
+  onEdit,
   onRequestSell,
   onRequestAppraisal,
   onDelete,
@@ -1074,6 +1078,22 @@ function AssetCard({
 
               {isInvestor && (
                 <>
+                  {/* Editing is only possible while the asset is pending
+                      review or rejected — the edit screen (and the backend)
+                      block approved assets, since the list card doesn't
+                      carry the review status. */}
+                  <button
+                    onClick={() => { setMenuOpen(false); onEdit(); }}
+                    className='w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors text-left whitespace-nowrap text-gray-200 hover:bg-white/[0.07] hover:text-white'
+                  >
+                    <span className='w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-green-500/20'>
+                      <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#4ade80' strokeWidth='2.2'>
+                        <path d='M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z' />
+                      </svg>
+                    </span>
+                    Edit Asset
+                  </button>
+
                   <button
                     onClick={() => { setMenuOpen(false); onRequestSell(); }}
                     className='w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors text-left whitespace-nowrap text-gray-200 hover:bg-white/[0.07] hover:text-white'

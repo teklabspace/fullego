@@ -5,16 +5,26 @@ import {
   getCategoryGroups,
   getFormFieldsForCategory,
 } from '@/config/assetConfig';
+import CalendarDatePicker from '@/components/ui/CalendarDatePicker';
+import DropdownSelect from '@/components/ui/DropdownSelect';
+import TagsInput from '@/components/ui/TagsInput';
 import { useTheme } from '@/context/ThemeContext';
 import { getCategoryIcon } from '@/utils/categoryIcons';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'react-toastify';
 import {
   createAsset,
+  getAsset,
+  getAssetDocuments,
+  getCategories,
+  updateAsset,
   requestAssetAppraisal,
   uploadFile,
   uploadAssetPhoto,
   uploadAssetDocument,
+  deleteAssetPhoto,
+  deleteAssetDocument,
 } from '@/utils/assetsApi';
 
 const steps = [
@@ -24,23 +34,25 @@ const steps = [
 ];
 
 // Today's date as YYYY-MM-DD, used as the max for acquisition/purchase date
-// pickers so a native date input can't accept a future or overflowed year.
+// pickers so a future date can't be selected.
 // Must be the LOCAL date, not toISOString()'s UTC date: east of UTC those differ
 // for part of the day, and a UTC max would stop a user in, say, UTC+13 from
 // picking their own today. The server allows 24h of slack for exactly this.
 const TODAY_ISO = new Date().toLocaleDateString('en-CA');
 
-// Open the native calendar from a click anywhere in a date input. Guarded twice:
-// showPicker is absent on older Safari/Firefox (which open on click anyway), and
-// it throws if the browser judges the call to lack user activation.
-const openDatePicker = event => {
-  const input = event.currentTarget;
-  if (typeof input.showPicker !== 'function') return;
-  try {
-    input.showPicker();
-  } catch {
-    // Fall back to the browser's own indicator icon.
-  }
+// Forward-looking dates (End, Maturity, Due, Expected, Expiry, Start) must
+// accept future dates, but still need SOME max to bound the calendar's
+// year list.
+const FUTURE_MAX_ISO = '2100-12-31';
+
+// Only dates recording something that already happened are capped at today.
+const isPastOnlyDateField = fieldName => {
+  const lowerName = fieldName.toLowerCase();
+  return (
+    lowerName.includes('purchase') ||
+    lowerName.includes('acquisition') ||
+    lowerName.includes('upload')
+  );
 };
 
 // The backend's `asset_type` enum — send these exact lowercase strings. It is
@@ -89,11 +101,112 @@ const toAmount = raw => {
   return Number.isFinite(n) ? n : undefined;
 };
 
+// Existing-media shapes vary by endpoint version — normalize to { id, url }.
+// Prefer `photos` objects (they carry the id needed to delete); fall back to
+// the `images` URL array (display-only, no id → no delete button).
+const normalizePhotoList = asset => {
+  const fromObjects = Array.isArray(asset?.photos)
+    ? asset.photos
+        .filter(p => p && typeof p === 'object')
+        .map(p => ({
+          id: p.id || p.photoId || null,
+          url: p.url || p.fileUrl || p.downloadUrl || p.path || '',
+        }))
+        .filter(p => p.url)
+    : [];
+  if (fromObjects.length > 0) return fromObjects;
+  return (asset?.images || [])
+    .filter(url => typeof url === 'string' && url)
+    .map(url => ({ id: null, url }));
+};
+
+const normalizeDocList = raw => {
+  const docs = Array.isArray(raw) ? raw : raw?.documents || [];
+  return docs
+    .filter(doc => doc && doc.id)
+    .map(doc => ({
+      id: doc.id,
+      name:
+        doc.name || doc.fileName || doc.filename || doc.originalName || 'Document',
+      url: doc.url || doc.fileUrl || doc.downloadUrl || doc.path || '',
+    }));
+};
+
+// Subtitle shown under each category-group name in the browser.
+const GROUP_SUBTITLES = {
+  Assets: 'Physical, Alternative, Lifestyle',
+  Portfolio: 'Financial, Digital, Structured',
+  Liabilities: 'Liabilities & Debts',
+  'Shadow Wealth': 'Shadow & Anticipated Wealth',
+  Philanthropy: 'Philanthropy & Impact',
+  Lifestyle: 'Lifestyle & Concierge',
+  Governance: 'Compliance & Governance',
+};
+
 const conditions = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor'];
 const ownershipTypes = ['Sole', 'Joint', 'Trust', 'Corporate'];
 const riskLevels = ['Low', 'Medium', 'High', 'Very High'];
 const paymentFrequencies = ['Monthly', 'Quarterly', 'Semi-Annual', 'Annual'];
 const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD'];
+
+// Suggestions for the group-level "type" fields, mirroring each group's
+// sub-categories. These used to resolve to an empty list, which left the
+// primary field of 5 of the 7 groups as an unfillable dropdown. They are
+// suggestions, not enums — the dropdown also lets the user add their own
+// value (see allowsCustomOption).
+const debtTypes = [
+  'Mortgage',
+  'Personal Loan',
+  'Business Loan',
+  'Credit Card',
+  'Auto / Yacht Loan',
+  'Margin Loan',
+  'Line of Credit',
+  'Tax Liability',
+  'Deferred Payment',
+  'Lease Agreement',
+];
+const wealthTypes = [
+  'Pending Inheritance',
+  'Unvested Stock / RSUs',
+  'Deferred Compensation',
+  'Marital / Shared Assets',
+  'Trust Allocation',
+  'Legal Settlement',
+  'Anticipated Exit Proceeds',
+  'Brand / IP Equity',
+];
+const philanthropyTypes = [
+  'Foundation',
+  'Donor-Advised Fund',
+  'Endowment',
+  'Impact Investment',
+  'Scholarship Trust',
+  'Charitable Trust',
+];
+const serviceTypes = [
+  'Travel Concierge',
+  'Event & Auction Access',
+  'Club Membership',
+  'Property Maintenance',
+  'Insurance Management',
+  'Family Office Services',
+];
+const recordTypes = ['KYC', 'AML', 'Legal', 'Audit', 'Regulatory Filing'];
+
+// Fields whose dropdown accepts values beyond the suggestions. Never the
+// backend-validated enums (asset_type, condition, currency, ...) — only the
+// free-form group "type" fields that end up in specifications.
+const allowsCustomOption = fieldName => {
+  const lowerName = fieldName.toLowerCase();
+  return (
+    lowerName.includes('debt type') ||
+    lowerName.includes('wealth type') ||
+    lowerName.startsWith('type (') ||
+    lowerName.includes('service type') ||
+    lowerName.includes('record type')
+  );
+};
 
 // Helper function to convert field name to form field key
 const fieldNameToKey = fieldName => {
@@ -143,16 +256,33 @@ const getSelectOptions = fieldName => {
   if (lowerName.includes('risk level')) return riskLevels;
   if (lowerName.includes('payment frequency')) return paymentFrequencies;
   if (lowerName.includes('currency')) return currencies;
+  if (lowerName.includes('debt type')) return debtTypes;
+  if (lowerName.includes('wealth type')) return wealthTypes;
+  // 'Type (Foundation/DAF/etc)' — the Philanthropy vehicle type.
+  if (lowerName.startsWith('type (')) return philanthropyTypes;
+  if (lowerName.includes('service type')) return serviceTypes;
+  if (lowerName.includes('record type')) return recordTypes;
   return [];
 };
 
 export default function AddAssetPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Edit mode: /dashboard/assets/add?edit=<assetId> reuses this wizard to
+  // edit an existing (pending/rejected) asset. The uploads step is skipped
+  // and the category is locked; saving PUTs instead of POSTing.
+  const editAssetId = searchParams?.get('edit') || null;
+  const isEditMode = !!editAssetId;
   const { isDarkMode } = useTheme();
   const [currentStep, setCurrentStep] = useState(1);
+  // All three steps show in both modes; in edit mode step 2 manages the
+  // asset's EXISTING photos/documents via the asset-scoped media endpoints.
+  const visibleSteps = steps;
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedCategoryGroup, setSelectedCategoryGroup] = useState(null);
-  const [expandedGroups, setExpandedGroups] = useState({});
+  // Which category group the user is browsing (drill-down step 1 of 2).
+  // Independent of selectedCategoryGroup, which tracks the chosen category.
+  const [activeGroup, setActiveGroup] = useState(null);
   const [formData, setFormData] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [assetPhotos, setAssetPhotos] = useState([]);
@@ -220,20 +350,264 @@ export default function AddAssetPage() {
     return getFormFieldsForCategory(selectedCategory);
   }, [selectedCategory]);
 
-  // Toggle category group expansion
-  const toggleGroup = groupName => {
-    setExpandedGroups(prev => ({
-      ...prev,
-      [groupName]: !prev[groupName],
-    }));
+  // Auto-scroll to the Asset Details form once a sub-category is picked, so
+  // the user lands on the fields instead of hunting for them below the fold.
+  const assetDetailsRef = useRef(null);
+  useEffect(() => {
+    if (selectedCategory && assetDetailsRef.current) {
+      assetDetailsRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
+  }, [selectedCategory]);
+
+  // ── Edit mode: load the asset and prefill the form ──────────────────────
+  // The fetched specifications (beyond what the form covers) are kept and
+  // layered back into the update payload so no previously-saved data is lost.
+  const originalSpecsRef = useRef({});
+  // Whether the asset was rejected when editing began — a successful edit
+  // then auto-re-queues it for review (backend behavior), and the success
+  // message should say so.
+  const wasRejectedRef = useRef(false);
+  // What the category was when editing began — used to detect a change.
+  const originalCategoryNameRef = useRef(null);
+  const [editLoading, setEditLoading] = useState(isEditMode);
+  const [editError, setEditError] = useState(null);
+  // The asset's already-uploaded media, shown/managed on step 2 in edit mode.
+  // Add/remove act immediately via the asset-scoped media endpoints — the
+  // PUT update never touches media rows.
+  const [existingPhotos, setExistingPhotos] = useState([]);
+  const [existingDocs, setExistingDocs] = useState([]);
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const addPhotoInputRef = useRef(null);
+  const addDocInputRef = useRef(null);
+  // Edit mode: the category browser is collapsed behind a "Change Category"
+  // button; picking a new sub-category closes it again.
+  const [showCategoryBrowser, setShowCategoryBrowser] = useState(false);
+  // The backend applies a category change on update ONLY via category_id
+  // (the name field is ignored there) — map names to backend ids.
+  const backendCategoryIdsRef = useRef({});
+
+  useEffect(() => {
+    if (!isEditMode) return;
+    getCategories()
+      .then(res => {
+        const list = Array.isArray(res?.data)
+          ? res.data
+          : res?.data?.categories || res?.categories || [];
+        const map = {};
+        list.forEach(cat => {
+          if (cat?.name && cat?.id) map[cat.name] = cat.id;
+        });
+        backendCategoryIdsRef.current = map;
+      })
+      .catch(err => {
+        // Without the map a category change silently won't apply — warn.
+        console.warn('Could not load backend category ids:', err?.message);
+      });
+  }, [isEditMode]);
+
+  const handleExistingPhotoAdd = async e => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.warning(`"${file.name}" is not an image and was skipped.`);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.warning(
+        `"${file.name}" is larger than 5MB. Please choose a smaller image.`
+      );
+      return;
+    }
+    try {
+      setMediaBusy(true);
+      await uploadAssetPhoto(editAssetId, file);
+      // The photo's id/URL are assigned server-side — refetch to display it.
+      const res = await getAsset(editAssetId);
+      setExistingPhotos(normalizePhotoList(res?.data || res));
+      toast.success('Photo added.');
+    } catch (err) {
+      console.error('Error adding photo:', err);
+      toast.error(err.message || 'Failed to add photo.');
+    } finally {
+      setMediaBusy(false);
+    }
   };
+
+  const handleExistingPhotoDelete = async photo => {
+    if (!photo.id) return;
+    try {
+      setMediaBusy(true);
+      await deleteAssetPhoto(editAssetId, photo.id);
+      setExistingPhotos(prev => prev.filter(p => p !== photo));
+      toast.success('Photo removed.');
+    } catch (err) {
+      console.error('Error removing photo:', err);
+      toast.error(err.message || 'Failed to remove photo.');
+    } finally {
+      setMediaBusy(false);
+    }
+  };
+
+  const handleExistingDocAdd = async e => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      toast.warning(`"${file.name}" is not a PDF and was skipped.`);
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.warning(
+        `"${file.name}" is larger than 10MB. Please choose a smaller file.`
+      );
+      return;
+    }
+    try {
+      setMediaBusy(true);
+      await uploadAssetDocument(editAssetId, file);
+      const res = await getAssetDocuments(editAssetId);
+      setExistingDocs(normalizeDocList(res?.data));
+      toast.success('Document added.');
+    } catch (err) {
+      console.error('Error adding document:', err);
+      toast.error(err.message || 'Failed to add document.');
+    } finally {
+      setMediaBusy(false);
+    }
+  };
+
+  const handleExistingDocDelete = async doc => {
+    try {
+      setMediaBusy(true);
+      await deleteAssetDocument(editAssetId, doc.id);
+      setExistingDocs(prev => prev.filter(d => d.id !== doc.id));
+      toast.success('Document removed.');
+    } catch (err) {
+      console.error('Error removing document:', err);
+      toast.error(err.message || 'Failed to remove document.');
+    } finally {
+      setMediaBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!editAssetId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await getAsset(editAssetId);
+        const asset = response?.data || response;
+        if (cancelled || !asset || !asset.id) {
+          if (!cancelled) setEditError('This asset could not be loaded.');
+          return;
+        }
+
+        originalCategoryNameRef.current = asset.category || null;
+
+        // Server enforces this too (403 ASSET_LOCKED on save) — blocking here
+        // spares the user from filling a form they can't submit.
+        if (asset.aiReviewStatus === 'approved') {
+          setEditError(
+            'This asset has been approved and can no longer be edited.'
+          );
+          return;
+        }
+        wasRejectedRef.current = ['rejected', 'needs_review'].includes(
+          asset.aiReviewStatus
+        );
+
+        // getAsset camelCases every key (including inside specifications);
+        // the form works in snake_case, so convert back.
+        const camelToSnakeKey = key =>
+          key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        const specs = {};
+        Object.entries(asset.specifications || {}).forEach(([key, value]) => {
+          specs[camelToSnakeKey(key)] = value;
+        });
+        originalSpecsRef.current = specs;
+
+        const categoryObj =
+          allCategories.find(
+            c => c.id === asset.category || c.name === asset.category
+          ) || null;
+        setSelectedCategory(categoryObj?.id || asset.category);
+        setSelectedCategoryGroup(
+          categoryObj?.categoryGroup || asset.categoryGroup || null
+        );
+        setActiveGroup(categoryObj?.categoryGroup || null);
+
+        // Dates may come back as full ISO datetimes; the pickers want a day.
+        const isoDay = value =>
+          typeof value === 'string' ? value.slice(0, 10) : '';
+        const currentVal = asset.currentValue ?? asset.estimatedValue;
+        setFormData({
+          ...specs,
+          asset_name: asset.name || '',
+          description: asset.description || '',
+          location: asset.location || '',
+          asset_type: asset.assetType || '',
+          currency: asset.currency || 'USD',
+          condition: asset.condition || '',
+          ownership_type: asset.ownershipType || '',
+          acquisition_date: isoDay(asset.acquisitionDate),
+          purchase_date: isoDay(asset.acquisitionDate),
+          purchase_price: asset.purchasePrice ?? '',
+          current_value: currentVal ?? '',
+          estimated_value: currentVal ?? '',
+        });
+        setValuationType(asset.valuationType || 'manual');
+        setEstimatedValue(
+          currentVal !== null && currentVal !== undefined
+            ? String(currentVal)
+            : ''
+        );
+
+        // Already-uploaded media for the step-2 manager.
+        setExistingPhotos(normalizePhotoList(asset));
+        try {
+          const docsRes = await getAssetDocuments(editAssetId);
+          if (!cancelled) setExistingDocs(normalizeDocList(docsRes?.data));
+        } catch (docsErr) {
+          // Non-critical — the step just shows "no documents".
+          console.warn('Could not load asset documents:', docsErr?.message);
+        }
+      } catch (err) {
+        console.error('Error loading asset for editing:', err);
+        if (!cancelled) {
+          setEditError(
+            err.message || 'Failed to load this asset for editing.'
+          );
+        }
+      } finally {
+        if (!cancelled) setEditLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editAssetId]);
 
   // Initialize form data when category changes
   const handleCategorySelect = categoryId => {
+    // Re-clicking the already-selected sub-category must not wipe what the
+    // user has typed — just take them back to the form.
+    if (categoryId === selectedCategory) {
+      assetDetailsRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+      return;
+    }
     setSelectedCategory(categoryId);
     const category = allCategories.find(cat => cat.id === categoryId);
     if (category) {
       setSelectedCategoryGroup(category.categoryGroup);
+      // Selecting from search results should land the browser on that group.
+      setActiveGroup(category.categoryGroup);
       // Initialize form data with empty values for all fields
       const fields = getFormFieldsForCategory(categoryId);
       const initialData = {};
@@ -244,14 +618,33 @@ export default function AddAssetPage() {
           // user picks. Never default to the first option — that's how every
           // Portfolio asset ended up stamped "stock".
           initialData[key] = ASSET_TYPE_BY_CATEGORY[categoryId] || '';
-        } else if (getFieldType(field) === 'select') {
+        } else if (
+          getFieldType(field) === 'select' &&
+          !allowsCustomOption(field)
+        ) {
+          // Fixed-enum selects pre-fill their first option; the free-form
+          // "type" fields start blank so the user makes a real choice.
           const [first] = getSelectOptions(field);
           initialData[key] = (typeof first === 'string' ? first : first?.value) || '';
         } else {
           initialData[key] = '';
         }
       });
-      setFormData(initialData);
+      if (isEditMode) {
+        // Switching category while editing must not wipe what's already
+        // filled in — carry over every field the new category's form shares
+        // with the previous one.
+        const merged = { ...initialData };
+        Object.keys(merged).forEach(key => {
+          if (formData[key] !== undefined && formData[key] !== '') {
+            merged[key] = formData[key];
+          }
+        });
+        setFormData(merged);
+        setShowCategoryBrowser(false);
+      } else {
+        setFormData(initialData);
+      }
     }
   };
 
@@ -266,9 +659,166 @@ export default function AddAssetPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
+  // Edit-mode submit: PUT the edited fields. Photos/documents are deliberately
+  // omitted — the backend leaves omitted fields untouched, so existing media
+  // stays attached. Specifications are layered over the originals so keys the
+  // form doesn't cover survive the round-trip.
+  const handleUpdateAsset = async () => {
+    try {
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      const categoryObj = allCategories.find(c => c.id === selectedCategory);
+      const specifications = { ...originalSpecsRef.current, ...formData };
+      // Same strip list as creation: promoted top-level fields and phantom keys.
+      [
+        'asset_name',
+        'name',
+        'category',
+        'categoryGroup',
+        'asset_type',
+        'description',
+        'location',
+        'estimated_value',
+        'current_value',
+        'condition',
+        'ownership_type',
+        'acquisition_date',
+        'purchase_date',
+        'purchase_price',
+        'currency',
+        'valuation_type',
+        'photos',
+        'images',
+        'documents',
+        'make_model_year',
+        'image',
+      ].forEach(key => delete specifications[key]);
+      Object.keys(specifications).forEach(key => {
+        const val = specifications[key];
+        if (
+          val === undefined ||
+          val === null ||
+          val === '' ||
+          (Array.isArray(val) && val.length === 0)
+        ) {
+          delete specifications[key];
+        }
+      });
+      // Money fields to clean numbers, amount_owed keeps its formatted text
+      // (its number goes top-level) — mirrors creation.
+      formFields
+        .filter(field => getFieldType(field) === 'currency')
+        .forEach(field => {
+          const key = fieldNameToKey(field);
+          if (key === 'amount_owed') return;
+          if (key in specifications) {
+            const amount = toAmount(specifications[key]);
+            if (amount === undefined) delete specifications[key];
+            else specifications[key] = amount;
+          }
+        });
+
+      const assetData = {
+        name: (
+          formData.asset_name ||
+          formData.name ||
+          formData.debt_type ||
+          formData.wealth_type ||
+          formData.fund_vehicle_name ||
+          formData.service_type ||
+          formData.document_name ||
+          categoryObj?.name ||
+          ''
+        ).slice(0, 255),
+        category: categoryObj?.name || selectedCategory,
+        categoryGroup:
+          selectedCategoryGroup || categoryObj?.categoryGroup || 'Assets',
+        description: formData.description || undefined,
+        location: formData.location
+          ? formData.location.slice(0, 255)
+          : undefined,
+        assetType: formData.asset_type || undefined,
+        estimatedValue:
+          toAmount(estimatedValue) ??
+          toAmount(formData.current_value) ??
+          toAmount(formData.estimated_value) ??
+          toAmount(formData.amount_owed),
+        currentValue:
+          toAmount(estimatedValue) ??
+          toAmount(formData.current_value) ??
+          toAmount(formData.estimated_value) ??
+          toAmount(formData.amount_owed),
+        condition: formData.condition || undefined,
+        ownershipType: formData.ownership_type || undefined,
+        acquisitionDate:
+          formData.acquisition_date || formData.purchase_date || undefined,
+        purchasePrice: toAmount(formData.purchase_price),
+        currency: formData.currency || 'USD',
+        valuationType: valuationType || 'manual',
+        // The update endpoint ignores the category NAME — only category_id
+        // moves an asset to another category.
+        categoryId:
+          backendCategoryIdsRef.current[
+            categoryObj?.name || selectedCategory
+          ] || undefined,
+        specifications,
+      };
+      Object.keys(assetData).forEach(key => {
+        if (assetData[key] === undefined) {
+          delete assetData[key];
+        }
+      });
+
+      // A category change is only applied server-side via category_id; if the
+      // id mapping didn't load, the rest of the edit still saves — warn that
+      // the category itself may stay unchanged.
+      const newCategoryName = categoryObj?.name || selectedCategory;
+      if (
+        originalCategoryNameRef.current &&
+        newCategoryName !== originalCategoryNameRef.current &&
+        !assetData.categoryId
+      ) {
+        toast.warning(
+          'The category change may not be applied — please verify it after saving.'
+        );
+      }
+
+      console.log('📦 Asset Update Payload:', JSON.stringify(assetData, null, 2));
+      await updateAsset(editAssetId, assetData);
+      // Editing a rejected asset auto-re-queues it for review (backend
+      // resets the verdict to not_reviewed) — tell the user that happened.
+      toast.success(
+        wasRejectedRef.current
+          ? 'Asset updated and resubmitted for review.'
+          : 'Asset updated successfully.'
+      );
+      router.push(`/dashboard/assets/${editAssetId}`);
+    } catch (err) {
+      console.error('Error updating asset:', err);
+      // Race backstop: the asset got approved after the edit page loaded.
+      // Editing is over — take the user back to the (locked) asset.
+      if (err.code === 'ASSET_LOCKED') {
+        toast.info(
+          err.message ||
+            'This asset has been approved and can no longer be edited.'
+        );
+        router.push(`/dashboard/assets/${editAssetId}`);
+        return;
+      }
+      setSubmitError(
+        err.message || 'Failed to update asset. Please try again.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleNext = async () => {
     if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
+    } else if (isEditMode) {
+      await handleUpdateAsset();
     } else {
       // Submit form - Step 3 is the final step
       try {
@@ -409,22 +959,52 @@ export default function AddAssetPage() {
         // Prepare asset data
         const categoryObj = allCategories.find(c => c.id === selectedCategory);
         const assetData = {
-          name: formData.asset_name || formData.name || '',
+          // Backend requires `name` (422 otherwise, NOT NULL column, ≤255).
+          // Five groups have no "Asset Name" field, so fall back to each
+          // group's identifying field, then to the sub-category name so a
+          // create can never be rejected for a missing name.
+          name: (
+            formData.asset_name ||
+            formData.name ||
+            formData.debt_type || // Liabilities
+            formData.wealth_type || // Shadow Wealth
+            formData.fund_vehicle_name || // Philanthropy
+            formData.service_type || // Lifestyle
+            formData.document_name || // Governance
+            categoryObj?.name ||
+            ''
+          ).slice(0, 255),
           category: categoryObj?.name || selectedCategory,
           categoryGroup: selectedCategoryGroup || categoryObj?.categoryGroup || 'Assets',
           // Omit rather than send "". On update the backend guards on `is not
           // None`, so "" overwrites and null leaves the field alone — sending ""
           // for a field the user never saw would wipe their existing text.
           description: formData.description || undefined,
-          location: formData.location || undefined,
+          // DB column is VARCHAR(255) and overflow is a 500, not a 422 —
+          // enforce the cap here.
+          location: formData.location
+            ? formData.location.slice(0, 255)
+            : undefined,
           // The backend derives this when omitted (Portfolio → "stock"), which is
           // how a crypto holding gets labelled a stock. Send what the user chose.
           assetType: formData.asset_type || undefined,
-          // Step 3's valuation wins when given, but a "Current Value" typed on the
-          // step-1 form is a real number the user entered and used to be dropped
-          // on the floor — it was stripped from specifications and never promoted.
-          estimatedValue: toAmount(estimatedValue) ?? toAmount(formData.current_value),
-          currentValue: toAmount(estimatedValue) ?? toAmount(formData.current_value),
+          // Step 3's valuation wins when given, but a "Current Value" or
+          // "Estimated Value" typed on the step-1 form is a real number the
+          // user entered — both used to be stripped from specifications and
+          // never promoted, so they were dropped on the floor.
+          // Liabilities carry their Amount Owed here (agreed with backend):
+          // net-worth math SUBTRACTS the Liabilities group, so the amount
+          // must be in the value field for the debt to count against totals.
+          estimatedValue:
+            toAmount(estimatedValue) ??
+            toAmount(formData.current_value) ??
+            toAmount(formData.estimated_value) ??
+            toAmount(formData.amount_owed),
+          currentValue:
+            toAmount(estimatedValue) ??
+            toAmount(formData.current_value) ??
+            toAmount(formData.estimated_value) ??
+            toAmount(formData.amount_owed),
           condition: formData.condition || undefined,
           ownershipType: formData.ownership_type || undefined,
           acquisitionDate: formData.acquisition_date || formData.purchase_date || undefined,
@@ -472,14 +1052,41 @@ export default function AddAssetPage() {
             delete assetData[key];
           }
         });
-        // Remove undefined AND empty-string values from specifications
+        // Remove undefined, empty-string, and empty-array (untouched tags)
+        // values from specifications
         if (assetData.specifications) {
           Object.keys(assetData.specifications).forEach(key => {
             const val = assetData.specifications[key];
-            if (val === undefined || val === null || val === '') {
+            if (
+              val === undefined ||
+              val === null ||
+              val === '' ||
+              (Array.isArray(val) && val.length === 0)
+            ) {
               delete assetData.specifications[key];
             }
           });
+          // The backend stores specifications verbatim, so money fields
+          // (contribution_value, annual_cost, ...) must be sent as clean
+          // numbers — "$61,500" would be stuck as a string forever and could
+          // never be aggregated. Garbage that doesn't parse is dropped rather
+          // than sent as NaN. Exception: amount_owed keeps the user's
+          // formatted text for the detail page — its clean number is promoted
+          // to top-level estimated_value/current_value above.
+          formFields
+            .filter(field => getFieldType(field) === 'currency')
+            .forEach(field => {
+              const key = fieldNameToKey(field);
+              if (key === 'amount_owed') return;
+              if (key in assetData.specifications) {
+                const amount = toAmount(assetData.specifications[key]);
+                if (amount === undefined) {
+                  delete assetData.specifications[key];
+                } else {
+                  assetData.specifications[key] = amount;
+                }
+              }
+            });
         }
 
         // Log complete asset payload before creation
@@ -589,12 +1196,18 @@ export default function AddAssetPage() {
   };
 
   const handleCancel = () => {
-    router.push('/dashboard/assets');
+    // Editing came from the asset's detail page — return there on cancel.
+    router.push(
+      isEditMode ? `/dashboard/assets/${editAssetId}` : '/dashboard/assets'
+    );
   };
 
   const handleFileSelect = (event, type) => {
     const files = Array.from(event.target.files);
     handleFiles(files, type);
+    // Reset so picking the same file again (e.g. after a size warning)
+    // still fires onChange.
+    event.target.value = '';
   };
 
   const handleDragOver = e => {
@@ -615,13 +1228,27 @@ export default function AddAssetPage() {
   };
 
   const handleFiles = (files, type) => {
+    // Reject invalid files up front with a friendly warning toast instead of
+    // silently dropping them or letting the backend fail with a raw error.
+    const maxSizeMB = type === 'photo' ? 5 : 10;
     const validFiles = files.filter(file => {
-      const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB
-      if (type === 'photo') {
-        return isValidSize && file.type.startsWith('image/');
-      } else {
-        return isValidSize && file.type === 'application/pdf';
+      if (type === 'photo' && !file.type.startsWith('image/')) {
+        toast.warning(`"${file.name}" is not an image and was skipped.`);
+        return false;
       }
+      if (type === 'doc' && file.type !== 'application/pdf') {
+        toast.warning(`"${file.name}" is not a PDF and was skipped.`);
+        return false;
+      }
+      if (file.size > maxSizeMB * 1024 * 1024) {
+        toast.warning(
+          `"${file.name}" is larger than ${maxSizeMB}MB. Please choose a smaller ${
+            type === 'photo' ? 'image' : 'file'
+          }.`
+        );
+        return false;
+      }
+      return true;
     });
 
     const newFiles = validFiles.map(file => ({
@@ -879,6 +1506,73 @@ export default function AddAssetPage() {
     return 'pending';
   };
 
+  // Sub-category card, shared by the drill-down grid and search results.
+  const renderCategoryCard = category => (
+    <button
+      key={category.id}
+      onClick={() => handleCategorySelect(category.id)}
+      className={`group relative p-6 rounded-xl border-2 transition-all text-left ${
+        selectedCategory === category.id
+          ? 'bg-[#2A2A2D] border-[#F1CB68] shadow-lg shadow-[#F1CB68]/20'
+          : 'bg-[#2A2A2D] border-[#FFFFFF14] hover:border-[#F1CB68]/50 hover:bg-[#2A2A2D]/80'
+      }`}
+    >
+      {/* Icon - Yellow icon at top center */}
+      <div className='flex justify-center mb-4'>
+        {category.iconFile ? (
+          <img
+            src={`/${category.iconFile}`}
+            alt={category.name}
+            className='w-12 h-12 object-contain'
+            style={{
+              filter:
+                'brightness(0) saturate(100%) invert(77%) sepia(48%) saturate(1352%) hue-rotate(358deg) brightness(101%) contrast(96%)',
+            }}
+          />
+        ) : (
+          <div className='w-12 h-12 flex items-center justify-center text-[#F1CB68] transition-transform group-hover:scale-110'>
+            {(() => {
+              const IconComponent = getCategoryIcon(category.id);
+              return <IconComponent className='w-12 h-12' />;
+            })()}
+          </div>
+        )}
+      </div>
+
+      {/* Category Title */}
+      <h4
+        className={`text-lg font-bold mb-2 ${
+          selectedCategory === category.id ? 'text-[#F1CB68]' : 'text-white'
+        }`}
+      >
+        {category.name}
+      </h4>
+
+      {/* Description */}
+      <p className='text-sm text-gray-400 leading-relaxed line-clamp-2'>
+        {category.description}
+      </p>
+
+      {/* Selected Indicator */}
+      {selectedCategory === category.id && (
+        <div className='absolute top-4 right-4'>
+          <div className='w-6 h-6 rounded-full bg-[#F1CB68] flex items-center justify-center'>
+            <svg
+              width='14'
+              height='14'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='#0B0D12'
+              strokeWidth='3'
+            >
+              <path d='M20 6L9 17l-5-5' />
+            </svg>
+          </div>
+        </div>
+      )}
+    </button>
+  );
+
   // Render form field based on field name
   const renderFormField = fieldName => {
     const fieldKey = fieldNameToKey(fieldName);
@@ -888,6 +1582,24 @@ export default function AddAssetPage() {
     // Skip Image field as it's handled in step 2
     if (fieldName.toLowerCase().includes('image')) {
       return null;
+    }
+
+    // Tags: chip editor instead of a plain text input. Stored in formData as
+    // an array and sent to the backend inside specifications.
+    if (fieldName.toLowerCase().includes('tag')) {
+      return (
+        <div key={fieldKey} className='mb-6'>
+          <label className='block text-sm font-medium text-white mb-2'>
+            {fieldName}
+          </label>
+          <TagsInput
+            name={fieldKey}
+            value={formData[fieldKey]}
+            onChange={handleChange}
+            placeholder='Type a tag, e.g. "vintage"'
+          />
+        </div>
+      );
     }
 
     // Handle special fields
@@ -973,23 +1685,16 @@ export default function AddAssetPage() {
             <label className='block text-sm font-medium text-white mb-2'>
               {fieldName}
             </label>
-            <input
-              type='date'
+            <CalendarDatePicker
               name={fieldKey}
               value={value}
               onChange={handleChange}
-              // Bound the picker so the native year segment can't accept a
-              // 5–6 digit year (e.g. "2026445"): no earlier than 1900, and an
-              // acquisition/purchase date can't be in the future. The calendar
-              // popup greys out everything outside this range for free.
+              // Only past-facing dates (purchase/acquisition/upload) are capped
+              // at today — End/Maturity/Due/Expected/Expiry dates stay open to
+              // the future. The calendar disables anything outside the range.
               min='1900-01-01'
-              max={TODAY_ISO}
-              // Chrome opens the calendar only from its indicator icon. Open it
-              // from anywhere in the field instead. showPicker() needs transient
-              // user activation, so bind it to click and never to focus — a
-              // keyboard tab into the field would throw NotAllowedError.
-              onClick={openDatePicker}
-              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white cursor-pointer [color-scheme:dark] focus:outline-none focus:border-[#F1CB68] transition-colors'
+              max={isPastOnlyDateField(fieldName) ? TODAY_ISO : FUTURE_MAX_ISO}
+              placeholder={`Select ${fieldName.toLowerCase()}`}
             />
           </div>
         );
@@ -1064,21 +1769,16 @@ export default function AddAssetPage() {
             <label className='block text-sm font-medium text-white mb-2'>
               {fieldName}
             </label>
-            <select
+            {/* No silent default: the trigger shows a placeholder until the
+                user makes a real choice. */}
+            <DropdownSelect
               name={fieldKey}
               value={value}
               onChange={handleChange}
-              className="w-full"
-            >
-              {/* A blank first option only where one isn't pre-selected, so the
-                  user makes a real choice instead of accepting a silent default. */}
-              {!value && <option value=''>Select {fieldName}</option>}
-              {options.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              options={options}
+              placeholder={`Select ${fieldName.toLowerCase()}`}
+              allowCustom={allowsCustomOption(fieldName)}
+            />
           </div>
         );
       }
@@ -1121,24 +1821,26 @@ export default function AddAssetPage() {
             >
               <path d='M19 12H5M5 12l7-7M5 12l7 7' />
             </svg>
-            Back to Assets
+            {isEditMode ? 'Back to Asset' : 'Back to Assets'}
           </button>
           <h1
             className={`text-3xl font-bold ${
               isDarkMode ? 'text-white' : 'text-gray-900'
             }`}
           >
-            Add New Asset
+            {isEditMode ? 'Edit Asset' : 'Add New Asset'}
           </h1>
           <p className='text-gray-400 mt-2'>
-            Fill in the details to add a new asset to your portfolio
+            {isEditMode
+              ? 'Update the details of your asset and save your changes'
+              : 'Fill in the details to add a new asset to your portfolio'}
           </p>
         </div>
 
         {/* Stepper - Desktop */}
         <div className='hidden md:block max-w-4xl mx-auto mb-12'>
           <div className='relative flex items-center justify-between'>
-            {steps.map((step, index) => {
+            {visibleSteps.map((step, index) => {
               const status = getStepStatus(step.id);
               return (
                 <div
@@ -1156,7 +1858,7 @@ export default function AddAssetPage() {
                           : 'bg-gray-700 text-gray-400'
                       }`}
                     >
-                      {status === 'completed' ? '✓' : step.id}
+                      {status === 'completed' ? '✓' : index + 1}
                     </div>
                     <span
                       className={`text-sm text-nowrap text-center ${
@@ -1168,7 +1870,7 @@ export default function AddAssetPage() {
                   </div>
 
                   {/* Connector Line */}
-                  {index < steps.length - 1 && (
+                  {index < visibleSteps.length - 1 && (
                     <div
                       className='h-[2px] flex-1 mx-4'
                       style={{
@@ -1190,7 +1892,7 @@ export default function AddAssetPage() {
         {/* Stepper - Mobile */}
         <div className='md:hidden mb-8'>
           <div className='flex items-center justify-center gap-2'>
-            {steps.map((step, index) => {
+            {visibleSteps.map((step, index) => {
               const status = getStepStatus(step.id);
               return (
                 <div key={step.id} className='flex items-center'>
@@ -1203,9 +1905,9 @@ export default function AddAssetPage() {
                         : 'bg-gray-700 text-gray-400'
                     }`}
                   >
-                    {status === 'completed' ? '✓' : step.id}
+                    {status === 'completed' ? '✓' : index + 1}
                   </div>
-                  {index < steps.length - 1 && (
+                  {index < visibleSteps.length - 1 && (
                     <div
                       className='w-6 h-[2px] mx-1'
                       style={{
@@ -1223,13 +1925,75 @@ export default function AddAssetPage() {
             })}
           </div>
           <p className='text-center text-sm text-gray-400 mt-2'>
-            Step {currentStep} of {steps.length}
+            Step{' '}
+            {visibleSteps.findIndex(step => step.id === currentStep) + 1} of{' '}
+            {visibleSteps.length}
           </p>
         </div>
 
         {/* Form Content */}
         {currentStep === 1 && (
           <div className='max-w-7xl mx-auto'>
+            {/* Edit mode: no category browser — the category is fixed; the
+                prefetched form renders below. */}
+            {isEditMode && editLoading && (
+              <p className='text-gray-400 text-center py-12'>
+                Loading asset details…
+              </p>
+            )}
+            {isEditMode && editError && (
+              <div className='p-4 rounded-lg bg-red-500/10 border border-red-500/40 text-red-400 text-sm'>
+                {editError}
+                <button
+                  onClick={handleCancel}
+                  className='block mt-2 text-[#F1CB68] hover:text-[#d4b55a] transition-colors'
+                >
+                  Back to asset
+                </button>
+              </div>
+            )}
+            {/* Current category & sub-category, with a toggle to open the
+                browser below and pick a different one. Shared field values
+                carry over on switch. */}
+            {isEditMode && !editLoading && !editError && selectedCategory && (
+              <div className='mb-6 p-4 rounded-xl bg-gradient-to-r from-[#222126] to-[#111116] border border-[#F1CB68]/30 flex flex-col sm:flex-row sm:items-center gap-4'>
+                <div className='w-12 h-12 rounded-lg bg-[#F1CB68]/10 flex items-center justify-center flex-shrink-0'>
+                  {(() => {
+                    const IconComponent = getCategoryIcon(selectedCategory);
+                    return <IconComponent className='w-6 h-6 text-[#F1CB68]' />;
+                  })()}
+                </div>
+                <div className='flex-1'>
+                  <p className='text-xs text-gray-400'>
+                    Category · Sub-category
+                  </p>
+                  <p className='text-white font-semibold'>
+                    {selectedCategoryGroup} ·{' '}
+                    {allCategories.find(c => c.id === selectedCategory)?.name ||
+                      selectedCategory}
+                  </p>
+                  <p className='text-xs text-gray-500 mt-0.5'>
+                    {
+                      allCategories.find(c => c.id === selectedCategory)
+                        ?.description
+                    }
+                  </p>
+                </div>
+                <button
+                  type='button'
+                  onClick={() => setShowCategoryBrowser(prev => !prev)}
+                  className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors self-start sm:self-center ${
+                    showCategoryBrowser
+                      ? 'border border-[#FFFFFF14] text-white hover:bg-white/5'
+                      : 'bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a]'
+                  }`}
+                >
+                  {showCategoryBrowser ? 'Keep Current' : 'Change Category'}
+                </button>
+              </div>
+            )}
+            {(!isEditMode || showCategoryBrowser) && (
+              <>
             {/* Header Section */}
             <div className='mb-8'>
               <h2 className='text-4xl md:text-5xl font-bold text-white mb-2 leading-tight'>
@@ -1278,154 +2042,159 @@ export default function AddAssetPage() {
               </div>
             </div>
 
-            {/* Main Content Container */}
+            {/* Main Content Container — two-step browser: pick a category
+                group first, then one of its sub-categories. A search query
+                overrides the drill-down and shows matches across all groups. */}
             <div className='bg-gradient-to-r from-[#222126] to-[#111116] border border-[#FFFFFF14] rounded-2xl p-6 md:p-8 max-h-[calc(200vh-300px)] overflow-y-auto custom-scrollbar'>
-              {/* Category Groups */}
-              {filteredCategoriesByGroup.map(({ groupName, categories }) => {
-                const isExpanded = expandedGroups[groupName] ?? true; // Default to expanded
-                const hasSelectedCategory = categories.some(
-                  cat => cat.id === selectedCategory
-                );
-
-                // Get group display name
-                const getGroupDisplayName = name => {
-                  const groupMap = {
-                    Assets: 'Physical, Alternative, Lifestyle',
-                    Portfolio: 'Financial, Digital, Structured',
-                    Liabilities: 'Liabilities & Debts',
-                    'Shadow Wealth': 'Shadow & Anticipated Wealth',
-                    Philanthropy: 'Philanthropy & Impact',
-                    Lifestyle: 'Lifestyle & Concierge',
-                    Governance: 'Compliance & Governance',
-                  };
-                  return groupMap[name] || name;
-                };
-
-                return (
-                  <div key={groupName} className='mb-8 last:mb-0'>
-                    {/* Group Header */}
-                    <div className='flex items-center justify-between mb-4'>
-                      <div className='flex items-center gap-3'>
+              {searchQuery.trim() ? (
+                <>
+                  {/* Search results across all groups */}
+                  {filteredCategoriesByGroup.map(({ groupName, categories }) => (
+                    <div key={groupName} className='mb-8 last:mb-0'>
+                      <div className='flex items-center gap-3 mb-4'>
                         <h3 className='text-2xl font-bold text-white'>
                           {groupName}
                         </h3>
                         <span className='text-sm text-gray-400'>
-                          {getGroupDisplayName(groupName)}
+                          {GROUP_SUBTITLES[groupName] || groupName}
                         </span>
                       </div>
+                      <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
+                        {categories.map(category => renderCategoryCard(category))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* No Results Message */}
+                  {filteredCategoriesByGroup.length === 0 && (
+                    <div className='text-center py-12'>
+                      <p className='text-gray-400 text-lg'>
+                        No categories found matching &quot;{searchQuery}&quot;
+                      </p>
                       <button
-                        onClick={() => toggleGroup(groupName)}
-                        className='text-gray-400 hover:text-white transition-colors p-1'
+                        onClick={() => setSearchQuery('')}
+                        className='mt-4 text-[#F1CB68] hover:text-[#d4b55a] transition-colors'
                       >
-                        <svg
-                          width='20'
-                          height='20'
-                          viewBox='0 0 24 24'
-                          fill='none'
-                          stroke='currentColor'
-                          strokeWidth='2'
-                          className={`transition-transform ${
-                            isExpanded ? 'rotate-180' : ''
-                          }`}
-                        >
-                          <path d='M6 9l6 6 6-6' />
-                        </svg>
+                        Clear search
                       </button>
                     </div>
-
-                    {/* Category Cards Grid */}
-                    {isExpanded && (
-                      <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
-                        {categories.map(category => (
-                          <button
-                            key={category.id}
-                            onClick={() => handleCategorySelect(category.id)}
-                            className={`group relative p-6 rounded-xl border-2 transition-all text-left ${
-                              selectedCategory === category.id
-                                ? 'bg-[#2A2A2D] border-[#F1CB68] shadow-lg shadow-[#F1CB68]/20'
-                                : 'bg-[#2A2A2D] border-[#FFFFFF14] hover:border-[#F1CB68]/50 hover:bg-[#2A2A2D]/80'
-                            }`}
-                          >
-                            {/* Icon - Yellow icon at top center */}
-                            <div className='flex justify-center mb-4'>
-                              {category.iconFile ? (
-                                <img
-                                  src={`/${category.iconFile}`}
-                                  alt={category.name}
-                                  className='w-12 h-12 object-contain'
-                                  style={{
-                                    filter:
-                                      'brightness(0) saturate(100%) invert(77%) sepia(48%) saturate(1352%) hue-rotate(358deg) brightness(101%) contrast(96%)',
-                                  }}
-                                />
-                              ) : (
-                                <div className='w-12 h-12 flex items-center justify-center text-[#F1CB68] transition-transform group-hover:scale-110'>
-                                  {(() => {
-                                    const IconComponent = getCategoryIcon(
-                                      category.id
-                                    );
-                                    return (
-                                      <IconComponent className='w-12 h-12' />
-                                    );
-                                  })()}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Category Title */}
-                            <h4
-                              className={`text-lg font-bold mb-2 ${
-                                selectedCategory === category.id
-                                  ? 'text-[#F1CB68]'
-                                  : 'text-white'
-                              }`}
-                            >
-                              {category.name}
-                            </h4>
-
-                            {/* Description */}
-                            <p className='text-sm text-gray-400 leading-relaxed line-clamp-2'>
-                              {category.description}
-                            </p>
-
-                            {/* Selected Indicator */}
-                            {selectedCategory === category.id && (
-                              <div className='absolute top-4 right-4'>
-                                <div className='w-6 h-6 rounded-full bg-[#F1CB68] flex items-center justify-center'>
-                                  <svg
-                                    width='14'
-                                    height='14'
-                                    viewBox='0 0 24 24'
-                                    fill='none'
-                                    stroke='#0B0D12'
-                                    strokeWidth='3'
-                                  >
-                                    <path d='M20 6L9 17l-5-5' />
-                                  </svg>
-                                </div>
+                  )}
+                </>
+              ) : !activeGroup ? (
+                <>
+                  {/* Step A: pick a category group */}
+                  <div className='mb-6'>
+                    <h3 className='text-2xl font-bold text-white mb-1'>
+                      Select a Category
+                    </h3>
+                    <p className='text-sm text-gray-400'>
+                      Choose the type of asset you want to add
+                    </p>
+                  </div>
+                  <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
+                    {categoriesByGroup.map(({ groupName, categories }) => {
+                      const firstCategory = categories[0];
+                      const isSelectedGroup =
+                        selectedCategoryGroup === groupName;
+                      return (
+                        <button
+                          key={groupName}
+                          onClick={() => setActiveGroup(groupName)}
+                          className={`group relative p-6 rounded-xl border-2 transition-all text-left ${
+                            isSelectedGroup
+                              ? 'bg-[#2A2A2D] border-[#F1CB68] shadow-lg shadow-[#F1CB68]/20'
+                              : 'bg-[#2A2A2D] border-[#FFFFFF14] hover:border-[#F1CB68]/50 hover:bg-[#2A2A2D]/80'
+                          }`}
+                        >
+                          <div className='flex justify-center mb-4'>
+                            {firstCategory?.iconFile ? (
+                              <img
+                                src={`/${firstCategory.iconFile}`}
+                                alt={groupName}
+                                className='w-12 h-12 object-contain'
+                                style={{
+                                  filter:
+                                    'brightness(0) saturate(100%) invert(77%) sepia(48%) saturate(1352%) hue-rotate(358deg) brightness(101%) contrast(96%)',
+                                }}
+                              />
+                            ) : (
+                              <div className='w-12 h-12 flex items-center justify-center text-[#F1CB68] transition-transform group-hover:scale-110'>
+                                {(() => {
+                                  const IconComponent = getCategoryIcon(
+                                    firstCategory?.id
+                                  );
+                                  return <IconComponent className='w-12 h-12' />;
+                                })()}
                               </div>
                             )}
-                          </button>
-                        ))}
-                      </div>
+                          </div>
+                          <h4
+                            className={`text-lg font-bold mb-1 ${
+                              isSelectedGroup ? 'text-[#F1CB68]' : 'text-white'
+                            }`}
+                          >
+                            {groupName}
+                          </h4>
+                          <p className='text-sm text-gray-400 leading-relaxed mb-3'>
+                            {GROUP_SUBTITLES[groupName] || groupName}
+                          </p>
+                          <span className='inline-flex items-center gap-1 text-xs text-[#F1CB68]'>
+                            {categories.length}{' '}
+                            {categories.length === 1 ? 'type' : 'types'}
+                            <svg
+                              width='14'
+                              height='14'
+                              viewBox='0 0 24 24'
+                              fill='none'
+                              stroke='currentColor'
+                              strokeWidth='2'
+                            >
+                              <path d='M9 18l6-6-6-6' />
+                            </svg>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Step B: pick a sub-category within the chosen group */}
+                  <button
+                    onClick={() => setActiveGroup(null)}
+                    className='text-gray-400 hover:text-white mb-4 flex items-center gap-2 transition-colors'
+                  >
+                    <svg
+                      width='18'
+                      height='18'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                      strokeWidth='2'
+                    >
+                      <path d='M19 12H5M5 12l7-7M5 12l7 7' />
+                    </svg>
+                    All Categories
+                  </button>
+                  <div className='mb-6'>
+                    <div className='flex items-center gap-3'>
+                      <h3 className='text-2xl font-bold text-white'>
+                        {activeGroup}
+                      </h3>
+                      <span className='text-sm text-gray-400'>
+                        {GROUP_SUBTITLES[activeGroup] || activeGroup}
+                      </span>
+                    </div>
+                    <p className='text-sm text-gray-400 mt-1'>
+                      Select a sub-category to continue
+                    </p>
+                  </div>
+                  <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
+                    {getCategoriesByGroup(activeGroup).map(category =>
+                      renderCategoryCard(category)
                     )}
                   </div>
-                );
-              })}
-
-              {/* No Results Message */}
-              {filteredCategoriesByGroup.length === 0 && (
-                <div className='text-center py-12'>
-                  <p className='text-gray-400 text-lg'>
-                    No categories found matching &quot;{searchQuery}&quot;
-                  </p>
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className='mt-4 text-[#F1CB68] hover:text-[#d4b55a] transition-colors'
-                  >
-                    Clear search
-                  </button>
-                </div>
+                </>
               )}
             </div>
 
@@ -1468,6 +2237,9 @@ export default function AddAssetPage() {
                       }
                     </p>
                   </div>
+                  {/* Clearing the selection would wipe the whole form — an
+                      edited asset always keeps SOME category, so hide it. */}
+                  {!isEditMode && (
                   <button
                     onClick={() => {
                       setSelectedCategory(null);
@@ -1487,13 +2259,19 @@ export default function AddAssetPage() {
                       <path d='M18 6L6 18M6 6l12 12' />
                     </svg>
                   </button>
+                  )}
                 </div>
               </div>
+            )}
+              </>
             )}
 
             {/* Dynamic Form Fields */}
             {selectedCategory && formFields.length > 0 && (
-              <div className='mt-8 bg-gradient-to-r from-[#222126] to-[#111116] border border-[#FFFFFF14] rounded-2xl p-6 md:p-8'>
+              <div
+                ref={assetDetailsRef}
+                className='mt-8 bg-gradient-to-r from-[#222126] to-[#111116] border border-[#FFFFFF14] rounded-2xl p-6 md:p-8 scroll-mt-24'
+              >
                 <h3 className='text-xl font-semibold text-white mb-6'>
                   Asset Details
                 </h3>
@@ -1536,8 +2314,189 @@ export default function AddAssetPage() {
           </div>
         )}
 
+        {/* Step 2 (edit mode) - manage the asset's EXISTING photos and
+            documents. Add/remove act immediately via the asset-scoped media
+            endpoints — the PUT update never touches media rows. */}
+        {currentStep === 2 && isEditMode && (
+          <div className='max-w-4xl mx-auto'>
+            <div className='bg-gradient-to-r from-[#222126] to-[#111116] border border-[#FFFFFF14] rounded-2xl p-6 md:p-8'>
+              <h3 className='text-xl font-semibold text-white mb-1'>
+                Photos & Documents
+              </h3>
+              <p className='text-sm text-gray-400 mb-6'>
+                Changes to photos and documents are saved immediately.
+              </p>
+
+              {/* Existing Photos */}
+              <div className='mb-8'>
+                <h4 className='text-sm font-medium text-white mb-3'>
+                  Asset Photos
+                </h4>
+                <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4'>
+                  {existingPhotos.map((photo, index) => (
+                    <div
+                      key={photo.id || photo.url || index}
+                      className='relative rounded-xl overflow-hidden border border-[#FFFFFF14] bg-[#1a1a1d] aspect-square'
+                    >
+                      <img
+                        src={photo.url}
+                        alt='Asset photo'
+                        className='w-full h-full object-cover'
+                      />
+                      {photo.id && (
+                        <button
+                          type='button'
+                          onClick={() => handleExistingPhotoDelete(photo)}
+                          disabled={mediaBusy}
+                          aria-label='Remove photo'
+                          className='absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 text-red-400 hover:text-red-300 hover:bg-black/90 flex items-center justify-center transition-colors disabled:opacity-50'
+                        >
+                          <svg
+                            width='13'
+                            height='13'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                            strokeWidth='2.5'
+                          >
+                            <path d='M18 6L6 18M6 6l12 12' />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type='button'
+                    onClick={() => addPhotoInputRef.current?.click()}
+                    disabled={mediaBusy}
+                    className='aspect-square rounded-xl border-2 border-dashed border-[#FFFFFF2a] hover:border-[#F1CB68]/60 text-gray-400 hover:text-[#F1CB68] flex flex-col items-center justify-center gap-2 transition-colors disabled:opacity-50'
+                  >
+                    <svg
+                      width='22'
+                      height='22'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                      strokeWidth='2'
+                    >
+                      <path d='M12 5v14M5 12h14' />
+                    </svg>
+                    <span className='text-xs'>
+                      {mediaBusy ? 'Working…' : 'Add Photo'}
+                    </span>
+                  </button>
+                </div>
+                <p className='text-xs text-gray-500 mt-2'>JPG, PNG (Max 5MB)</p>
+                <input
+                  ref={addPhotoInputRef}
+                  type='file'
+                  accept='image/*'
+                  onChange={handleExistingPhotoAdd}
+                  className='hidden'
+                />
+              </div>
+
+              {/* Existing Documents */}
+              <div className='mb-8'>
+                <h4 className='text-sm font-medium text-white mb-3'>
+                  Supporting Documents
+                </h4>
+                {existingDocs.length === 0 && (
+                  <p className='text-sm text-gray-500 mb-3'>
+                    No documents uploaded yet.
+                  </p>
+                )}
+                <div className='space-y-2'>
+                  {existingDocs.map(doc => (
+                    <div
+                      key={doc.id}
+                      className='flex items-center gap-3 p-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14]'
+                    >
+                      <svg
+                        width='18'
+                        height='18'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='#F1CB68'
+                        strokeWidth='2'
+                        className='flex-shrink-0'
+                      >
+                        <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+                        <path d='M14 2v6h6' />
+                      </svg>
+                      <span className='flex-1 text-sm text-white truncate'>
+                        {doc.name}
+                      </span>
+                      {doc.url && (
+                        <a
+                          href={doc.url}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='text-xs text-[#F1CB68] hover:text-[#d4b55a] transition-colors'
+                        >
+                          View
+                        </a>
+                      )}
+                      <button
+                        type='button'
+                        onClick={() => handleExistingDocDelete(doc)}
+                        disabled={mediaBusy}
+                        aria-label={`Remove ${doc.name}`}
+                        className='text-red-400 hover:text-red-300 transition-colors p-1 disabled:opacity-50'
+                      >
+                        <svg
+                          width='14'
+                          height='14'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          stroke='currentColor'
+                          strokeWidth='2.5'
+                        >
+                          <path d='M18 6L6 18M6 6l12 12' />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type='button'
+                  onClick={() => addDocInputRef.current?.click()}
+                  disabled={mediaBusy}
+                  className='mt-3 px-4 py-2.5 rounded-lg border border-[#FFFFFF2a] text-sm text-white hover:border-[#F1CB68]/60 hover:text-[#F1CB68] transition-colors disabled:opacity-50'
+                >
+                  + Add Document
+                </button>
+                <p className='text-xs text-gray-500 mt-2'>PDF (Max 10MB)</p>
+                <input
+                  ref={addDocInputRef}
+                  type='file'
+                  accept='application/pdf'
+                  onChange={handleExistingDocAdd}
+                  className='hidden'
+                />
+              </div>
+
+              {/* Navigation */}
+              <div className='flex flex-col sm:flex-row gap-4 justify-end pt-6 border-t border-[#FFFFFF14]'>
+                <button
+                  onClick={() => setCurrentStep(1)}
+                  className='px-6 py-3 rounded-lg border border-[#FFFFFF14] text-white hover:bg-white/5 transition-colors'
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  className='px-6 py-3 rounded-lg font-semibold bg-[#F1CB68] text-[#0B0D12] hover:bg-[#d4b55a] transition-colors'
+                >
+                  Next Step
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Step 2 - Upload Photos & Documents */}
-        {currentStep === 2 && (
+        {currentStep === 2 && !isEditMode && (
           <div className='max-w-4xl mx-auto'>
             <div className='bg-gradient-to-r from-[#222126] to-[#111116] border border-[#FFFFFF14] rounded-2xl p-6 md:p-8'>
               {/* Upload Section */}
@@ -1601,7 +2560,7 @@ export default function AddAssetPage() {
                       </div>
                       <p className='text-white font-medium mb-1'>Upload Photos</p>
                       <p className='text-gray-400 text-xs mb-4'>
-                        JPG, PNG (Max 10MB)
+                        JPG, PNG (Max 5MB)
                       </p>
                       <input
                         type='file'
@@ -2110,9 +3069,13 @@ export default function AddAssetPage() {
                   }`}
                 >
                   {isSubmitting
-                    ? 'Creating Asset...'
+                    ? isEditMode
+                      ? 'Saving Changes...'
+                      : 'Creating Asset...'
                     : hasActiveUploads
                     ? 'Uploading files…'
+                    : isEditMode
+                    ? 'Save Changes'
                     : 'Finish'}
                 </button>
               </div>

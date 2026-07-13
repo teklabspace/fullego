@@ -387,9 +387,18 @@ export const apiGet = (endpoint, options = {}) => {
  * @returns {Promise} Response data
  */
 export const apiPost = (endpoint, data = {}, options = {}) => {
-  // If data is undefined or null, don't send a body
-  const body = data === undefined || data === null ? undefined : JSON.stringify(data);
-  
+  // If data is undefined or null, don't send a body.
+  // FormData must pass through UNTOUCHED — JSON.stringify(formData) is "{}",
+  // which silently drops every field and 422s uploads with "Field required".
+  // apiRequest detects the FormData and strips Content-Type so the browser
+  // sets the multipart boundary.
+  const body =
+    data === undefined || data === null
+      ? undefined
+      : data instanceof FormData
+      ? data
+      : JSON.stringify(data);
+
   return apiRequest(endpoint, {
     ...options,
     method: 'POST',
@@ -408,7 +417,8 @@ export const apiPut = (endpoint, data = {}, options = {}) => {
   return apiRequest(endpoint, {
     ...options,
     method: 'PUT',
-    body: JSON.stringify(data),
+    // FormData passes through untouched (see apiPost).
+    body: data instanceof FormData ? data : JSON.stringify(data),
   });
 };
 
@@ -423,7 +433,8 @@ export const apiPatch = (endpoint, data = {}, options = {}) => {
   return apiRequest(endpoint, {
     ...options,
     method: 'PATCH',
-    body: JSON.stringify(data),
+    // FormData passes through untouched (see apiPost).
+    body: data instanceof FormData ? data : JSON.stringify(data),
   });
 };
 

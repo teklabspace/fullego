@@ -253,6 +253,47 @@ export const updateUserProfile = async (profileData) => {
   return await apiPut(API_ENDPOINTS.USERS.UPDATE_PROFILE, profileData);
 };
 
+/**
+ * Upload a profile picture via the generic file upload and return { id, url }.
+ * POST /api/v1/files/upload (multipart — the client strips Content-Type so
+ * the browser sets the boundary). The URL is then saved to the profile as
+ * `avatar_url` via updateUserProfile.
+ *
+ * Must be GENERIC_UPLOAD, not FILES.UPLOAD: the latter is the asset-scoped
+ * uploader whose file_type enum (photo/document) 422s on "avatar".
+ */
+export const uploadAvatarImage = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('file_type', 'avatar');
+  const response = await apiPost(API_ENDPOINTS.FILES.GENERIC_UPLOAD, formData);
+  // Envelope already unwrapped; some endpoints nest one more `data`.
+  const payload =
+    response && typeof response === 'object' && response.data && typeof response.data === 'object'
+      ? response.data
+      : response;
+  return {
+    id: payload?.id || payload?.file_id || null,
+    url: payload?.file_url || payload?.url || payload?.download_url || null,
+  };
+};
+
+/**
+ * Merge fields into the cached user_info and broadcast a `profile-updated`
+ * event so mounted components showing the user (navbar avatar, chat) reflect
+ * the change without a refetch.
+ */
+export const updateStoredUserInfo = (partial) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const stored = JSON.parse(localStorage.getItem('user_info') || '{}');
+    localStorage.setItem('user_info', JSON.stringify({ ...stored, ...partial }));
+  } catch {
+    localStorage.setItem('user_info', JSON.stringify(partial));
+  }
+  window.dispatchEvent(new CustomEvent('profile-updated', { detail: partial }));
+};
+
 // ============================================
 // Notification Preferences APIs
 // ============================================

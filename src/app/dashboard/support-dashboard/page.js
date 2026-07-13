@@ -206,7 +206,13 @@ export default function SupportDashboardPage() {
           : ticket.requester?.name || selfName,
         userEmail: isAdmin ? (ticket.user_email || ticket.userEmail) : (ticket.requester?.email || user?.email),
         userId: isAdmin ? (ticket.user_id || ticket.userId) : (ticket.requester?.id || user?.id),
-        userAvatar: '/icons/user-avatar.svg',
+        // Use the user's uploaded profile picture when the backend sends one.
+        userAvatar:
+          ticket.user_avatar ||
+          ticket.userAvatar ||
+          ticket.requester?.avatar_url ||
+          ticket.requester?.avatarUrl ||
+          '/icons/user-avatar.svg',
         lastMessage: ticket.subject || ticket.description || 'No description',
         timestamp: formatTimeAgo(ticket.updated_at || ticket.updatedAt || ticket.created_at || ticket.createdAt),
         status: ticket.status || 'open',
@@ -272,7 +278,11 @@ export default function SupportDashboardPage() {
           participants,
           userId: (investor || participants.find(p => p.role !== 'admin'))?.userId,
           assignedAdvisor: advisor ? { id: advisor.userId, name: nameOf(advisor) } : null,
-          userAvatar: '/icons/user-avatar.svg',
+          // Prefer the labeled (non-admin) participant's profile picture.
+          userAvatar:
+            other?.avatarUrl ||
+            other?.avatar_url ||
+            '/icons/user-avatar.svg',
           lastMessage: last?.content || 'No messages yet',
           timestamp: formatTimeAgo(conv.updated_at || conv.updatedAt || last?.timestamp),
           status: 'open',
@@ -299,7 +309,10 @@ export default function SupportDashboardPage() {
         userName: req.requested_by?.name || req.requested_by?.email?.split('@')[0] || 'User',
         userEmail: req.requested_by?.email,
         userId: req.requested_by?.id,
-        userAvatar: '/icons/user-avatar.svg',
+        userAvatar:
+          req.requested_by?.avatar_url ||
+          req.requested_by?.avatarUrl ||
+          '/icons/user-avatar.svg',
         assetName: req.asset?.name,
         lastMessage: `${req.type === 'sale' ? 'Sale' : 'Appraisal'} request · ${req.asset?.name || 'Asset'}`,
         timestamp: formatTimeAgo(req.created_at),

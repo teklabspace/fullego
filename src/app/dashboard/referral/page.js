@@ -101,7 +101,8 @@ export default function ReferralPage() {
         email: ref.referredEmail || ref.referred_email || '',
         joinedDate: ref.completedAt || ref.completed_at || ref.createdAt || ref.created_at || '',
         status: ref.status === 'completed' ? 'active' : ref.status || 'pending',
-        avatar: '/icons/user-avatar.svg',
+        // Real profile picture once the backend joins referral email → user.
+        avatar: ref.avatarUrl || ref.avatar_url || '/icons/user-avatar.svg',
       }));
       
       setReferrals(transformedReferrals);
