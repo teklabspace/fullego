@@ -1395,6 +1395,8 @@ function MakeOfferModal({
         toast.info('This is your own listing — you can’t buy it.');
       } else if (code === 'STAFF_CANNOT_BUY') {
         toast.info('Staff accounts cannot make purchases.');
+      } else if (code === 'LISTING_NOT_OPEN') {
+        toast.info('This listing is no longer open for offers — it may have been suspended or sold.');
       } else {
         toast.error(err?.data?.message || err?.data?.detail || err?.message || 'Failed to submit offer');
       }

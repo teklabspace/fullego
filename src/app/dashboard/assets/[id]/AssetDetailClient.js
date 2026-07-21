@@ -1301,72 +1301,131 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
               )}
             </div>
 
-            {/* Property Details */}
-            <div className={`border rounded-2xl p-6 ${
-              isDarkMode
-                ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
-                : 'bg-white border-gray-300'
-            }`}>
-              <h3 className={`text-xl font-semibold mb-6 ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                Property Details
-              </h3>
-              <div className='grid grid-cols-2 gap-6'>
-                <div>
-                  <p className={`text-sm mb-1 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>Property Type</p>
-                  <p className={`font-semibold ${
+            {/* Asset Details — dynamic. The old card hardcoded six
+                real-estate fields (Property Type, Address, Size, Year Built,
+                …), so every non-property category rendered blank rows and the
+                user's actual data (debt type, creditor, fund type, service
+                type, record type, …) was invisible. Now it renders the base
+                fields that have values plus EVERY specifications entry. */}
+            {(() => {
+              // Labels for spec keys whose auto-humanized form reads badly.
+              const SPEC_LABELS = {
+                accountNumberMasked: 'Account Number (masked)',
+                collateralIfAny: 'Collateral',
+                documentationIfAny: 'Documentation',
+                associatedAssetOptional: 'Associated Asset',
+                typeFoundationDafEtc: 'Type',
+                recordTypeKycLegalAudit: 'Record Type',
+                membershipServiceId: 'Membership/Service ID',
+                fundVehicleName: 'Fund/Vehicle Name',
+                relatedAssetUser: 'Related Asset/User',
+              };
+              const MONEY_KEYS = new Set([
+                'amountOwed',
+                'contributionValue',
+                'annualCost',
+                'purchasePrice',
+              ]);
+              // Shown elsewhere on the page — don't repeat them here.
+              const HANDLED = new Set([
+                'propertyType',
+                'address',
+                'size',
+                'yearBuilt',
+                'monthlyRentalIncome',
+                'annualPropertyTax',
+                'maintenanceCosts',
+                'photos',
+                'images',
+                'documents',
+              ]);
+              const humanize = key =>
+                SPEC_LABELS[key] ||
+                key
+                  .replace(/([A-Z])/g, ' $1')
+                  .replace(/^./, c => c.toUpperCase())
+                  .trim();
+              // Date-only strings must be parsed as LOCAL time — UTC parsing
+              // shifts them a day west of Greenwich.
+              const prettyValue = (key, value) => {
+                if (Array.isArray(value)) return value.join(', ');
+                if (MONEY_KEYS.has(key)) {
+                  const n = parseFloat(String(value).replace(/[^0-9.-]+/g, ''));
+                  if (Number.isFinite(n)) return formatCurrency(n, asset.currency);
+                }
+                if (key === 'interestRate') return `${value}%`;
+                if (
+                  /date$/i.test(key) &&
+                  typeof value === 'string' &&
+                  /^\d{4}-\d{2}-\d{2}/.test(value)
+                ) {
+                  const d = new Date(`${value.slice(0, 10)}T00:00:00`);
+                  if (!isNaN(d.getTime())) {
+                    return d.toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    });
+                  }
+                }
+                return String(value);
+              };
+              const rows = [
+                ['Property Type', asset.propertyType],
+                ['Address', asset.address],
+                ['Description', asset.description],
+                ['Condition', asset.condition],
+                [
+                  'Purchase Price',
+                  asset.purchasePrice
+                    ? formatCurrency(asset.purchasePrice, asset.currency)
+                    : null,
+                ],
+                ['Acquisition Date', asset.acquisitionDate],
+                ['Size', asset.size],
+                ['Year Built', asset.yearBuilt],
+                [
+                  'Ownership',
+                  asset.ownership === 'Unknown' ? null : asset.ownership,
+                ],
+              ].filter(([, value]) => value);
+              Object.entries(asset.specifications || {}).forEach(
+                ([key, value]) => {
+                  if (HANDLED.has(key)) return;
+                  if (value === null || value === undefined || value === '')
+                    return;
+                  if (Array.isArray(value) && value.length === 0) return;
+                  if (typeof value === 'object' && !Array.isArray(value)) return;
+                  rows.push([humanize(key), prettyValue(key, value)]);
+                }
+              );
+              if (!rows.length) return null;
+              return (
+                <div className={`border rounded-2xl p-6 ${
+                  isDarkMode
+                    ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
+                    : 'bg-white border-gray-300'
+                }`}>
+                  <h3 className={`text-xl font-semibold mb-6 ${
                     isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
-                    {asset.propertyType}
-                  </p>
+                    Asset Details
+                  </h3>
+                  <div className='grid grid-cols-2 gap-6'>
+                    {rows.map(([label, value]) => (
+                      <div key={label}>
+                        <p className={`text-sm mb-1 ${
+                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>{label}</p>
+                        <p className={`font-semibold break-words ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <p className={`text-sm mb-1 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>Address</p>
-                  <p className={`font-semibold ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>{asset.address}</p>
-                </div>
-                <div>
-                  <p className={`text-sm mb-1 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>Acquisition Date</p>
-                  <p className={`font-semibold ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    {asset.acquisitionDate}
-                  </p>
-                </div>
-                <div>
-                  <p className={`text-sm mb-1 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>Size</p>
-                  <p className={`font-semibold ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>{asset.size}</p>
-                </div>
-                <div>
-                  <p className={`text-sm mb-1 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>Year Built</p>
-                  <p className={`font-semibold ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>{asset.yearBuilt}</p>
-                </div>
-                <div>
-                  <p className={`text-sm mb-1 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>Ownership</p>
-                  <p className={`font-semibold ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>{asset.ownership}</p>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Value History Chart */}
             <div className={`border rounded-2xl p-6 ${

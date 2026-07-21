@@ -1,4 +1,4 @@
-# CLAUDE.md — Project Context for Akunuba (fullego)
+# CLAUDE.md — Project Context for Akunuba
 
 > Read this first every session. It's the map of the codebase so you can jump
 > straight to the right files for any feature without re-exploring the whole repo.
@@ -92,7 +92,7 @@ in `src/utils/` and endpoint constants in `src/config/api.js`.
 ### Public / pre-auth
 | Route | Purpose | Util(s) |
 |-------|---------|---------|
-| `/`, `/about`, `/contact`, `/careers`, `/press`, `/plans`, `/security`, `/terms`, `/privacy`, `/cookies`, `/help-center`, `/fullego` | Marketing/static | — |
+| `/`, `/about`, `/contact`, `/careers`, `/press`, `/plans`, `/security`, `/terms`, `/privacy`, `/cookies`, `/help-center`, `/akunuba` | Marketing/static | — |
 | `/login`, `/signup`, `/forgot-password`, `/reset-password`, `/verify-email` | Auth | `authApi` |
 | `/marketplace`, `/marketplace/[id]` | Public marketplace | `marketplaceApi` |
 | `/kyc-verification`, `/identity-verification`, `/document-verification`, `/kyc/complete`, `/kyc/verification-complete`, `/verification-success`, `/choose-profile`, `/welcome` | KYC/onboarding | `kycApi` |

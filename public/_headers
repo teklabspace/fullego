@@ -19,6 +19,15 @@
 #   • https://images.unsplash.com           — marketplace placeholder images
 #   • https://js.stripe.com                 — Stripe.js (Elements/CardElement iframe + SDK)
 #   • https://api.stripe.com                — Stripe API calls made by Stripe.js itself
+#   • https://static.cloudflareinsights.com — Cloudflare Web Analytics beacon script
+#                                             (auto-injected by Cloudflare Pages; OBS-01)
+#   • https://cloudflareinsights.com        — RUM endpoint the beacon POSTs to
+#   • https://cdn.plaid.com                 — Plaid Link SDK (script + Link iframe)
+#   • https://production.plaid.com / https://sandbox.plaid.com — Plaid API calls
+#                                             made by the Link SDK on the host page
+#   • wss://akunuba-backend.onrender.com    — realtime WebSockets (notifications/chat).
+#                                             CSP scheme matching does NOT let an https:
+#                                             source authorize wss: — it must be explicit.
 # Google OAuth and social share links are top-level NAVIGATIONS (not embedded
 # resources), so they need no CSP allowance. The many `www.w3.org` references in
 # the code are SVG xmlns namespaces, not network requests.
@@ -45,7 +54,7 @@
 #     temporarily, fix the allowlist, then switch back to enforcing.
 
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://*.withpersona.com https://js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://akunuba-backend.onrender.com https://*.withpersona.com https://api.stripe.com; frame-src 'self' https://*.withpersona.com https://js.stripe.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://*.withpersona.com https://js.stripe.com https://static.cloudflareinsights.com https://cdn.plaid.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://akunuba-backend.onrender.com wss://akunuba-backend.onrender.com https://*.withpersona.com https://api.stripe.com https://cloudflareinsights.com https://cdn.plaid.com https://production.plaid.com https://sandbox.plaid.com; frame-src 'self' https://*.withpersona.com https://js.stripe.com https://cdn.plaid.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'; upgrade-insecure-requests
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin

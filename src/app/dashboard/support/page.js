@@ -16,9 +16,18 @@ import {
   getTicketHistory,
 } from '@/utils/supportTicketsApi';
 import { toast } from 'react-toastify';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function SupportPage() {
   const { isDarkMode } = useTheme();
+  // Every ticket on this page belongs to the logged-in user, so when the
+  // backend doesn't send an issuer name, theirs is the correct one to show.
+  const { user } = useAuth();
+  const loggedInName =
+    [user?.first_name, user?.last_name].filter(Boolean).join(' ') ||
+    user?.name ||
+    user?.email?.split('@')[0] ||
+    '';
   const [ticketFilter, setTicketFilter] = useState('all');
   const [isNewTicketModalOpen, setIsNewTicketModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -49,7 +58,7 @@ export default function SupportPage() {
           status: ticket.status,
           created: ticket.created ? new Date(ticket.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
           updated: ticket.updated ? new Date(ticket.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
-          issuer: ticket.issuer,
+          issuer: ticket.issuer || ticket.userName || ticket.createdByName || '',
           documents: ticket.documents || [],
         })));
       } catch (error) {
@@ -365,7 +374,7 @@ export default function SupportPage() {
                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
                           }`}
                         >
-                          {ticket.issuer || 'N/A'}
+                          {ticket.issuer || loggedInName || 'N/A'}
                         </td>
                         <td
                           className={`px-6 py-4 text-sm font-mono ${
@@ -522,7 +531,7 @@ export default function SupportPage() {
                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
                           }`}
                         >
-                          {ticket.issuer || 'N/A'}
+                          {ticket.issuer || loggedInName || 'N/A'}
                         </span>
                       </span>
                     </div>
@@ -622,7 +631,7 @@ export default function SupportPage() {
                 status: ticket.status,
                 created: ticket.created ? new Date(ticket.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
                 updated: ticket.updated ? new Date(ticket.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
-                issuer: ticket.issuer,
+                issuer: ticket.issuer || ticket.userName || ticket.createdByName || '',
                 documents: ticket.documents || [],
               })));
             } catch (error) {

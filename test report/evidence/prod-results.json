@@ -1,0 +1,151 @@
+[
+  {
+    "browser": "chrome",
+    "version": "150.0.7871.114",
+    "target": "prod-landing",
+    "status": "PASS",
+    "consoleErrors": [
+      "Loading the script 'https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://*.withpersona.com https://js."
+    ],
+    "pageErrors": [],
+    "apiCalls": [],
+    "bodySnippet": "Marketplace | Plans | Why Akunuba | Concierge | Support | Login | Sign up | Your  | Wealth. | Unified, Elevated. | Akunuba brings your investments, luxury assets, and financial strategy into one intelligent dashboard—crafted for elite individuals and family offices. | Sign up | Our Solutions | We Provide Wealth Solutions to Our Clients | 001 | Unified Wealth Snapshot | Access a single, real-time dashboard that consolidates"
+  },
+  {
+    "browser": "chrome",
+    "version": "150.0.7871.114",
+    "target": "prod-marketplace",
+    "status": "PASS",
+    "consoleErrors": [
+      "Loading the script 'https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://*.withpersona.com https://js."
+    ],
+    "pageErrors": [],
+    "apiCalls": [
+      "200 GET https://akunuba-backend.onrender.com/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20",
+      "200 GET https://akunuba-backend.onrender.com/api/v1/marketplace/categories"
+    ],
+    "bodySnippet": "Marketplace | Plans | Why Akunuba | Concierge | Support | Login | Sign up | Investment | Marketplace | Discover exclusive investment opportunities across private equity, real estate, luxury assets, and more. Sign up to access full details and invest. | Get Started | Sign In | All | Assets | AK-22 | Vaulted/Stored Assets | Minimum | $1000.00 | Target IRR | 0% | Risk Level | Medium | #Service | #Commercial | View Details | Buy | Items per pa"
+  },
+  {
+    "browser": "chrome",
+    "version": "150.0.7871.114",
+    "target": "local-shared-invalid",
+    "status": "PASS",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "apiCalls": [],
+    "bodySnippet": "Akunuba | Shared asset | Something went wrong | No asset was specified in this link."
+  },
+  {
+    "browser": "edge",
+    "version": "150.0.4078.65",
+    "target": "prod-landing",
+    "status": "PASS",
+    "consoleErrors": [
+      "Loading the script 'https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://*.withpersona.com https://js."
+    ],
+    "pageErrors": [],
+    "apiCalls": [],
+    "bodySnippet": "Marketplace | Plans | Why Akunuba | Concierge | Support | Login | Sign up | Your  | Wealth. | Unified, Elevated. | Akunuba brings your investments, luxury assets, and financial strategy into one intelligent dashboard—crafted for elite individuals and family offices. | Sign up | Our Solutions | We Provide Wealth Solutions to Our Clients | 001 | Unified Wealth Snapshot | Access a single, real-time dashboard that consolidates"
+  },
+  {
+    "browser": "edge",
+    "version": "150.0.4078.65",
+    "target": "prod-marketplace",
+    "status": "PASS",
+    "consoleErrors": [
+      "Loading the script 'https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://*.withpersona.com https://js."
+    ],
+    "pageErrors": [],
+    "apiCalls": [
+      "200 GET https://akunuba-backend.onrender.com/api/v1/marketplace/categories",
+      "200 GET https://akunuba-backend.onrender.com/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20"
+    ],
+    "bodySnippet": "Marketplace | Plans | Why Akunuba | Concierge | Support | Login | Sign up | Investment | Marketplace | Discover exclusive investment opportunities across private equity, real estate, luxury assets, and more. Sign up to access full details and invest. | Get Started | Sign In | All | Assets | AK-22 | Vaulted/Stored Assets | Minimum | $1000.00 | Target IRR | 0% | Risk Level | Medium | #Service | #Commercial | View Details | Buy | Items per pa"
+  },
+  {
+    "browser": "edge",
+    "version": "150.0.4078.65",
+    "target": "local-shared-invalid",
+    "status": "PASS",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "apiCalls": [],
+    "bodySnippet": "Akunuba | Shared asset | Something went wrong | No asset was specified in this link."
+  },
+  {
+    "browser": "firefox",
+    "version": "151.0",
+    "target": "prod-landing",
+    "status": "PASS",
+    "consoleErrors": [
+      "[JavaScript Error: \"Content-Security-Policy: The page’s settings blocked a script (script-src-elem) at https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496 from being executed because it violates the foll"
+    ],
+    "pageErrors": [],
+    "apiCalls": [],
+    "bodySnippet": "Marketplace | Plans | Why Akunuba | Concierge | Support | Login | Sign up | Your  | Wealth. | Unified, Elevated. | Akunuba brings your investments, luxury assets, and financial strategy into one intelligent dashboard—crafted for elite individuals and family offices. | Sign up | Our Solutions | We Provide Wealth Solutions to Our Clients | 001 | Unified Wealth Snapshot | Access a single, real-time dashboard that consolidates"
+  },
+  {
+    "browser": "firefox",
+    "version": "151.0",
+    "target": "prod-marketplace",
+    "status": "PASS",
+    "consoleErrors": [
+      "[JavaScript Error: \"Content-Security-Policy: The page’s settings blocked a script (script-src-elem) at https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496 from being executed because it violates the foll",
+      "[JavaScript Error: \"Cookie “__cf_bm” has been rejected for invalid domain.\" {file: \"https://ajodaszmvcowcnvdmszm.supabase.co/storage/v1/object/public/images/general/6753cc86-63ff-4d02-9ee0-4fd9dbbcf9cf/images_288e9a66.png\" line: 0}]"
+    ],
+    "pageErrors": [],
+    "apiCalls": [
+      "200 GET https://akunuba-backend.onrender.com/api/v1/marketplace/categories",
+      "200 GET https://akunuba-backend.onrender.com/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20"
+    ],
+    "bodySnippet": "Marketplace | Plans | Why Akunuba | Concierge | Support | Login | Sign up | Investment | Marketplace | Discover exclusive investment opportunities across private equity, real estate, luxury assets, and more. Sign up to access full details and invest. | Get Started | Sign In | All | Assets | AK-22 | Vaulted/Stored Assets | Minimum | $1000.00 | Target IRR | 0% | Risk Level | Medium | #Service | #Commercial | View Details | Buy | Items per pa"
+  },
+  {
+    "browser": "firefox",
+    "version": "151.0",
+    "target": "local-shared-invalid",
+    "status": "PASS",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "apiCalls": [],
+    "bodySnippet": "Akunuba | Shared asset | Something went wrong | No asset was specified in this link."
+  },
+  {
+    "browser": "webkit",
+    "version": "26.5",
+    "target": "prod-landing",
+    "status": "PASS",
+    "consoleErrors": [
+      "Refused to load https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496 because it does not appear in the script-src directive of the Content Security Policy."
+    ],
+    "pageErrors": [],
+    "apiCalls": [],
+    "bodySnippet": "Marketplace | Plans | Why Akunuba | Concierge | Support | Login | Sign up | Your Wealth. | Unified, Elevated. | Akunuba brings your investments, luxury assets, and financial strategy into one intelligent dashboard—crafted for elite individuals and family offices. | Sign up | Our Solutions | We Provide Wealth Solutions to Our Clients | 001 | Unified Wealth Snapshot | Access a single, real-time dashboard that consolidates y"
+  },
+  {
+    "browser": "webkit",
+    "version": "26.5",
+    "target": "prod-marketplace",
+    "status": "PASS",
+    "consoleErrors": [
+      "Refused to load https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496 because it does not appear in the script-src directive of the Content Security Policy."
+    ],
+    "pageErrors": [],
+    "apiCalls": [
+      "200 GET https://akunuba-backend.onrender.com/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20",
+      "200 GET https://akunuba-backend.onrender.com/api/v1/marketplace/categories"
+    ],
+    "bodySnippet": "Marketplace | Plans | Why Akunuba | Concierge | Support | Login | Sign up | Investment | Marketplace | Discover exclusive investment opportunities across private equity, real estate, luxury assets, and more. Sign up to access full details and invest. | Get Started | Sign In | All | Assets | AK-22 | Vaulted/Stored Assets | Minimum | $1000.00 | Target IRR | 0% | Risk Level | Medium | #Service | #Commercial | View Details | Buy | Items per p"
+  },
+  {
+    "browser": "webkit",
+    "version": "26.5",
+    "target": "local-shared-invalid",
+    "status": "PASS",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "apiCalls": [],
+    "bodySnippet": "Akunuba | Shared asset | Something went wrong | No asset was specified in this link."
+  }
+]

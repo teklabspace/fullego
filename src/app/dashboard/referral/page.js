@@ -60,10 +60,16 @@ export default function ReferralPage() {
         totalReferrals: statsData.totalReferrals || statsData.total_referrals || 0,
         completedReferrals: statsData.completedReferrals || statsData.completed_referrals || 0,
         pendingReferrals: statsData.pendingReferrals || statsData.pending_referrals || 0,
-        activeReferrals: statsData.completedReferrals || statsData.completed_referrals || 0,
+        // "Active" = signed up but not yet converted; fall back to pending
+        // when the backend doesn't send a distinct active count (it previously
+        // mirrored completedReferrals, which double-counted conversions).
+        activeReferrals:
+          statsData.activeReferrals ?? statsData.active_referrals ??
+          statsData.pendingReferrals ?? statsData.pending_referrals ?? 0,
       });
     } catch (error) {
       console.error('Failed to fetch referral stats:', error);
+      toast.error('Could not load your referral stats. Pull to refresh or try again later.');
     }
   };
 
