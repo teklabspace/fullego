@@ -133,7 +133,7 @@ Additional modules used: **KYC/KYB** (`/kyc/*`, `/kyb/*`), **market** (`/market/
 | `/dashboard/kyc` | Yes | — | KYC status (dashboard) |
 | `/marketplace` | Yes | — | Public marketplace |
 | `/settings` | Yes | — | Standalone settings (tasks/reminders) |
-| `/plans`, `/about`, `/terms`, `/privacy`, `/cookies`, `/security`, `/careers`, `/press`, `/help-center`, `/contact`, `/welcome`, `/fullego`, `/verification-success`, `/choose-profile` | Yes | — | Marketing/legal/onboarding |
+| `/plans`, `/about`, `/terms`, `/privacy`, `/cookies`, `/security`, `/careers`, `/press`, `/help-center`, `/contact`, `/welcome`, `/akunuba`, `/verification-success`, `/choose-profile` | Yes | — | Marketing/legal/onboarding |
 
 ### Broken / missing routes
 

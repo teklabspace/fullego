@@ -1,6 +1,6 @@
 # Production Readiness Report
 
-**Project:** Fullego (Akunuba) Frontend  
+**Project:** Akunuba Frontend  
 **Date:** March 2026  
 **Scope:** Test files, environment configuration, error handling, logging, rate limiting, security middleware, validation, Docker/deployment.
 

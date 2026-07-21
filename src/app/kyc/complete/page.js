@@ -93,7 +93,16 @@ export default function KycCompletePage() {
         // which is why it lives in this branch and nowhere else.
         try {
           const detail = await getKYCRejectionReason();
-          setRejectionReason(detail?.reason || detail?.detail || null);
+          // BUG-16b: include the Persona failure specifics, not just the
+          // top-level reason — this screen is the user's only explanation.
+          const parts = [
+            detail?.reason || detail?.detail,
+            detail?.persona_reason,
+            typeof detail?.persona_details === 'string'
+              ? detail.persona_details
+              : null,
+          ].filter(Boolean);
+          setRejectionReason(parts.length ? parts.join(' — ') : null);
         } catch {
           // Generic copy covers it.
         }

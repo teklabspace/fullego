@@ -1,9 +1,9 @@
-# Fullego Platform – What Is Done
+# Akunuba Platform – What Is Done
 
 **Document for client**  
 **Last updated:** March 2026  
 
-This document summarizes **what has been implemented and is live** in the Fullego frontend. All items below are completed, API-integrated, and testable. This document does not describe future work or remaining items.
+This document summarizes **what has been implemented and is live** in the Akunuba frontend. All items below are completed, API-integrated, and testable. This document does not describe future work or remaining items.
 
 ---
 
@@ -219,4 +219,4 @@ This document summarizes **what has been implemented and is live** in the Fulleg
 ---
 
 **Purpose of this document**  
-To give the client a single, clear view of **what is done** in the Fullego frontend. It only describes completed, live, and testable features and integrations.
+To give the client a single, clear view of **what is done** in the Akunuba frontend. It only describes completed, live, and testable features and integrations.

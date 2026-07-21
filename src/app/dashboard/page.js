@@ -169,6 +169,53 @@ function DashboardContent({
   const { isDarkMode } = useTheme();
   const router = useRouter();
 
+  // BUG-05: header Download exports the already-loaded dashboard snapshot as
+  // CSV. Failures must never be silent — every path ends in a toast.
+  const handleDownload = () => {
+    try {
+      const s = portfolioSummary || {};
+      const rows = [['Metric', 'Value']];
+      const pushIf = (label, v) => {
+        if (v !== undefined && v !== null && v !== '') rows.push([label, v]);
+      };
+      pushIf('Net worth', s.netWorth ?? s.net_worth ?? s.totalValue ?? s.total_value);
+      pushIf('Total assets', s.totalAssets ?? s.total_assets);
+      pushIf('Total liabilities', s.totalLiabilities ?? s.total_liabilities);
+      pushIf('Investable cash', s.investableCash ?? s.investable_cash ?? s.cashBalance ?? s.cash_balance);
+      pushIf('Linked bank accounts', Array.isArray(bankAccounts) ? bankAccounts.length : undefined);
+      pushIf('Account status', accountData?.status);
+      if (Array.isArray(portfolioHistory) && portfolioHistory.length) {
+        rows.push([''], ['Date', 'Portfolio value']);
+        portfolioHistory.forEach(p =>
+          rows.push([
+            p.date ?? p.timestamp ?? '',
+            p.value ?? p.totalValue ?? p.total_value ?? '',
+          ])
+        );
+      }
+      if (rows.length <= 1) {
+        toast.info('Nothing to export yet — wait for the dashboard to finish loading.');
+        return;
+      }
+      const csv = rows
+        .map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `akunuba-dashboard-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Dashboard snapshot exported');
+    } catch (err) {
+      console.error('Dashboard export failed:', err);
+      toast.error('Could not export the dashboard. Please try again.');
+    }
+  };
+
   return (
     <>
       {/* Header Section */}
@@ -204,7 +251,11 @@ function DashboardContent({
               <path d='M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2' />
             </svg>
           </button>
-          <button className={`p-2 rounded-lg transition-colors ${
+          <button
+            onClick={() => router.push('/dashboard/marketplace')}
+            title='Search marketplace'
+            aria-label='Search marketplace'
+            className={`p-2 rounded-lg transition-colors ${
             isDarkMode ? 'hover:bg-[#2A2A2D]' : 'hover:bg-gray-100'
           }`}>
             <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke={isDarkMode ? '#666666' : '#9CA3AF'} strokeWidth='2'>
@@ -212,7 +263,12 @@ function DashboardContent({
               <path d='m21 21-4.35-4.35' />
             </svg>
           </button>
-          <button className={`p-2 rounded-lg transition-colors ${
+          <button
+            onClick={handleDownload}
+            disabled={loading}
+            title='Download dashboard snapshot (CSV)'
+            aria-label='Download dashboard snapshot'
+            className={`p-2 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
             isDarkMode ? 'hover:bg-[#2A2A2D]' : 'hover:bg-gray-100'
           }`}>
             <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke={isDarkMode ? '#666666' : '#9CA3AF'} strokeWidth='2'>

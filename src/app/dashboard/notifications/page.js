@@ -100,7 +100,7 @@ export default function NotificationsPage() {
     try {
       await markAsRead(notificationId);
       setNotifications(prev =>
-        prev.map(n => (n.id === notificationId ? { ...n, isRead: true } : n))
+        prev.map(n => (n.id === notificationId ? { ...n, isRead: true, read: true } : n))
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
@@ -137,7 +137,7 @@ export default function NotificationsPage() {
       await deleteNotification(notificationId);
       const notification = notifications.find(n => n.id === notificationId);
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      if (notification && !notification.isRead) {
+      if (notification && !(notification.isRead ?? notification.read)) {
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
       toast.success('Notification deleted');
@@ -176,8 +176,13 @@ export default function NotificationsPage() {
     return typeMap[notificationType] || 'info';
   };
 
+  // The API layer normalizes the read flag onto `.read`; optimistic local
+  // updates set both. Hedge across the two so the Unread filter never treats
+  // an already-read item as unread (`!undefined` was previously true).
   const filteredNotifications =
-    activeTab === 'all' ? notifications : notifications.filter(n => !n.isRead);
+    activeTab === 'all'
+      ? notifications
+      : notifications.filter(n => !(n.isRead ?? n.read ?? false));
 
   return (
     <>

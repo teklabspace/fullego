@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { usePlaidLink } from 'react-plaid-link';
 import {
   getBankAccounts,
   unlinkBankAccount,
   getBankTransactions,
   createBankLinkToken,
+  linkBankAccount,
 } from '@/utils/bankingApi';
 
 export default function LinkedAccounts({ isDarkMode }) {
@@ -18,6 +20,7 @@ export default function LinkedAccounts({ isDarkMode }) {
   const [transactionsError, setTransactionsError] = useState(null);
   const [linkingAccount, setLinkingAccount] = useState(false);
   const [linkError, setLinkError] = useState(null);
+  const [linkToken, setLinkToken] = useState(null);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -99,13 +102,17 @@ export default function LinkedAccounts({ isDarkMode }) {
         }
       }
       const tokenResponse = await createBankLinkToken();
-      const linkToken =
+      const token =
         tokenResponse?.linkToken ||
         tokenResponse?.data?.linkToken ||
         tokenResponse?.link_token ||
         tokenResponse?.data?.link_token;
-      if (!linkToken) throw new Error('Failed to get link token from server');
-      alert(`Link token received: ${linkToken.substring(0, 20)}...\n\nTo complete the integration, you need to:\n1. Install: npm install react-plaid-link\n2. Use usePlaidLink hook with this token\n3. On success, call linkBankAccount({ public_token })`);
+      if (!token) throw new Error('Failed to get link token from server');
+      // Hand the token to Plaid Link — the effect below opens the widget as
+      // soon as the SDK reports ready. `linkingAccount` stays true until the
+      // user completes or exits the Plaid flow.
+      setLinkToken(token);
+      return;
     } catch (err) {
       console.error('Error linking account:', err);
       let errorMessage = err.message || 'Failed to initialize account linking. Please try again.';
@@ -128,10 +135,57 @@ export default function LinkedAccounts({ isDarkMode }) {
       } else {
         setLinkError(errorMessage);
       }
-    } finally {
       setLinkingAccount(false);
     }
   };
+
+  // Exchange the public_token Plaid hands back for a linked account, then
+  // refresh the list. POST /banking/link expects { public_token } (the util
+  // snake_cases the key).
+  const onPlaidSuccess = useCallback(
+    async (publicToken) => {
+      setLinkToken(null);
+      try {
+        await linkBankAccount({ publicToken });
+        await fetchAccounts();
+        setLinkError(null);
+      } catch (err) {
+        console.error('Error completing bank link:', err);
+        setLinkError(
+          err?.data?.message ||
+            err?.data?.detail ||
+            err?.message ||
+            'Your bank was authorized but linking could not be completed. Please try again.'
+        );
+      } finally {
+        setLinkingAccount(false);
+      }
+    },
+    [fetchAccounts]
+  );
+
+  const onPlaidExit = useCallback((err) => {
+    setLinkToken(null);
+    setLinkingAccount(false);
+    if (err) {
+      setLinkError(
+        err.display_message || err.error_message || 'Bank linking was cancelled before completion.'
+      );
+    }
+  }, []);
+
+  const { open: openPlaidLink, ready: plaidReady } = usePlaidLink({
+    token: linkToken,
+    onSuccess: onPlaidSuccess,
+    onExit: onPlaidExit,
+  });
+
+  // Open the widget once the SDK has loaded the freshly minted token.
+  useEffect(() => {
+    if (linkToken && plaidReady) {
+      openPlaidLink();
+    }
+  }, [linkToken, plaidReady, openPlaidLink]);
 
   return (
     <div className="space-y-6">

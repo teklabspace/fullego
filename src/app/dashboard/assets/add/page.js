@@ -9,6 +9,7 @@ import CalendarDatePicker from '@/components/ui/CalendarDatePicker';
 import DropdownSelect from '@/components/ui/DropdownSelect';
 import TagsInput from '@/components/ui/TagsInput';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/hooks/useAuth';
 import { getCategoryIcon } from '@/utils/categoryIcons';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -274,6 +275,15 @@ export default function AddAssetPage() {
   const editAssetId = searchParams?.get('edit') || null;
   const isEditMode = !!editAssetId;
   const { isDarkMode } = useTheme();
+  // Only investors create or edit assets — advisors and admins reaching this
+  // URL directly are sent back to the (read-only for them) assets list.
+  const { isInvestor, mounted: authMounted } = useAuth();
+  useEffect(() => {
+    if (authMounted && !isInvestor) {
+      toast.error('Only investor accounts can add or edit assets.');
+      router.replace('/dashboard/assets');
+    }
+  }, [authMounted, isInvestor, router]);
   const [currentStep, setCurrentStep] = useState(1);
   // All three steps show in both modes; in edit mode step 2 manages the
   // asset's EXISTING photos/documents via the asset-scoped media endpoints.
@@ -393,9 +403,22 @@ export default function AddAssetPage() {
     if (!isEditMode) return;
     getCategories()
       .then(res => {
-        const list = Array.isArray(res?.data)
-          ? res.data
-          : res?.data?.categories || res?.categories || [];
+        // Payload shapes seen from GET /assets/categories: a flat array, a
+        // { categories: [...] } wrapper, or (current backend) an object keyed
+        // by group name → array of category objects.
+        const payload = res?.data ?? res;
+        let list;
+        if (Array.isArray(payload)) {
+          list = payload;
+        } else if (Array.isArray(payload?.categories)) {
+          list = payload.categories;
+        } else if (payload && typeof payload === 'object') {
+          list = Object.values(payload)
+            .flat()
+            .filter(cat => cat && typeof cat === 'object');
+        } else {
+          list = [];
+        }
         const map = {};
         list.forEach(cat => {
           if (cat?.name && cat?.id) map[cat.name] = cat.id;
@@ -654,6 +677,19 @@ export default function AddAssetPage() {
       ...prev,
       [name]: value,
     }));
+    // Step 3's valuation field takes priority on save, so a value typed there
+    // earlier (or prefilled in edit mode) would silently override a later edit
+    // of the step-1 value fields — keep them in sync in that direction.
+    // amount_owed (Liabilities) and contribution_value (Philanthropy) ARE the
+    // asset's value for their groups, so they sync too.
+    if (
+      name === 'estimated_value' ||
+      name === 'current_value' ||
+      name === 'amount_owed' ||
+      name === 'contribution_value'
+    ) {
+      setEstimatedValue(value);
+    }
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -669,7 +705,17 @@ export default function AddAssetPage() {
       setSubmitError(null);
 
       const categoryObj = allCategories.find(c => c.id === selectedCategory);
-      const specifications = { ...originalSpecsRef.current, ...formData };
+      // Layering the original specs back in preserves data the form doesn't
+      // cover — but only while the category is unchanged. After a category
+      // switch those keys are the OLD group's fields (debt_type on a yacht…),
+      // so the new category's form data must stand alone.
+      const categoryChanged =
+        originalCategoryNameRef.current &&
+        (categoryObj?.name || selectedCategory) !==
+          originalCategoryNameRef.current;
+      const specifications = categoryChanged
+        ? { ...formData }
+        : { ...originalSpecsRef.current, ...formData };
       // Same strip list as creation: promoted top-level fields and phantom keys.
       [
         'asset_name',
@@ -719,15 +765,21 @@ export default function AddAssetPage() {
           }
         });
 
+      // Five groups have no "Asset Name" field, but edit-mode prefill copies
+      // the asset's current name into formData.asset_name — so preferring it
+      // unconditionally would make those groups impossible to rename. Only
+      // trust asset_name when the form actually shows that field; otherwise
+      // derive the name from the group's identifying field like creation does.
+      const hasAssetNameField = formFields.includes('Asset Name');
       const assetData = {
         name: (
-          formData.asset_name ||
-          formData.name ||
+          (hasAssetNameField ? formData.asset_name || formData.name : '') ||
           formData.debt_type ||
           formData.wealth_type ||
           formData.fund_vehicle_name ||
           formData.service_type ||
           formData.document_name ||
+          formData.asset_name ||
           categoryObj?.name ||
           ''
         ).slice(0, 255),
@@ -738,17 +790,28 @@ export default function AddAssetPage() {
         location: formData.location
           ? formData.location.slice(0, 255)
           : undefined,
-        assetType: formData.asset_type || undefined,
+        // Non-Portfolio forms have no Asset Type field, so the prefill carries
+        // whatever the backend stored (usually its derived "other") and the
+        // user can never correct it — prefer the category's unambiguous
+        // mapping in that case. When the field IS on the form, the user's
+        // choice wins.
+        assetType: formFields.includes('Asset Type')
+          ? formData.asset_type || undefined
+          : ASSET_TYPE_BY_CATEGORY[selectedCategory] ||
+            formData.asset_type ||
+            undefined,
         estimatedValue:
           toAmount(estimatedValue) ??
           toAmount(formData.current_value) ??
           toAmount(formData.estimated_value) ??
-          toAmount(formData.amount_owed),
+          toAmount(formData.amount_owed) ??
+          toAmount(formData.contribution_value),
         currentValue:
           toAmount(estimatedValue) ??
           toAmount(formData.current_value) ??
           toAmount(formData.estimated_value) ??
-          toAmount(formData.amount_owed),
+          toAmount(formData.amount_owed) ??
+          toAmount(formData.contribution_value),
         condition: formData.condition || undefined,
         ownershipType: formData.ownership_type || undefined,
         acquisitionDate:
@@ -793,7 +856,7 @@ export default function AddAssetPage() {
           ? 'Asset updated and resubmitted for review.'
           : 'Asset updated successfully.'
       );
-      router.push(`/dashboard/assets/${editAssetId}`);
+      router.push(`/dashboard/assets/detail?id=${editAssetId}`);
     } catch (err) {
       console.error('Error updating asset:', err);
       // Race backstop: the asset got approved after the edit page loaded.
@@ -803,7 +866,7 @@ export default function AddAssetPage() {
           err.message ||
             'This asset has been approved and can no longer be edited.'
         );
-        router.push(`/dashboard/assets/${editAssetId}`);
+        router.push(`/dashboard/assets/detail?id=${editAssetId}`);
         return;
       }
       setSubmitError(
@@ -985,9 +1048,16 @@ export default function AddAssetPage() {
           location: formData.location
             ? formData.location.slice(0, 255)
             : undefined,
-          // The backend derives this when omitted (Portfolio → "stock"), which is
-          // how a crypto holding gets labelled a stock. Send what the user chose.
-          assetType: formData.asset_type || undefined,
+          // The backend derives this when omitted (Portfolio → "stock",
+          // everything else → "other"), which is how a crypto holding gets
+          // labelled a stock and a yacht "other". Send what the user chose;
+          // only Portfolio forms HAVE an Asset Type field, so for the other
+          // groups fall back to the category's unambiguous mapping (Yachts →
+          // luxury_asset, Real Estate → real_estate, ...).
+          assetType:
+            formData.asset_type ||
+            ASSET_TYPE_BY_CATEGORY[selectedCategory] ||
+            undefined,
           // Step 3's valuation wins when given, but a "Current Value" or
           // "Estimated Value" typed on the step-1 form is a real number the
           // user entered — both used to be stripped from specifications and
@@ -999,12 +1069,14 @@ export default function AddAssetPage() {
             toAmount(estimatedValue) ??
             toAmount(formData.current_value) ??
             toAmount(formData.estimated_value) ??
-            toAmount(formData.amount_owed),
+            toAmount(formData.amount_owed) ??
+            toAmount(formData.contribution_value),
           currentValue:
             toAmount(estimatedValue) ??
             toAmount(formData.current_value) ??
             toAmount(formData.estimated_value) ??
-            toAmount(formData.amount_owed),
+            toAmount(formData.amount_owed) ??
+            toAmount(formData.contribution_value),
           condition: formData.condition || undefined,
           ownershipType: formData.ownership_type || undefined,
           acquisitionDate: formData.acquisition_date || formData.purchase_date || undefined,
@@ -1148,7 +1220,7 @@ export default function AddAssetPage() {
         // requested so the user can see its status; otherwise to the list.
         console.log('✅ Asset creation complete. Redirecting...');
         if (appraisalRequested && assetId) {
-          router.push(`/dashboard/assets/${assetId}`);
+          router.push(`/dashboard/assets/detail?id=${assetId}`);
         } else {
           router.push('/dashboard/assets');
         }
@@ -1198,7 +1270,9 @@ export default function AddAssetPage() {
   const handleCancel = () => {
     // Editing came from the asset's detail page — return there on cancel.
     router.push(
-      isEditMode ? `/dashboard/assets/${editAssetId}` : '/dashboard/assets'
+      isEditMode
+        ? `/dashboard/assets/detail?id=${editAssetId}`
+        : '/dashboard/assets'
     );
   };
 
@@ -1801,6 +1875,12 @@ export default function AddAssetPage() {
         );
     }
   };
+
+  // Non-investors are redirected by the guard effect above — render nothing
+  // in the meantime so the form never flashes for them.
+  if (authMounted && !isInvestor) {
+    return null;
+  }
 
   return (
     <>

@@ -2,7 +2,7 @@
 
 **Date:** March 2026  
 **Basis:** Frontend codebase analysis; backend inferred from API contract and integration docs.  
-**Scope:** Fullego (Akunuba) – wealth/investment platform.
+**Scope:** Akunuba – wealth/investment platform.
 
 ---
 

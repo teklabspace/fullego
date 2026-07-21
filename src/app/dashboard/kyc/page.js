@@ -302,7 +302,18 @@ export default function KYCPage() {
                 <div className='mb-6 bg-red-500/10 border border-red-500/50 rounded-xl p-4 text-left'>
                   <h3 className='text-red-400 font-semibold mb-2'>Rejection Reason:</h3>
                   <p className='text-gray-300'>{rejectionReason.reason}</p>
-                  {rejectionReason.persona_details && <p className='text-gray-400 text-sm mt-2'>{rejectionReason.persona_details}</p>}
+                  {/* BUG-16b: GET /kyc/rejection-reason also returns the Persona
+                      failure specifics — show everything the backend knows so
+                      the user isn't left with a generic dead-end. */}
+                  {rejectionReason.persona_reason && (
+                    <p className='text-gray-300 text-sm mt-2'>
+                      <span className='text-red-400 font-medium'>Provider reason: </span>
+                      {rejectionReason.persona_reason}
+                    </p>
+                  )}
+                  {typeof rejectionReason.persona_details === 'string' && rejectionReason.persona_details && (
+                    <p className='text-gray-400 text-sm mt-2'>{rejectionReason.persona_details}</p>
+                  )}
                 </div>
               )}
               {kycStatus?.verification_level && (

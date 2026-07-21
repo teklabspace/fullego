@@ -57,7 +57,7 @@ export default function MarketplacePage() {
   // then optionally one of its subcategories (matches listing.category).
   const [activeGroup, setActiveGroup] = useState('All');
   const [activeCategory, setActiveCategory] = useState('All');
-  const { isInvestor, isAdmin } = useAuth();
+  const { isInvestor, isAdmin, isAdvisor } = useAuth();
   // GET /marketplace/categories — only categories with live listings, with
   // counts: [{ category, categoryGroup, count }].
   const [marketCategories, setMarketCategories] = useState(null);
@@ -594,6 +594,17 @@ export default function MarketplacePage() {
                     )}
                   </button>
                   )}
+                  {/* BUG-22: the create-listing modal previously had no
+                      trigger anywhere in the app. Advisors can't create
+                      listings (backend permission matrix), so hide for them. */}
+                  {!isAdvisor && (
+                    <button
+                      onClick={() => setIsListModalOpen(true)}
+                      className='ml-auto self-center mb-2 px-5 py-2 rounded-full text-sm font-semibold bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] transition-colors'
+                    >
+                      List an Asset
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -999,7 +1010,15 @@ function ActiveOffersContent({
       toast.success(successMsg);
       refresh();
     } catch (err) {
-      toast.error(err?.data?.detail || err?.message || `Failed to ${action} offer`);
+      // 409 LISTING_NOT_OPEN: the listing was suspended (open appraisal),
+      // sold or cancelled between page load and the click — say so.
+      const code = err?.code || err?.data?.error?.code;
+      if (code === 'LISTING_NOT_OPEN') {
+        toast.info('This listing is no longer open — it may have been suspended or sold. Refreshing.');
+        refresh();
+      } else {
+        toast.error(err?.data?.message || err?.data?.detail || err?.message || `Failed to ${action} offer`);
+      }
     } finally {
       setActionLoading(p => ({ ...p, [key]: false }));
     }
@@ -2482,30 +2501,42 @@ function CreateListingModal({ isOpen, onClose, isDarkMode, onCreated }) {
 
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70' onClick={onClose}>
-      <div className={`w-full max-w-md rounded-2xl p-6 max-h-[90vh] overflow-y-auto ${panel}`} onClick={(e) => e.stopPropagation()}>
+      <div className={`w-full max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto ${panel}`} onClick={(e) => e.stopPropagation()}>
         <h3 className={`text-lg font-bold mb-1 ${textMain}`}>List an Asset</h3>
         <p className={`text-sm mb-4 ${textMuted}`}>Create a marketplace listing. It will be submitted for admin approval.</p>
 
-        <label className={`block text-sm font-medium mb-2 ${textMain}`}>Asset (optional)</label>
-        <select value={assetId} onChange={(e) => {
-          setAssetId(e.target.value);
-          const a = assets.find(x => x.id === e.target.value);
-          if (a && !title) setTitle(a.name || a.title || '');
-        }} className={`${inputCls} mb-4`}>
-          <option value=''>{loadingAssets ? 'Loading assets…' : 'Select one of your assets'}</option>
-          {assets.map(a => (
-            <option key={a.id} value={a.id}>{a.name || a.title || a.id}</option>
-          ))}
-        </select>
+        {/* BUG-22: consistent 2-column grid — every field block owns its
+            label+control, so labels and inputs align across rows. */}
+        <div className='grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mb-6'>
+          <div className='sm:col-span-2'>
+            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Asset (optional)</label>
+            <select value={assetId} onChange={(e) => {
+              setAssetId(e.target.value);
+              const a = assets.find(x => x.id === e.target.value);
+              if (a && !title) setTitle(a.name || a.title || '');
+            }} className={inputCls}>
+              <option value=''>{loadingAssets ? 'Loading assets…' : 'Select one of your assets'}</option>
+              {assets.map(a => (
+                <option key={a.id} value={a.id}>{a.name || a.title || a.id}</option>
+              ))}
+            </select>
+          </div>
 
-        <label className={`block text-sm font-medium mb-2 ${textMain}`}>Title *</label>
-        <input type='text' value={title} onChange={(e) => setTitle(e.target.value)} placeholder='e.g. Downtown Office Suite' className={`${inputCls} mb-4`} />
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Title *</label>
+            <input type='text' value={title} onChange={(e) => setTitle(e.target.value)} placeholder='e.g. Downtown Office Suite' className={inputCls} />
+          </div>
 
-        <label className={`block text-sm font-medium mb-2 ${textMain}`}>Asking Price (USD) *</label>
-        <input type='text' value={askingPrice} onChange={(e) => setAskingPrice(e.target.value)} placeholder='100000' className={`${inputCls} mb-4`} />
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Asking Price (USD) *</label>
+            <input type='text' inputMode='decimal' value={askingPrice} onChange={(e) => setAskingPrice(e.target.value)} placeholder='100000' className={inputCls} />
+          </div>
 
-        <label className={`block text-sm font-medium mb-2 ${textMain}`}>Description</label>
-        <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder='Describe the asset…' className={`${inputCls} resize-none mb-6`} />
+          <div className='sm:col-span-2'>
+            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Description</label>
+            <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder='Describe the asset…' className={`${inputCls} resize-none`} />
+          </div>
+        </div>
 
         <div className='flex gap-3'>
           <button onClick={onClose} className={`flex-1 py-2.5 rounded-lg font-semibold text-sm border ${isDarkMode ? 'border-[#FFFFFF14] text-white hover:bg-white/10' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>Cancel</button>

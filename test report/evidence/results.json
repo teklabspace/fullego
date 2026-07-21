@@ -1,0 +1,941 @@
+[
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "desktop-1920",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "desktop-1920",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "desktop-1920",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/categories' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+      "Failed to load resource: net::ERR_FAILED",
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present o",
+      "Failed to load resource: net::ERR_FAILED",
+      "Error fetching marketplace listings: TypeError: Failed to fetch\n    at R (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:21535)\n    at _ (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:24454)\n    at R (http://localhost:3210/_next/static/chunks/5136-57cfc8a8c"
+    ],
+    "pageErrors": [],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: net::ERR_FAILED",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: net::ERR_FAILED"
+    ]
+  },
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "tablet-768",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "tablet-768",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "tablet-768",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/categories' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+      "Failed to load resource: net::ERR_FAILED",
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present o",
+      "Failed to load resource: net::ERR_FAILED",
+      "Error fetching marketplace listings: TypeError: Failed to fetch\n    at R (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:21535)\n    at _ (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:24454)\n    at R (http://localhost:3210/_next/static/chunks/5136-57cfc8a8c"
+    ],
+    "pageErrors": [],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: net::ERR_FAILED",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: net::ERR_FAILED"
+    ]
+  },
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "mobile-390",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "mobile-390",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "mobile-390",
+    "page": "signup",
+    "url": "/signup",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "mobile-390",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/categories' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+      "Failed to load resource: net::ERR_FAILED",
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present o",
+      "Failed to load resource: net::ERR_FAILED",
+      "Error fetching marketplace listings: TypeError: Failed to fetch\n    at R (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:21535)\n    at _ (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:24454)\n    at R (http://localhost:3210/_next/static/chunks/5136-57cfc8a8c"
+    ],
+    "pageErrors": [],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: net::ERR_FAILED",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: net::ERR_FAILED"
+    ]
+  },
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "mobile-390",
+    "page": "plans",
+    "url": "/plans",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "chrome",
+    "browserLabel": "Google Chrome (stable channel)",
+    "version": "150.0.7871.114",
+    "viewport": "mobile-390",
+    "page": "shared-asset-invalid",
+    "url": "/assets/19fa7b85-8bb4-48c4-b20e-4d9528baf4ff/shared?code=qa-bogus-code",
+    "status": "HTTP 404",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "desktop-1920",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "desktop-1920",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "desktop-1920",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/categories' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+      "Failed to load resource: net::ERR_FAILED",
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present o",
+      "Failed to load resource: net::ERR_FAILED",
+      "Error fetching marketplace listings: TypeError: Failed to fetch\n    at R (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:21535)\n    at _ (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:24454)\n    at R (http://localhost:3210/_next/static/chunks/5136-57cfc8a8c"
+    ],
+    "pageErrors": [],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: net::ERR_FAILED",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: net::ERR_FAILED"
+    ]
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "tablet-768",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "tablet-768",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "tablet-768",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/categories' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+      "Failed to load resource: net::ERR_FAILED",
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present o",
+      "Failed to load resource: net::ERR_FAILED",
+      "Error fetching marketplace listings: TypeError: Failed to fetch\n    at R (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:21535)\n    at _ (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:24454)\n    at R (http://localhost:3210/_next/static/chunks/5136-57cfc8a8c"
+    ],
+    "pageErrors": [],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: net::ERR_FAILED",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: net::ERR_FAILED"
+    ]
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "mobile-390",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "mobile-390",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "mobile-390",
+    "page": "signup",
+    "url": "/signup",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "mobile-390",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/categories' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+      "Failed to load resource: net::ERR_FAILED",
+      "Access to fetch at 'http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20' from origin 'http://localhost:3210' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present o",
+      "Failed to load resource: net::ERR_FAILED",
+      "Error fetching marketplace listings: TypeError: Failed to fetch\n    at R (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:21535)\n    at _ (http://localhost:3210/_next/static/chunks/517-2bb9c530ec452acd.js:1:24454)\n    at R (http://localhost:3210/_next/static/chunks/5136-57cfc8a8c"
+    ],
+    "pageErrors": [],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: net::ERR_FAILED",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: net::ERR_FAILED"
+    ]
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "mobile-390",
+    "page": "plans",
+    "url": "/plans",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "edge",
+    "browserLabel": "Microsoft Edge (stable channel)",
+    "version": "150.0.4078.65",
+    "viewport": "mobile-390",
+    "page": "shared-asset-invalid",
+    "url": "/assets/19fa7b85-8bb4-48c4-b20e-4d9528baf4ff/shared?code=qa-bogus-code",
+    "status": "HTTP 404",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "desktop-1920",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "desktop-1920",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "desktop-1920",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Error fetching marketplace listings: JSHandle@object",
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/categories. (Reason: CORS header ‘Access-Control-Allow-Origin’ missing). Status code: 400.\"]",
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20. (Reason: CORS header ‘Access-Control-Allow-Origin’ missing). Status code: 400.\"]",
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/categories. (Reason: CORS request did not succeed). Status code: (null).\"]",
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20. (Reason: CORS request did not succeed). Status code: (null).\"]"
+    ],
+    "pageErrors": [],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: NS_ERROR_DOM_BAD_URI",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: NS_ERROR_DOM_BAD_URI"
+    ]
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "tablet-768",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "tablet-768",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "tablet-768",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Error fetching marketplace listings: JSHandle@object",
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/categories. (Reason: CORS header ‘Access-Control-Allow-Origin’ missing). Status code: 400.\"]",
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/categories. (Reason: CORS request did not succeed). Status code: (null).\"]",
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20. (Reason: CORS header ‘Access-Control-Allow-Origin’ missing). Status code: 400.\"]",
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20. (Reason: CORS request did not succeed). Status code: (null).\"]"
+    ],
+    "pageErrors": [],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: NS_ERROR_DOM_BAD_URI",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: NS_ERROR_DOM_BAD_URI"
+    ]
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "mobile-390",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "mobile-390",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "mobile-390",
+    "page": "signup",
+    "url": "/signup",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "mobile-390",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/categories. (Reason: CORS header ‘Access-Control-Allow-Origin’ missing). Status code: 400.\"]",
+      "Error fetching marketplace listings: JSHandle@object",
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20. (Reason: CORS header ‘Access-Control-Allow-Origin’ missing). Status code: 400.\"]",
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/categories. (Reason: CORS request did not succeed). Status code: (null).\"]",
+      "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20. (Reason: CORS request did not succeed). Status code: (null).\"]"
+    ],
+    "pageErrors": [],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: NS_ERROR_DOM_BAD_URI",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: NS_ERROR_DOM_BAD_URI"
+    ]
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "mobile-390",
+    "page": "plans",
+    "url": "/plans",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "firefox",
+    "browserLabel": "Firefox (Playwright engine)",
+    "version": "151.0",
+    "viewport": "mobile-390",
+    "page": "shared-asset-invalid",
+    "url": "/assets/19fa7b85-8bb4-48c4-b20e-4d9528baf4ff/shared?code=qa-bogus-code",
+    "status": "HTTP 404",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "desktop-1920",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "desktop-1920",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "desktop-1920",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "JS ERROR",
+    "overflow": {
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Preflight response is not successful. Status code: 400",
+      "Failed to load resource: Preflight response is not successful. Status code: 400",
+      "Preflight response is not successful. Status code: 400",
+      "Failed to load resource: Preflight response is not successful. Status code: 400",
+      "Error fetching marketplace listings: TypeError: Load failed"
+    ],
+    "pageErrors": [
+      "Fetch API cannot load http: /localhost:8000/api/v1/marketplace/categories due to access control checks.",
+      "Fetch API cannot load http: /localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 due to access control checks."
+    ],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: Preflight response is not successful. Status code: 400",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: Preflight response is not successful. Status code: 400"
+    ]
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "tablet-768",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "tablet-768",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "tablet-768",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "JS ERROR",
+    "overflow": {
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Preflight response is not successful. Status code: 400",
+      "Failed to load resource: Preflight response is not successful. Status code: 400",
+      "Preflight response is not successful. Status code: 400",
+      "Failed to load resource: Preflight response is not successful. Status code: 400",
+      "Error fetching marketplace listings: TypeError: Load failed"
+    ],
+    "pageErrors": [
+      "Fetch API cannot load http: /localhost:8000/api/v1/marketplace/categories due to access control checks.",
+      "Fetch API cannot load http: /localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 due to access control checks."
+    ],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: Preflight response is not successful. Status code: 400",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: Preflight response is not successful. Status code: 400"
+    ]
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "mobile-390",
+    "page": "landing",
+    "url": "/",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "mobile-390",
+    "page": "login",
+    "url": "/login",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "mobile-390",
+    "page": "signup",
+    "url": "/signup",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "mobile-390",
+    "page": "marketplace",
+    "url": "/marketplace",
+    "status": "JS ERROR",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Preflight response is not successful. Status code: 400",
+      "Failed to load resource: Preflight response is not successful. Status code: 400",
+      "Preflight response is not successful. Status code: 400",
+      "Failed to load resource: Preflight response is not successful. Status code: 400",
+      "Error fetching marketplace listings: TypeError: Load failed"
+    ],
+    "pageErrors": [
+      "Fetch API cannot load http: /localhost:8000/api/v1/marketplace/categories due to access control checks.",
+      "Fetch API cannot load http: /localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 due to access control checks."
+    ],
+    "failedRequests": [
+      "GET http://localhost:8000/api/v1/marketplace/categories :: Preflight response is not successful. Status code: 400",
+      "GET http://localhost:8000/api/v1/marketplace/search?sort_by=price&sort_order=asc&page=1&limit=20 :: Preflight response is not successful. Status code: 400"
+    ]
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "mobile-390",
+    "page": "plans",
+    "url": "/plans",
+    "status": "PASS",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "webkit",
+    "browserLabel": "Safari/WebKit (Playwright engine)",
+    "version": "26.5",
+    "viewport": "mobile-390",
+    "page": "shared-asset-invalid",
+    "url": "/assets/19fa7b85-8bb4-48c4-b20e-4d9528baf4ff/shared?code=qa-bogus-code",
+    "status": "HTTP 404",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "pageErrors": [],
+    "failedRequests": []
+  }
+]

@@ -41,6 +41,9 @@ const PERMISSIONS = {
   investor: new Set([
     'read:users',
     'read:assets',
+    // Only investors own and create assets — advisors advise on them and
+    // admins manage/review them, so neither gets create:assets.
+    'create:assets',
     'read:portfolio',
     'write:portfolio',
     'place:trades',

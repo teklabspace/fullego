@@ -30,7 +30,16 @@ import { toast } from 'react-toastify';
 // exactly what the server said.
 const apiErrorMessage = (err, fallback) => {
   const detail = err?.data?.detail ?? err?.data?.message ?? err?.message;
-  return typeof detail === 'string' && detail ? detail : fallback;
+  const base = typeof detail === 'string' && detail ? detail : fallback;
+  // 422 VALIDATION_ERROR carries per-field specifics in error.details — append
+  // them so the toast names the offending field instead of a generic line.
+  const fieldIssues = Array.isArray(err?.data?.error?.details)
+    ? err.data.error.details
+        .map((d) => (d?.field ? `${d.field}: ${d.message}` : d?.message))
+        .filter(Boolean)
+        .join('; ')
+    : '';
+  return fieldIssues ? `${base} (${fieldIssues})` : base;
 };
 
 // Concierge appraisal types — same options (and same `appraisal_type` field)
@@ -77,6 +86,8 @@ const prettyStatus = (status) =>
   (status || '').toString().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 const ADMIN_PAGE_SIZE = 10;
+// Page size for a regular user's own assets (backend allows up to 100).
+const USER_PAGE_SIZE = 20;
 
 export default function AssetsPage() {
   const { isDarkMode } = useTheme();
@@ -84,12 +95,17 @@ export default function AssetsPage() {
   // Admins see ALL users' assets (searchable + paginated) via the admin endpoint;
   // everyone else sees their own. `authMounted` gates the first fetch until the
   // role is known so we don't fire the wrong request on mount.
-  const { isAdmin, mounted: authMounted } = useAuth();
+  const { isAdmin, isInvestor, mounted: authMounted } = useAuth();
   // Search term comes from the shared navbar search box (see SearchContext).
   const { query: adminSearchInput } = useSearch();
   const [adminSearch, setAdminSearch] = useState('');
   const [adminPage, setAdminPage] = useState(1);
   const [adminPagination, setAdminPagination] = useState(null);
+  // Regular users paginate too — the backend caps a page at 20 by default, so
+  // without this anyone with more than one page of assets silently saw only
+  // the newest ones.
+  const [userPage, setUserPage] = useState(1);
+  const [userPagination, setUserPagination] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [showSellModal, setShowSellModal] = useState(false);
@@ -110,6 +126,9 @@ export default function AssetsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [submittingSell, setSubmittingSell] = useState(false);
+  // BUG-03: the exact API error shown inline in the sell modal — never the
+  // generic error graphic, never a silent failure.
+  const [sellError, setSellError] = useState('');
   const [submittingAppraisal, setSubmittingAppraisal] = useState(false);
 
   // Fetch assets from API
@@ -134,7 +153,10 @@ export default function AssetsPage() {
           category: selectedCategory !== 'all' ? selectedCategory : undefined,
           sortBy: 'created_at',
           order: 'desc',
+          page: userPage,
+          pageSize: USER_PAGE_SIZE,
         });
+        setUserPagination(response.pagination || null);
       }
 
       const formattedAssets = (response.data || []).map(asset => ({
@@ -182,7 +204,12 @@ export default function AssetsPage() {
     } finally {
       setLoading(false);
     }
-  }, [authMounted, isAdmin, adminSearch, adminPage, selectedCategory, router]);
+  }, [authMounted, isAdmin, adminSearch, adminPage, userPage, selectedCategory, router]);
+
+  // Switching category filters server-side — restart from its first page.
+  useEffect(() => {
+    setUserPage(1);
+  }, [selectedCategory]);
 
   useEffect(() => {
     fetchAssets();
@@ -303,6 +330,7 @@ export default function AssetsPage() {
     setSelectedAsset(asset);
     setShowSellModal(true);
     setSellFormData({ saleNote: '', targetPrice: '' });
+    setSellError('');
   };
 
   const handleRequestAppraisal = asset => {
@@ -315,6 +343,7 @@ export default function AssetsPage() {
   const handleSubmitSellRequest = async () => {
     try {
       setSubmittingSell(true);
+      setSellError('');
       await requestAssetSale(selectedAsset.id, {
         targetPrice: sellFormData.targetPrice ? parseFloat(sellFormData.targetPrice.replace(/[^0-9.-]+/g, '')) : undefined,
         saleNote: sellFormData.saleNote || undefined,
@@ -324,7 +353,9 @@ export default function AssetsPage() {
       setSellFormData({ saleNote: '', targetPrice: '' });
     } catch (err) {
       console.error('Error submitting sell request:', err);
-      toast.error(apiErrorMessage(err, 'Failed to submit sell request'));
+      const message = apiErrorMessage(err, 'Failed to submit sell request');
+      setSellError(message);
+      toast.error(message);
     } finally {
       setSubmittingSell(false);
     }
@@ -446,8 +477,9 @@ export default function AssetsPage() {
             Track, monitor, and manage your high-value assets in one place
           </p>
           <div className='flex gap-2 sm:gap-4 flex-wrap'>
-            {/* Admins manage all users' assets and don't create their own. */}
-            {!isAdmin && (
+            {/* Only investors create assets — admins manage all users' assets
+                and advisors advise on them, so neither gets the button. */}
+            {isInvestor && (
               <button
                 onClick={() => router.push('/dashboard/assets/add')}
                 className='bg-[#F1CB68] text-[#101014] px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors flex items-center gap-1.5 sm:gap-2 hover:bg-[#d4b55a] text-xs sm:text-base whitespace-nowrap'
@@ -575,7 +607,7 @@ export default function AssetsPage() {
                 ? 'No assets match your search.'
                 : 'There are no assets across any users yet.'}
             </p>
-          ) : (
+          ) : isInvestor ? (
             <>
               <p className='text-sm mb-4'>Get started by adding your first asset</p>
               <button
@@ -585,6 +617,10 @@ export default function AssetsPage() {
                 Add New Asset
               </button>
             </>
+          ) : (
+            <p className='text-sm'>
+              Assets are created by investors — none are visible to you yet.
+            </p>
           )}
         </div>
       ) : (
@@ -633,6 +669,43 @@ export default function AssetsPage() {
               </button>
               <button
                 onClick={() => setAdminPage(p => p + 1)}
+                disabled={currentPage >= totalPages}
+                className={`${baseBtn} ${currentPage >= totalPages ? 'opacity-40 cursor-not-allowed' : activeBtn}`}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Regular-user pagination — same controls as the admin list; the
+          backend serves the user's own assets 20 per page. */}
+      {!isAdmin && !loading && !error && assets.length > 0 && (() => {
+        const totalPages = Math.max(1, Number(userPagination?.totalPages) || 1);
+        const currentPage = Number(userPagination?.page) || userPage;
+        const total = Number(userPagination?.total);
+        if (totalPages <= 1) return null;
+        const baseBtn = 'px-4 py-2 rounded-lg text-sm font-medium border transition-colors';
+        const activeBtn = isDarkMode
+          ? 'bg-white/5 hover:bg-white/10 text-white border-[#FFFFFF14]'
+          : 'bg-gray-100 hover:bg-gray-200 text-gray-900 border-gray-300';
+        return (
+          <div className='flex items-center justify-between gap-4 mt-6'>
+            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Page {currentPage} of {totalPages}
+              {Number.isFinite(total) && ` · ${total} assets`}
+            </p>
+            <div className='flex gap-2'>
+              <button
+                onClick={() => setUserPage(p => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                className={`${baseBtn} ${currentPage <= 1 ? 'opacity-40 cursor-not-allowed' : activeBtn}`}
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setUserPage(p => p + 1)}
                 disabled={currentPage >= totalPages}
                 className={`${baseBtn} ${currentPage >= totalPages ? 'opacity-40 cursor-not-allowed' : activeBtn}`}
               >
@@ -742,6 +815,7 @@ export default function AssetsPage() {
           onSubmit={handleSubmitSellRequest}
           onClose={() => setShowSellModal(false)}
           submitting={submittingSell}
+          submitError={sellError}
         />
       )}
 
@@ -828,9 +902,20 @@ function AssetCard({
   const cardFields = getCardFieldsForCategory(asset.category);
   const categoryGroup = getCategoryGroup(asset.category);
 
-  // Helper function to get field value from asset
+  // Money values arriving as raw numbers (specifications keep clean numbers)
+  // are formatted here; pre-formatted strings pass through untouched.
+  const formatMoney = value => {
+    if (value === null || value === undefined || value === '') return value;
+    const n = typeof value === 'number' ? value : parseFloat(String(value).replace(/[^0-9.-]+/g, ''));
+    return Number.isFinite(n) ? `$${n.toLocaleString()}` : value;
+  };
+
+  // Helper function to get field value from asset. Only the promoted columns
+  // (name, value, condition, ...) live at the top level — every group-specific
+  // field is inside asset.specifications, camelCased by the util layer.
   const getFieldValue = fieldName => {
     const lowerName = fieldName.toLowerCase();
+    const specs = asset.specifications || {};
 
     // Map field names to asset properties
     if (lowerName.includes('asset name') || lowerName.includes('fund name')) {
@@ -847,7 +932,11 @@ function AssetCard({
       lowerName.includes('current value') ||
       lowerName.includes('contribution value')
     ) {
-      return asset.estimatedValue || asset.currentValue;
+      return (
+        asset.estimatedValue ||
+        asset.currentValue ||
+        formatMoney(specs.contributionValue)
+      );
     }
     if (lowerName.includes('last appraisal')) {
       return asset.lastAppraisal;
@@ -861,41 +950,41 @@ function AssetCard({
     if (lowerName.includes('image')) {
       return asset.image;
     }
-    if (lowerName.includes('investment type')) {
-      return asset.investmentType;
+    if (lowerName.includes('asset type') || lowerName.includes('investment type')) {
+      return asset.assetType || asset.investmentType;
     }
     if (lowerName.includes('institution')) {
-      return asset.institution;
+      return asset.institution ?? specs.institution;
     }
     if (lowerName.includes('currency')) {
       return asset.currency;
     }
     if (lowerName.includes('risk level')) {
-      return asset.riskLevel;
+      return asset.riskLevel ?? specs.riskLevel;
     }
     if (lowerName.includes('debt type')) {
-      return asset.debtType;
+      return specs.debtType;
     }
     if (lowerName.includes('creditor')) {
-      return asset.creditor;
+      return specs.creditorName;
     }
     if (lowerName.includes('amount owed')) {
-      return asset.amountOwed;
+      return formatMoney(specs.amountOwed);
     }
     if (lowerName.includes('interest rate')) {
-      return asset.interestRate;
+      return specs.interestRate ? `${specs.interestRate}%` : null;
     }
     if (lowerName.includes('due date')) {
-      return asset.dueDate;
+      return specs.maturityDate;
     }
     if (lowerName.includes('wealth type')) {
-      return asset.wealthType;
+      return specs.wealthType;
     }
     if (lowerName.includes('description')) {
-      return asset.description;
+      return asset.description ?? specs.description;
     }
     if (lowerName.includes('expected date')) {
-      return asset.expectedDate;
+      return specs.expectedDate;
     }
     if (
       lowerName.includes('type') &&
@@ -904,42 +993,47 @@ function AssetCard({
       !lowerName.includes('debt') &&
       !lowerName.includes('wealth')
     ) {
-      return asset.type;
+      // Philanthropy's "Type" — stored under its full form-field key.
+      return specs.typeFoundationDafEtc ?? asset.type;
     }
     if (lowerName.includes('impact area')) {
-      return asset.impactArea;
+      return specs.impactArea;
     }
     if (lowerName.includes('service type')) {
-      return asset.serviceType;
+      return specs.serviceType;
     }
     if (lowerName.includes('vendor')) {
-      return asset.vendor;
+      return specs.vendorName;
     }
     if (lowerName.includes('membership id')) {
-      return asset.membershipId;
+      return specs.membershipServiceId;
     }
     if (lowerName.includes('annual cost')) {
-      return asset.annualCost;
+      return formatMoney(specs.annualCost);
     }
     if (lowerName.includes('record type')) {
-      return asset.recordType;
+      return specs.recordTypeKycLegalAudit;
     }
     if (lowerName.includes('document name')) {
-      return asset.documentName;
+      return specs.documentName;
     }
     if (lowerName.includes('related asset/user')) {
-      return asset.relatedAsset;
+      return specs.relatedAssetUser;
     }
     if (lowerName.includes('upload date')) {
-      return asset.uploadDate;
+      return specs.uploadDate;
     }
     if (lowerName.includes('expiry date')) {
-      return asset.expiryDate;
+      return specs.expiryDate;
     }
 
-    // Fallback to asset property with same key
-    const key = fieldName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    return asset[key] || '';
+    // Fallback: camelCase key in specifications first, then the asset root
+    const snake = fieldName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    const camel = snake.replace(/_([a-z0-9])/g, (m, c) => c.toUpperCase());
+    return specs[camel] ?? asset[camel] ?? '';
   };
 
   // Render card field
@@ -1200,7 +1294,14 @@ function AssetCard({
             // as date only. Non-date strings (e.g. "Just now") pass through.
             if ((lowerName.includes('date') || lowerName.includes('appraisal')) && value) {
               try {
-                const date = new Date(value);
+                // Date-only strings (YYYY-MM-DD) must be parsed as LOCAL time:
+                // new Date("2026-07-17") is UTC midnight, which west of UTC
+                // renders as the previous day.
+                const isDateOnly =
+                  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+                const date = isDateOnly
+                  ? new Date(`${value}T00:00:00`)
+                  : new Date(value);
                 if (!isNaN(date.getTime())) {
                   displayValue = date.toLocaleDateString();
                 }
@@ -1339,6 +1440,7 @@ function SellModal({
   onSubmit,
   onClose,
   submitting = false,
+  submitError = '',
 }) {
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto'>
@@ -1536,6 +1638,20 @@ function SellModal({
             </p>
           </div>
         </div>
+
+        {/* Inline API error — shows exactly what the server said (BUG-03) */}
+        {submitError && (
+          <div
+            role='alert'
+            className={`mx-4 sm:mx-6 mb-3 px-4 py-3 rounded-lg text-sm border ${
+              isDarkMode
+                ? 'bg-red-500/10 border-red-500/40 text-red-300'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}
+          >
+            {submitError}
+          </div>
+        )}
 
         {/* Actions - Fixed at bottom */}
         <div

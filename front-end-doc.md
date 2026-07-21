@@ -1,6 +1,6 @@
 # Frontend Technical Documentation
 
-**Project:** Akunuba (Fullego)  
+**Project:** Akunuba  
 **Framework:** Next.js 15 (App Router)  
 **Last updated:** March 2025
 
@@ -67,7 +67,7 @@ All of these modules use the shared client (`apiGet`, `apiPost`, `apiPut`, `apiP
 ### Routing Structure
 
 - **App Router:** All routes are under `src/app/` as `page.js` (or `page.jsx`) files.
-- **Public routes (examples):** `/`, `/login`, `/signup`, `/forgot-password`, `/reset-password`, `/verify-email`, `/marketplace`, `/about`, `/contact`, `/terms`, `/privacy`, `/cookies`, `/help-center`, `/plans`, `/fullego`, `/kyc-verification`, `/identity-verification`, `/document-verification`, `/choose-profile`, `/welcome`, `/verification-success`, `/kyc/verification-complete`, etc.
+- **Public routes (examples):** `/`, `/login`, `/signup`, `/forgot-password`, `/reset-password`, `/verify-email`, `/marketplace`, `/about`, `/contact`, `/terms`, `/privacy`, `/cookies`, `/help-center`, `/plans`, `/akunuba`, `/kyc-verification`, `/identity-verification`, `/document-verification`, `/choose-profile`, `/welcome`, `/verification-success`, `/kyc/verification-complete`, etc.
 - **Protected routes:** Everything under `/dashboard/*` is wrapped by `DashboardLayout`, which uses **SecureRoute**. SecureRoute checks `isAuthenticated()` (token in `localStorage`); if not authenticated, it redirects to `/login`.
 - **Dynamic segments:** e.g. `dashboard/assets/[id]`, `dashboard/marketplace/[id]`, `dashboard/investment/strategies/[id]`.
 - **Path alias:** `@/` maps to `src/` (e.g. `@/utils/authApi`, `@/config/api`).

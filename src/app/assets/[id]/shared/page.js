@@ -100,7 +100,8 @@ export default function SharedAssetPage() {
         setStatus(data.asset ? 'ready' : 'invalid');
       } catch (err) {
         if (cancelled) return;
-        if (err?.status === 410) {
+        const errCode = err?.code || err?.data?.error?.code;
+        if (err?.status === 410 || errCode === 'SHARE_LINK_EXPIRED') {
           setStatus('expired');
         } else if (err?.status === 404) {
           setStatus('invalid');

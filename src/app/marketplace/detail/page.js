@@ -12,6 +12,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getListing, searchMarketplace } from '@/utils/marketplaceApi';
 import { getCategoryIcon } from '@/utils/categoryIcons';
+import { getStoredRole } from '@/utils/permissions';
+import { toast } from 'react-toastify';
 
 const formatMoney = (value, currency = 'USD') => {
   if (value == null || value === '') return null;
@@ -136,10 +138,27 @@ export default function PublicListingDetailPage() {
     };
   }, [listing]);
 
+  // BUG-20: staff (admin/advisor) moderate the marketplace and can never buy —
+  // the backend refuses them with 403 STAFF_CANNOT_BUY. Hide the buy path up
+  // front instead of letting them fill the offer form. Role is read from
+  // localStorage user_info (populated from GET /users/me) after mount so the
+  // prerendered public page hydrates identically for guests.
+  const [viewerRole, setViewerRole] = useState(null);
+  useEffect(() => {
+    setViewerRole(getStoredRole());
+  }, []);
+  const isStaffViewer = viewerRole === 'admin' || viewerRole === 'advisor';
+
   // Same Buy semantics as the marketplace grid: guests go through
   // login/signup (the intended listing is remembered), logged-in users land
   // on the dashboard detail with the offer modal pre-opened.
   const handleBuy = () => {
+    if (isStaffViewer) {
+      toast.info(
+        'Admin and advisor accounts moderate the marketplace and cannot buy or make offers.'
+      );
+      return;
+    }
     const token =
       typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
     if (!token) {
@@ -359,22 +378,31 @@ export default function PublicListingDetailPage() {
                   </dl>
 
                   <div className='mt-auto flex flex-col sm:flex-row gap-3'>
-                    <button
-                      onClick={handleBuy}
-                      className='flex-1 px-8 py-3.5 rounded-full font-semibold text-[#0B0D12] transition-transform hover:scale-[1.02] active:scale-[0.98]'
-                      style={{
-                        background:
-                          'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
-                      }}
-                    >
-                      Make an offer
-                    </button>
-                    <button
-                      onClick={() => router.push('/signup')}
-                      className='flex-1 px-8 py-3.5 rounded-full font-semibold border border-[#FFFFFF2A] text-white hover:bg-white/5 transition-colors'
-                    >
-                      Create an account
-                    </button>
+                    {isStaffViewer ? (
+                      <p className='flex-1 px-4 py-3.5 rounded-xl border border-[#FFFFFF2A] text-sm text-gray-400 text-center sm:text-left'>
+                        Admin and advisor accounts moderate the marketplace and
+                        cannot buy or make offers.
+                      </p>
+                    ) : (
+                      <>
+                        <button
+                          onClick={handleBuy}
+                          className='flex-1 px-8 py-3.5 rounded-full font-semibold text-[#0B0D12] transition-transform hover:scale-[1.02] active:scale-[0.98]'
+                          style={{
+                            background:
+                              'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)',
+                          }}
+                        >
+                          Make an offer
+                        </button>
+                        <button
+                          onClick={() => router.push('/signup')}
+                          className='flex-1 px-8 py-3.5 rounded-full font-semibold border border-[#FFFFFF2A] text-white hover:bg-white/5 transition-colors'
+                        >
+                          Create an account
+                        </button>
+                      </>
+                    )}
                   </div>
                   <p className='text-xs text-gray-500 mt-3 text-center sm:text-left'>
                     Already a member?{' '}
@@ -513,8 +541,8 @@ export default function PublicListingDetailPage() {
         </div>
       </main>
 
-      {/* Sticky mobile buy bar */}
-      {!loading && !error && listing && (
+      {/* Sticky mobile buy bar (hidden for staff — see BUG-20 note above) */}
+      {!loading && !error && listing && !isStaffViewer && (
         <div className='lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0B0D12]/95 backdrop-blur border-t border-[#FFFFFF14] px-4 py-3 flex items-center gap-4'>
           <div className='min-w-0'>
             <p className='text-xs text-gray-400 truncate'>{name}</p>

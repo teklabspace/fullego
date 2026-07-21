@@ -12,7 +12,7 @@
 | Route | File | Notes |
 |-------|------|--------|
 | `/` | `app/page.js` | Landing / home |
-| `/fullego` | `app/fullego/page.js` | Fullego brand/landing |
+| `/akunuba` | `app/akunuba/page.js` | Akunuba brand/landing |
 | `/marketplace` | `app/marketplace/page.js` | Public marketplace (listings) |
 | `/about` | `app/about/page.js` | About |
 | `/plans` | `app/plans/page.js` | Plans / pricing |
