@@ -77,6 +77,11 @@ export const API_ENDPOINTS = {
     DOCUMENTS: '/kyc/documents',
     RESUBMIT: '/kyc/resubmit',
     REJECTION_REASON: '/kyc/rejection-reason',
+    // Public manual-verification fallback (failed Persona). The URL token IS the
+    // credential — call with { auth: false } so a stale session token can't 401
+    // the page. GET validates the link; POST (multipart: selfie, id_front,
+    // id_back?) submits the documents. Token is one-time: cleared on submit.
+    MANUAL_VERIFICATION: (token) => `/kyc/manual-verification/${token}`,
   },
   // KYB (Know Your Business) endpoints
   KYB: {
@@ -551,6 +556,9 @@ export const API_ENDPOINTS = {
     REJECT_USER_KYC: (id) => `/admin/users/${id}/kyc/reject`,
     // Re-pulls documents from Persona when capture_status is "failed".
     RECAPTURE_USER_KYC: (id) => `/admin/users/${id}/kyc/recapture`,
+    // Email a rejected/expired-KYC user a tokenized /manual-verification link
+    // (public upload fallback). Re-sending invalidates the previous link.
+    SEND_VERIFICATION_LINK: (id) => `/admin/users/${id}/kyc/send-verification-link`,
     // Advisor ↔ investor client assignment (auto-creates a chat).
     ADVISOR_CLIENTS: (advisorId) => `/admin/advisors/${advisorId}/clients`,
     UNASSIGN_ADVISOR_CLIENT: (advisorId, investorId) => `/admin/advisors/${advisorId}/clients/${investorId}`,

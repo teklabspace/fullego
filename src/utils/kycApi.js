@@ -273,6 +273,103 @@ export const syncKYCStatus = async () => {
   }
 };
 
+// ==================== Manual Verification (public tokenized link) ====================
+// Fallback for users whose Persona verification failed: an admin emails them a
+// link to /manual-verification?token=... and these PUBLIC endpoints let them
+// submit a selfie + ID document without logging in. The token is the
+// credential, so both calls pass { auth: false } — a stale localStorage token
+// would otherwise turn the public 200 into a 401 (same trap as BUG-02).
+
+/**
+ * Validate a manual-verification link and describe what to upload.
+ * GET /api/v1/kyc/manual-verification/{token} (public)
+ * 404 → invalid or already-used link; 410 (error.code VERIFICATION_LINK_EXPIRED)
+ * → expired link.
+ */
+export const getManualVerification = async (token) => {
+  try {
+    logger.info('Validating manual verification link');
+    const response = await apiGet(API_ENDPOINTS.KYC.MANUAL_VERIFICATION(token), {
+      auth: false,
+    });
+
+    logger.success('Manual verification link is valid', {
+      status: response.status,
+      alreadySubmitted: response.already_submitted,
+    });
+
+    return {
+      firstName: response.first_name || null,
+      status: response.status,
+      alreadySubmitted: !!response.already_submitted,
+      // 'required' | 'optional' per upload slot (selfie, id_front, id_back).
+      requirements: response.requirements || {},
+      maxFileSizeMb: response.max_file_size_mb ?? 10,
+      acceptedTypes: {
+        selfie: response.accepted_types?.selfie || [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+        ],
+        documents: response.accepted_types?.documents || [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+          'application/pdf',
+        ],
+      },
+    };
+  } catch (error) {
+    logger.error('Manual verification link check failed', error);
+    throw error;
+  }
+};
+
+/**
+ * Submit selfie + ID document for manual identity verification.
+ * POST /api/v1/kyc/manual-verification/{token} (public, multipart/form-data)
+ * Field names are the backend contract: selfie, id_front, id_back (optional).
+ * The token is one-time — it stops working after a successful submit.
+ * 422 → validation failure (wrong type / over the size limit); the message is
+ * user-safe and should be displayed as-is.
+ */
+export const submitManualVerification = async (token, { selfie, idFront, idBack } = {}) => {
+  try {
+    logger.info('Submitting manual verification documents', {
+      selfie: selfie?.name,
+      idFront: idFront?.name,
+      idBack: idBack?.name || null,
+    });
+
+    const formData = new FormData();
+    formData.append('selfie', selfie);
+    formData.append('id_front', idFront);
+    if (idBack) {
+      formData.append('id_back', idBack);
+    }
+
+    const response = await apiPost(
+      API_ENDPOINTS.KYC.MANUAL_VERIFICATION(token),
+      formData,
+      { auth: false }
+    );
+
+    logger.success('Manual verification documents submitted', {
+      status: response.status,
+      filesReceived: response.files_received,
+    });
+
+    return {
+      message: response.message,
+      status: response.status,
+      filesReceived: response.files_received,
+    };
+  } catch (error) {
+    logger.error('Failed to submit manual verification documents', error);
+    throw error;
+  }
+};
+
 // ==================== KYB APIs ====================
 
 /**

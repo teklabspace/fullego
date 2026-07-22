@@ -150,6 +150,17 @@ export const rejectVerification = (type, id, reason) =>
     { reason }
   );
 
+/**
+ * Email a rejected/expired-KYC user a tokenized manual-verification link (they
+ * upload a selfie + ID on the public /manual-verification page, no login).
+ * Re-sending regenerates the token — the previous link stops working.
+ * Response (after envelope unwrap): { message, data: { user_id, kyc_id,
+ * email_sent, expires_at, expires_in_days, verification_url? (dev only) } }.
+ * 400 → not eligible (KYC isn't rejected/expired, or the user is an admin).
+ */
+export const sendKycVerificationLink = (userId) =>
+  apiPost(API_ENDPOINTS.ADMIN.SEND_VERIFICATION_LINK(userId), null);
+
 // ── Marketplace Escrow (oversight table) ─────────────────────────────────────
 
 /**

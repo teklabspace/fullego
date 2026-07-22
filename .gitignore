@@ -54,5 +54,8 @@ next-env.d.ts
 # (real app images live under public/ and src/, which are unaffected)
 /*.png
 
+# QA evidence screenshots (manual-KYC E2E etc.)
+/screenshots/
+
 # scratch design/planning docs (specs, plans, working notes)
 docs/superpowers/

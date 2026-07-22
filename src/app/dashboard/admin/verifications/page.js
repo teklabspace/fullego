@@ -8,6 +8,8 @@ import {
   listAdminVerifications,
   approveVerification,
   rejectVerification,
+  sendKycVerificationLink,
+  getUserKyc,
 } from '@/utils/adminApi';
 
 const STATUS_CONFIG = {
@@ -29,6 +31,16 @@ const fmt = (d) => {
   return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
+const fmtDateTime = (d) => {
+  if (!d) return '—';
+  return new Date(d).toLocaleString('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  });
+};
+
+const titleCase = (s) =>
+  s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—';
+
 export default function AdminVerificationsPage() {
   const { isDarkMode } = useTheme();
   const { isAdmin, mounted } = useAuth();
@@ -40,11 +52,18 @@ export default function AdminVerificationsPage() {
 
   const [typeTab, setTypeTab] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [methodFilter, setMethodFilter] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // KYC documents for the drawer (view_url is a short-lived signed URL, so
+  // re-fetch on every open rather than caching).
+  const [kycDocs, setKycDocs] = useState(null);
+  const [kycDocsLoading, setKycDocsLoading] = useState(false);
+  const [docPreview, setDocPreview] = useState(null);
 
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -64,6 +83,7 @@ export default function AdminVerificationsPage() {
         page_size: 20,
         ...(typeTab ? { type: typeTab } : {}),
         ...(statusFilter ? { status: statusFilter } : {}),
+        ...(methodFilter ? { method: methodFilter } : {}),
         ...(search ? { search } : {}),
       };
       const res = await listAdminVerifications(params);
@@ -74,11 +94,35 @@ export default function AdminVerificationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, typeTab, statusFilter, search]);
+  }, [page, typeTab, statusFilter, methodFilter, search]);
 
   useEffect(() => {
     if (mounted && isAdmin) fetchVerifications();
   }, [fetchVerifications, mounted, isAdmin]);
+
+  // Load the user's KYC documents (Persona + manual uploads) when a KYC row's
+  // drawer opens, so the admin can review them without leaving this page.
+  useEffect(() => {
+    if (!drawerOpen || !selectedItem || selectedItem.type !== 'kyc') {
+      setKycDocs(null);
+      return;
+    }
+    let cancelled = false;
+    setKycDocsLoading(true);
+    getUserKyc(selectedItem.user_id)
+      .then((res) => {
+        // Payload is nested one level deeper than the envelope: detail lives on res.data.
+        const detail = res?.data || res || {};
+        if (!cancelled) setKycDocs(Array.isArray(detail.documents) ? detail.documents : []);
+      })
+      .catch(() => {
+        if (!cancelled) setKycDocs([]);
+      })
+      .finally(() => {
+        if (!cancelled) setKycDocsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [drawerOpen, selectedItem]);
 
   const handleApprove = async (item, e) => {
     e.stopPropagation();
@@ -90,6 +134,32 @@ export default function AdminVerificationsPage() {
       fetchVerifications();
     } catch (err) {
       toast.error(err?.message || 'Failed to approve');
+    } finally {
+      setActionLoading((p) => ({ ...p, [key]: false }));
+    }
+  };
+
+  // Manual-verification fallback: email a rejected/expired-KYC user a tokenized
+  // upload link. Backend regenerates the token on every send (old link dies).
+  const handleSendLink = async (item, e) => {
+    e?.stopPropagation();
+    const key = item.id + '_sendlink';
+    setActionLoading((p) => ({ ...p, [key]: true }));
+    try {
+      const res = await sendKycVerificationLink(item.user_id);
+      // Payload is nested: envelope data -> { message, data: { email_sent, ... } }.
+      const info = res?.data ?? res ?? {};
+      if (info.email_sent === false) {
+        toast.warn('Link created, but the email failed to send — try re-sending.');
+      } else {
+        toast.success(
+          `Verification link emailed to ${item.user_email}` +
+            (info.expires_in_days ? ` — valid for ${info.expires_in_days} days` : '')
+        );
+      }
+      fetchVerifications();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to send verification link');
     } finally {
       setActionLoading((p) => ({ ...p, [key]: false }));
     }
@@ -180,6 +250,11 @@ export default function AdminVerificationsPage() {
           <option value="not_started">Not Started</option>
           <option value="expired">Expired</option>
         </select>
+        <select value={methodFilter} onChange={(e) => { setMethodFilter(e.target.value); setPage(1); }} className={inputCls}>
+          <option value="">All Methods</option>
+          <option value="manual">Manual Verification</option>
+          <option value="persona">Persona</option>
+        </select>
       </div>
 
       {/* Table */}
@@ -212,6 +287,9 @@ export default function AdminVerificationsPage() {
                 visibleVerifications.map((item) => {
                   const statusCfg = STATUS_CONFIG[item.status] || { label: item.status, cls: 'bg-gray-500/20 text-gray-400' };
                   const canAction = item.status === 'pending_review' || item.status === 'in_progress';
+                  // KYC-only manual fallback (KYB rows don't carry these fields).
+                  const canSendLink = item.type === 'kyc' && !!item.can_send_manual_link;
+                  const canViewManualDocs = item.type === 'kyc' && !!item.manual_submitted_at;
                   return (
                     <tr
                       key={item.id}
@@ -230,9 +308,27 @@ export default function AdminVerificationsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusCfg.cls}`}>
-                          {statusCfg.label}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusCfg.cls}`}>
+                            {statusCfg.label}
+                          </span>
+                          {item.manual_link_active && (
+                            <span
+                              title={`Manual verification link expires ${fmtDateTime(item.manual_link_expires_at)}`}
+                              className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-cyan-500/20 text-cyan-400"
+                            >
+                              Link sent
+                            </span>
+                          )}
+                          {item.manual_submitted_at && (
+                            <span
+                              title={`Manual documents submitted ${fmtDateTime(item.manual_submitted_at)} — review in the user's KYC detail`}
+                              className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-teal-500/20 text-teal-400"
+                            >
+                              Manual docs
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <p className={`text-sm ${textMuted}`}>{item.business_name || '—'}</p>
@@ -246,21 +342,52 @@ export default function AdminVerificationsPage() {
                         <p className={`text-xs ${textMuted}`}>{fmt(item.created_at)}</p>
                       </td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        {canAction ? (
+                        {canAction || canSendLink || canViewManualDocs ? (
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={(e) => handleApprove(item, e)}
-                              disabled={actionLoading[item.id + '_approve']}
-                              className="text-xs px-2 py-1 rounded border font-medium transition-colors disabled:opacity-50 border-green-500/30 text-green-400 hover:bg-green-500/10"
-                            >
-                              {actionLoading[item.id + '_approve'] ? '...' : 'Approve'}
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setRejectTarget(item); setRejectReason(''); }}
-                              className="text-xs px-2 py-1 rounded border font-medium transition-colors border-red-500/30 text-red-400 hover:bg-red-500/10"
-                            >
-                              Reject
-                            </button>
+                            {canViewManualDocs && (
+                              <button
+                                onClick={() => { setSelectedItem(item); setDrawerOpen(true); }}
+                                title="View manually uploaded documents"
+                                className="text-xs px-2 py-1 rounded border font-medium transition-colors border-[#F1CB68]/40 text-[#F1CB68] hover:bg-[#F1CB68]/10"
+                              >
+                                View
+                              </button>
+                            )}
+                            {canAction && (
+                              <>
+                                <button
+                                  onClick={(e) => handleApprove(item, e)}
+                                  disabled={actionLoading[item.id + '_approve']}
+                                  className="text-xs px-2 py-1 rounded border font-medium transition-colors disabled:opacity-50 border-green-500/30 text-green-400 hover:bg-green-500/10"
+                                >
+                                  {actionLoading[item.id + '_approve'] ? '...' : 'Approve'}
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setRejectTarget(item); setRejectReason(''); }}
+                                  className="text-xs px-2 py-1 rounded border font-medium transition-colors border-red-500/30 text-red-400 hover:bg-red-500/10"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                            {canSendLink && (
+                              <button
+                                onClick={(e) => handleSendLink(item, e)}
+                                disabled={actionLoading[item.id + '_sendlink']}
+                                title={
+                                  item.manual_link_active
+                                    ? `Re-sending invalidates the current link (expires ${fmtDateTime(item.manual_link_expires_at)})`
+                                    : 'Email the user a manual verification upload link'
+                                }
+                                className="text-xs px-2 py-1 rounded border font-medium transition-colors disabled:opacity-50 border-[#F1CB68]/40 text-[#F1CB68] hover:bg-[#F1CB68]/10 whitespace-nowrap"
+                              >
+                                {actionLoading[item.id + '_sendlink']
+                                  ? '...'
+                                  : item.manual_link_active
+                                    ? 'Re-send link'
+                                    : 'Send link'}
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <span className={`text-xs ${textMuted}`}>—</span>
@@ -377,6 +504,105 @@ export default function AdminVerificationsPage() {
                 )}
               </div>
 
+              {/* Manual verification fallback (KYC only) */}
+              {selectedItem.type === 'kyc' &&
+                (selectedItem.can_send_manual_link ||
+                  selectedItem.manual_link_active ||
+                  selectedItem.manual_submitted_at) && (
+                <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+                  <p className={`text-xs font-medium uppercase tracking-wider mb-3 ${textMuted}`}>Manual Verification</p>
+                  <VRow
+                    label="Link"
+                    value={
+                      selectedItem.manual_link_active
+                        ? `Active — expires ${fmt(selectedItem.manual_link_expires_at)}`
+                        : selectedItem.manual_submitted_at
+                          ? 'Used'
+                          : 'Not sent'
+                    }
+                    isDarkMode={isDarkMode}
+                  />
+                  <VRow
+                    label="Docs Submitted"
+                    value={selectedItem.manual_submitted_at ? fmtDateTime(selectedItem.manual_submitted_at) : '—'}
+                    isDarkMode={isDarkMode}
+                  />
+                  {selectedItem.manual_submitted_at && (
+                    <p className={`mt-2 text-xs ${textMuted}`}>
+                      The user uploaded their selfie and ID via the manual link. Review the
+                      documents below, then approve or reject.
+                    </p>
+                  )}
+                  {selectedItem.can_send_manual_link && (
+                    <button
+                      onClick={(e) => { handleSendLink(selectedItem, e); setDrawerOpen(false); }}
+                      disabled={actionLoading[selectedItem.id + '_sendlink']}
+                      className="mt-3 w-full py-2.5 rounded-lg font-semibold text-sm bg-[#F1CB68] hover:bg-[#D6A738] text-[#101014] transition-colors disabled:opacity-60"
+                    >
+                      {selectedItem.manual_link_active
+                        ? 'Re-send verification link'
+                        : 'Send verification link'}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Uploaded documents (KYC only — Persona captures + manual uploads) */}
+              {selectedItem.type === 'kyc' && (
+                <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+                  <p className={`text-xs font-medium uppercase tracking-wider mb-3 ${textMuted}`}>Documents</p>
+                  {kycDocsLoading ? (
+                    <div className="grid grid-cols-3 gap-2">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className={`aspect-square rounded-lg animate-pulse ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`} />
+                      ))}
+                    </div>
+                  ) : kycDocs && kycDocs.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-2">
+                      {kycDocs.map((doc) => {
+                        const isPdf = (doc.mime_type || '').includes('pdf');
+                        const label = titleCase(doc.document_type);
+                        return (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onClick={() =>
+                              isPdf
+                                ? window.open(doc.view_url, '_blank', 'noopener')
+                                : setDocPreview({ url: doc.view_url, label })
+                            }
+                            className="group text-left"
+                          >
+                            <div className={`relative aspect-square rounded-lg overflow-hidden border ${isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'}`}>
+                              {isPdf ? (
+                                <div className={`w-full h-full flex flex-col items-center justify-center gap-1 ${textMuted}`}>
+                                  <span className="text-lg font-bold">PDF</span>
+                                </div>
+                              ) : (
+                                /* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL, not a static/local asset */
+                                <img
+                                  src={doc.view_url}
+                                  alt={label}
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/50 transition-colors">
+                                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#F1CB68] text-[#101014] opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {isPdf ? 'Open' : 'View'}
+                                </span>
+                              </div>
+                            </div>
+                            <p className={`text-[10px] mt-1 truncate ${textMuted}`}>{label}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className={`text-xs ${textMuted}`}>No documents uploaded yet.</p>
+                  )}
+                </div>
+              )}
+
               {/* Action buttons in drawer */}
               {(selectedItem.status === 'pending_review' || selectedItem.status === 'in_progress') && (
                 <div className="flex gap-3 pt-2">
@@ -437,6 +663,34 @@ export default function AdminVerificationsPage() {
                 {rejectLoading ? 'Rejecting...' : 'Reject'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Lightbox (full screen) */}
+      {docPreview && (
+        <div
+          className="fixed inset-0 z-[70] flex flex-col bg-black/95"
+          onClick={() => setDocPreview(null)}
+        >
+          <div className="flex items-center justify-between px-4 py-3" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm font-medium text-white">{docPreview.label}</p>
+            <button
+              onClick={() => setDocPreview(null)}
+              aria-label="Close preview"
+              className="w-9 h-9 flex items-center justify-center rounded-full text-white/80 hover:text-white hover:bg-white/10 text-2xl leading-none"
+            >
+              ×
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 flex items-center justify-center p-4">
+            {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL */}
+            <img
+              src={docPreview.url}
+              alt={docPreview.label}
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
           </div>
         </div>
       )}
