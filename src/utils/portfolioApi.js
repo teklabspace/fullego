@@ -40,16 +40,23 @@ const transformKeys = (obj) => {
  * Get Portfolio Summary
  * GET /api/v1/portfolio/summary
  */
+// Envelope-tolerant normalizer. The API client already unwraps the outer
+// {success, status_code, message, data} envelope; some portfolio routes nest
+// ANOTHER {data: ...}, others return the payload flat and snake_case — so
+// `response.data` was often undefined and transformKeys never ran (pages then
+// rendered $0.00 despite a 200 with real numbers). Callers read both
+// `res.data` and top-level fields, so serve the camelized payload both ways.
+const normalizePayload = (response) => {
+  const payload = transformKeys(response?.data ?? response ?? {});
+  if (Array.isArray(payload)) return { data: payload };
+  return { ...payload, data: payload };
+};
+
 export const getPortfolioSummary = async (timeRange = 'ALL') => {
   const queryParams = timeRange !== 'ALL' ? `?time_range=${timeRange}` : '';
   const endpoint = `/portfolio/summary${queryParams}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  return normalizePayload(response);
 };
 
 /**
@@ -59,18 +66,7 @@ export const getPortfolioSummary = async (timeRange = 'ALL') => {
 export const getPortfolioPerformance = async (days = 30) => {
   const endpoint = `/portfolio/performance?days=${days}`;
   const response = await apiGet(endpoint);
-  
-  if (response.daily_returns) {
-    response.daily_returns = transformKeys(response.daily_returns);
-  }
-  if (response.best_performer) {
-    response.best_performer = transformKeys(response.best_performer);
-  }
-  if (response.worst_performer) {
-    response.worst_performer = transformKeys(response.worst_performer);
-  }
-  
-  return response;
+  return normalizePayload(response);
 };
 
 /**
@@ -80,16 +76,7 @@ export const getPortfolioPerformance = async (days = 30) => {
 export const getAssetAllocation = async () => {
   const endpoint = `/portfolio/allocation`;
   const response = await apiGet(endpoint);
-  
-  if (Array.isArray(response)) {
-    return { data: response.map(transformKeys) };
-  }
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  return normalizePayload(response);
 };
 
 /**
@@ -104,12 +91,7 @@ export const getTopHoldings = async (params = {}) => {
   
   const endpoint = `/portfolio/holdings/top${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  return normalizePayload(response);
 };
 
 /**
@@ -123,12 +105,7 @@ export const getRecentActivity = async (params = {}) => {
   
   const endpoint = `/portfolio/activity/recent${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  return normalizePayload(response);
 };
 
 /**
@@ -138,12 +115,7 @@ export const getRecentActivity = async (params = {}) => {
 export const getMarketSummary = async () => {
   const endpoint = `/portfolio/market-summary`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  return normalizePayload(response);
 };
 
 /**
@@ -157,12 +129,7 @@ export const getPortfolioAlerts = async (params = {}) => {
   
   const endpoint = `/portfolio/alerts${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  return normalizePayload(response);
 };
 
 /**
@@ -191,12 +158,7 @@ export const getPortfolio = async (params = {}) => {
 export const getPortfolioHistory = async (days = 30) => {
   const endpoint = `/portfolio/history?days=${days}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  return normalizePayload(response);
 };
 
 /**
@@ -516,11 +478,26 @@ export const getRecentTrades = async (params = {}) => {
 export const getTradingHistory = async (symbol) => {
   const endpoint = `/portfolio/trade-engine/assets/${symbol}/history`;
   const response = await apiGet(endpoint);
-  
+
   if (response.data) {
     response.data = transformKeys(response.data);
   }
-  
+
+  return response;
+};
+
+/**
+ * Get Asset Price History (daily candles for the chart)
+ * GET /api/v1/portfolio/trade-engine/assets/{symbol}/price-history?range=1M
+ */
+export const getAssetPriceHistory = async (symbol, range = '1M') => {
+  const endpoint = `/portfolio/trade-engine/assets/${symbol}/price-history?range=${encodeURIComponent(range)}`;
+  const response = await apiGet(endpoint);
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
   return response;
 };
 

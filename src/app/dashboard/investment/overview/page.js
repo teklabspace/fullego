@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
+import { formatCurrency as formatCurrencyShared } from '@/utils/formatters';
 
 export default function InvestmentOverviewPage() {
   const { isDarkMode } = useTheme();
@@ -167,15 +168,10 @@ export default function InvestmentOverviewPage() {
     fetchInvestmentAnalyticsData();
   }, []);
 
-  // Format currency
+  // Format currency (delegates to shared formatter)
   const formatCurrency = (value) => {
     if (!value && value !== 0) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
+    return formatCurrencyShared(value, { minDecimals: 2, maxDecimals: 2 });
   };
 
   // Format date
@@ -913,7 +909,7 @@ function AssetCard({
                 : 'text-gray-900'
             }`}
           >
-            ${value}
+            {value}
           </span>
           <div className='space-y-1'>
             <div className='flex items-center gap-2'>
@@ -1033,12 +1029,7 @@ function NewAssetCard({ isDarkMode }) {
 function TraderProfileSidebar({ profile, isDarkMode }) {
   const formatCurrency = (value) => {
     if (!value && value !== 0) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
+    return formatCurrencyShared(value, { minDecimals: 2, maxDecimals: 2 });
   };
 
   const formatDate = (dateString) => {

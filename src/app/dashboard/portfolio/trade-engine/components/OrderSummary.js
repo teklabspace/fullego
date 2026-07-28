@@ -1,12 +1,23 @@
 'use client';
 
+import { useState } from 'react';
+import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent } from '@/utils/formatters';
+
 export default function OrderSummary({
   quantity,
   limitPrice,
   calculateTotal,
   recentTrades,
+  symbol,
+  assetDetails,
   isDarkMode,
 }) {
+  const marketCap = assetDetails?.marketCap;
+  const high52 = assetDetails?.high52Week;
+  const low52 = assetDetails?.low52Week;
+  const dividendYield = assetDetails?.dividendYield;
+  const peRatio = assetDetails?.peRatio;
+  const [showFullDetails, setShowFullDetails] = useState(false);
   return (
     <div className='lg:col-span-1'>
       <div
@@ -65,8 +76,11 @@ export default function OrderSummary({
         <div className='mb-6'>
           <div className='flex items-center justify-between mb-4'>
             <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Asset Information</span>
-            <button className='text-sm text-[#F1CB68] hover:underline flex items-center gap-1'>
-              Full Details
+            <button
+              onClick={() => setShowFullDetails((v) => !v)}
+              className='text-sm text-[#F1CB68] hover:underline flex items-center gap-1'
+            >
+              {showFullDetails ? 'Hide Details' : 'Full Details'}
               <svg
                 width='16'
                 height='16'
@@ -88,34 +102,83 @@ export default function OrderSummary({
           <div className='space-y-3'>
             <div className='flex justify-between items-center'>
               <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Market Cap</span>
-              <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>$2.87T</span>
+              <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                {marketCap ? formatCurrencyCompact(marketCap) : '—'}
+              </span>
             </div>
             <div className='flex justify-between items-center'>
               <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>52-Week Range</span>
               <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                $124.17 - $192.45
+                {high52 != null && low52 != null
+                  ? `${formatCurrency(low52, { minDecimals: 2 })} - ${formatCurrency(high52, { minDecimals: 2 })}`
+                  : '—'}
               </span>
             </div>
             <div className='flex justify-between items-center'>
               <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Dividend Yield</span>
-              <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>0.58%</span>
+              <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                {dividendYield != null ? formatPercent(dividendYield, { sign: false }) : '—'}
+              </span>
             </div>
             <div className='flex justify-between items-center'>
               <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>P/E Ratio</span>
-              <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>30.64</span>
+              <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                {peRatio != null ? peRatio : '—'}
+              </span>
             </div>
+            {showFullDetails && (
+              <>
+                <div className='flex justify-between items-center'>
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Exchange</span>
+                  <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                    {assetDetails?.exchange || '—'}
+                  </span>
+                </div>
+                <div className='flex justify-between items-center'>
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Asset Class</span>
+                  <span className={`text-sm font-semibold capitalize ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                    {assetDetails?.assetClass || '—'}
+                  </span>
+                </div>
+                <div className='flex justify-between items-center'>
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Currency</span>
+                  <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                    {assetDetails?.currency || '—'}
+                  </span>
+                </div>
+                <div className='flex justify-between items-center'>
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Prev Close</span>
+                  <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                    {assetDetails?.previousClose != null
+                      ? formatCurrency(assetDetails.previousClose, { minDecimals: 2 })
+                      : '—'}
+                  </span>
+                </div>
+                <div className='flex justify-between items-center'>
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Volume (prev day)</span>
+                  <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                    {assetDetails?.volume ? formatNumber(assetDetails.volume) : '—'}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Recent AAPL Trades */}
+        {/* Recent trades for the selected instrument */}
         <div className='mb-6'>
           <h4
             className={`text-sm font-semibold mb-3 ${
               isDarkMode ? 'text-white' : 'text-gray-900'
             }`}
           >
-            Recent AAPL Trades
+            Recent {symbol || ''} Trades
           </h4>
+          {(!recentTrades || recentTrades.length === 0) && (
+            <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+              No trades for this instrument yet.
+            </p>
+          )}
           {recentTrades.map((trade, index) => (
             <div
               key={index}
@@ -197,11 +260,11 @@ export default function OrderSummary({
             </div>
             <div>
               <p className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                Market volatility notice
+                Market data notice
               </p>
               <p className={`text-xs leading-relaxed ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                AAPL has experienced higher than average volatility in the past
-                week. Consider using limit orders to control your entry price.
+                Displayed prices are end-of-day market data. Consider using
+                limit orders to control your entry price.
               </p>
             </div>
           </div>

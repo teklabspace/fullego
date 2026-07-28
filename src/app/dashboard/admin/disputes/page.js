@@ -281,15 +281,9 @@ export default function AdminDisputesPage() {
                           >
                             View
                           </button>
-                          {/* Release funds to the seller. */}
-                          {canAct && (
-                            <button
-                              onClick={() => openAction(e, 'release')}
-                              className="text-xs px-2 py-1 rounded border font-medium transition-colors border-green-500/40 text-green-500 hover:bg-green-500/10"
-                            >
-                              Release
-                            </button>
-                          )}
+                          {/* Release is intentionally hidden — funds release
+                              to the seller only via the buyer's accept flow;
+                              admin intervenes with View + Refund only. */}
                           {/* Refund the buyer. */}
                           {canAct && (
                             <button

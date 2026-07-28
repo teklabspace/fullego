@@ -1402,16 +1402,41 @@ function AppraisalDetailModal({
 
   useEffect(() => {
     let cancelled = false;
-    setLoadingThread(true);
-    getAppraisalComments(appraisal.id)
-      .then(res => {
-        if (cancelled) return;
-        const list = res?.data || res || [];
-        setThread(Array.isArray(list) ? list : []);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoadingThread(false); });
-    return () => { cancelled = true; };
+    const load = (showSkeleton) => {
+      if (showSkeleton) setLoadingThread(true);
+      getAppraisalComments(appraisal.id)
+        .then(res => {
+          if (cancelled) return;
+          const list = res?.data || res || [];
+          setThread(Array.isArray(list) ? list : []);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled && showSkeleton) setLoadingThread(false);
+        });
+    };
+    load(true);
+
+    // Live updates: the notifications WebSocket broadcasts every push as an
+    // app:notification window event — refetch when one references this
+    // appraisal. A light background poll covers pushes that never arrive
+    // (other tab consumed it, socket down); skipped while the tab is hidden.
+    const onNotification = e => {
+      const forThisAppraisal =
+        e?.detail?.appraisal_id && String(e.detail.appraisal_id) === String(appraisal.id);
+      if (forThisAppraisal) load(false);
+    };
+    window.addEventListener('app:notification', onNotification);
+    const intervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      load(false);
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('app:notification', onNotification);
+      clearInterval(intervalId);
+    };
   }, [appraisal.id]);
 
   // Keep the chat pinned to the latest message (bottom) — on load and on every

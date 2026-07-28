@@ -8,6 +8,9 @@ import {
   getPaymentHistory,
   listInvoices,
   removePaymentMethod,
+  setDefaultPaymentMethod,
+  getBillingInfo,
+  updateBillingInfo,
 } from '@/utils/paymentsApi';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useAuth } from '@/hooks/useAuth';
@@ -87,6 +90,15 @@ export default function PaymentBilling({ isDarkMode }) {
   // Add-payment-method (Stripe Elements) modal + per-method delete state.
   const [addPmOpen, setAddPmOpen] = useState(false);
   const [deletingPm, setDeletingPm] = useState(null);
+  const [settingDefaultPm, setSettingDefaultPm] = useState(null);
+  // Billing-contact (Stripe customer) modal state.
+  const [billingOpen, setBillingOpen] = useState(false);
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingForm, setBillingForm] = useState({
+    name: '', email: '', phone: '',
+    line1: '', line2: '', city: '', state: '', postalCode: '', country: '',
+  });
 
   // Reload only the saved payment methods (after add/remove).
   const refreshPaymentMethods = useCallback(async () => {
@@ -144,6 +156,12 @@ export default function PaymentBilling({ isDarkMode }) {
   }, [fetchPayments]);
 
   const handleRemovePaymentMethod = async (methodId) => {
+    // Mirror of the backend guard: the only saved method can't be removed,
+    // otherwise the subscription has nothing left to charge.
+    if (paymentMethods.length <= 1) {
+      toast.info('You need at least one saved payment method. Add another card before removing this one.');
+      return;
+    }
     setDeletingPm(methodId);
     try {
       await removePaymentMethod(methodId);
@@ -153,6 +171,72 @@ export default function PaymentBilling({ isDarkMode }) {
       toast.error(err?.message || 'Failed to remove payment method');
     } finally {
       setDeletingPm(null);
+    }
+  };
+
+  const handleSetDefaultPaymentMethod = async (methodId) => {
+    setSettingDefaultPm(methodId);
+    try {
+      await setDefaultPaymentMethod(methodId);
+      toast.success('Default payment method updated');
+      await refreshPaymentMethods();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to update default payment method');
+    } finally {
+      setSettingDefaultPm(null);
+    }
+  };
+
+  const openBillingModal = async () => {
+    setBillingOpen(true);
+    setBillingLoading(true);
+    try {
+      const res = await getBillingInfo();
+      const info = res?.data || {};
+      const addr = info.address || {};
+      setBillingForm({
+        name: info.name || '',
+        email: info.email || '',
+        phone: info.phone || '',
+        line1: addr.line1 || '',
+        line2: addr.line2 || '',
+        city: addr.city || '',
+        state: addr.state || '',
+        postalCode: addr.postalCode || addr.postal_code || '',
+        country: addr.country || '',
+      });
+    } catch (err) {
+      // Modal still opens with an empty form — saving creates the contact.
+      // Warning, not error: the endpoint 404s until the backend deploys.
+      console.warn('Failed to load billing info:', err);
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const handleSaveBillingInfo = async (e) => {
+    e.preventDefault();
+    setBillingBusy(true);
+    try {
+      await updateBillingInfo({
+        name: billingForm.name,
+        email: billingForm.email,
+        phone: billingForm.phone,
+        address: {
+          line1: billingForm.line1,
+          line2: billingForm.line2,
+          city: billingForm.city,
+          state: billingForm.state,
+          postalCode: billingForm.postalCode,
+          country: billingForm.country,
+        },
+      });
+      toast.success('Billing info updated');
+      setBillingOpen(false);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to update billing info');
+    } finally {
+      setBillingBusy(false);
     }
   };
 
@@ -286,11 +370,11 @@ export default function PaymentBilling({ isDarkMode }) {
             </div>
             <div className={`px-4 py-4 rounded-lg mb-4 ${isDarkMode ? 'bg-white/5 border border-[#FFFFFF14]' : 'bg-white/80 border border-gray-200'}`}>
               <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Billing contact information is managed on your account profile.
+                The name, email and address that appear on your invoices.
               </p>
             </div>
             <button
-              onClick={() => router.push('/dashboard/settings?tab=profile')}
+              onClick={openBillingModal}
               className={`w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all ${
                 isDarkMode ? 'bg-[#F1CB68]/10 text-[#F1CB68] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20' : 'bg-[#F1CB68]/10 text-[#BF9B30] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20'
               }`}
@@ -340,10 +424,25 @@ export default function PaymentBilling({ isDarkMode }) {
                         >
                           {method.isDefault || method.is_default ? 'Default' : 'Saved'}
                         </div>
+                        {!(method.isDefault || method.is_default) && (
+                          <button
+                            type="button"
+                            onClick={() => handleSetDefaultPaymentMethod(method.id)}
+                            disabled={settingDefaultPm === method.id}
+                            className={`px-2 py-1 rounded text-xs font-medium border transition-colors disabled:opacity-50 ${
+                              isDarkMode
+                                ? 'border-[#F1CB68]/30 text-[#F1CB68] hover:bg-[#F1CB68]/10'
+                                : 'border-[#F1CB68]/40 text-[#BF9B30] hover:bg-[#F1CB68]/10'
+                            }`}
+                          >
+                            {settingDefaultPm === method.id ? '…' : 'Set default'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleRemovePaymentMethod(method.id)}
-                          disabled={deletingPm === method.id}
+                          disabled={deletingPm === method.id || paymentMethods.length <= 1}
+                          title={paymentMethods.length <= 1 ? 'Add another card before removing your only payment method' : undefined}
                           aria-label="Remove payment method"
                           className="p-1.5 rounded-md text-red-400 hover:bg-red-500/15 transition-colors disabled:opacity-50"
                         >
@@ -539,6 +638,101 @@ export default function PaymentBilling({ isDarkMode }) {
         onAdded={refreshPaymentMethods}
         isDarkMode={isDarkMode}
       />
+
+      {billingOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => !billingBusy && setBillingOpen(false)}>
+          <div
+            className={`w-full max-w-lg rounded-2xl border p-6 max-h-[90vh] overflow-y-auto ${
+              isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              Billing info
+            </h3>
+            {billingLoading ? (
+              <div className="animate-pulse space-y-3">
+                <div className="h-10 rounded bg-white/10" />
+                <div className="h-10 rounded bg-white/10" />
+                <div className="h-10 rounded bg-white/10" />
+              </div>
+            ) : (
+              <form onSubmit={handleSaveBillingInfo} className="space-y-3">
+                {[
+                  { key: 'name', label: 'Name on invoice', type: 'text' },
+                  { key: 'email', label: 'Billing email', type: 'email' },
+                  { key: 'phone', label: 'Phone', type: 'tel' },
+                  { key: 'line1', label: 'Address line 1', type: 'text' },
+                  { key: 'line2', label: 'Address line 2', type: 'text' },
+                ].map(({ key, label, type }) => (
+                  <div key={key}>
+                    <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {label}
+                    </label>
+                    <input
+                      type={type}
+                      value={billingForm[key]}
+                      onChange={(e) => setBillingForm((f) => ({ ...f, [key]: e.target.value }))}
+                      className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none ${
+                        isDarkMode
+                          ? 'bg-white/5 border-[#FFFFFF14] text-white focus:border-[#F1CB68]/50'
+                          : 'bg-white border-gray-200 text-gray-900 focus:border-[#BF9B30]'
+                      }`}
+                    />
+                  </div>
+                ))}
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { key: 'city', label: 'City' },
+                    { key: 'state', label: 'State / Province' },
+                    { key: 'postalCode', label: 'Postal code' },
+                    { key: 'country', label: 'Country (2-letter code)' },
+                  ].map(({ key, label }) => (
+                    <div key={key}>
+                      <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {label}
+                      </label>
+                      <input
+                        type="text"
+                        value={billingForm[key]}
+                        onChange={(e) => setBillingForm((f) => ({ ...f, [key]: e.target.value }))}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none ${
+                          isDarkMode
+                            ? 'bg-white/5 border-[#FFFFFF14] text-white focus:border-[#F1CB68]/50'
+                            : 'bg-white border-gray-200 text-gray-900 focus:border-[#BF9B30]'
+                        }`}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setBillingOpen(false)}
+                    disabled={billingBusy}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                      isDarkMode ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={billingBusy}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-50 ${
+                      isDarkMode
+                        ? 'bg-[#F1CB68]/10 text-[#F1CB68] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20'
+                        : 'bg-[#F1CB68]/10 text-[#BF9B30] border border-[#F1CB68]/30 hover:bg-[#F1CB68]/20'
+                    }`}
+                  >
+                    {billingBusy ? 'Saving…' : 'Save billing info'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -319,6 +319,24 @@ export default function CashFlowPage() {
         <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6'>
           {/* Stats Cards - Left Column */}
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+            {/* Cash in Hand — live balances of the Plaid-linked accounts */}
+            <div className='sm:col-span-2'>
+              <StatCard
+                icon='/icons/net-cash-flow-icon.svg'
+                title='Cash in Hand'
+                value={formatCurrency(
+                  accounts.reduce((sum, a) => sum + (parseFloat(a.balance) || 0), 0)
+                )}
+                subtitle={
+                  accounts.length > 0
+                    ? `Across ${accounts.length} linked account${accounts.length === 1 ? '' : 's'}`
+                    : 'Link a bank account to see your cash position'
+                }
+                gradientBorder='linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #36D399 50%, rgba(0, 0, 0, 0) 100%)'
+                isDarkMode={isDarkMode}
+              />
+            </div>
+
             {/* Total Inflow */}
             <StatCard
               icon='/icons/up-side-yellow-arrow.svg'

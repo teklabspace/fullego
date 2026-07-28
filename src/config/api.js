@@ -269,6 +269,7 @@ export const API_ENDPOINTS = {
     GET_ASSET: (symbol) => `/portfolio/trade-engine/assets/${symbol}`,
     RECENT_TRADES: '/portfolio/trade-engine/recent-trades',
     ASSET_HISTORY: (symbol) => `/portfolio/trade-engine/assets/${symbol}/history`,
+    ASSET_PRICE_HISTORY: (symbol) => `/portfolio/trade-engine/assets/${symbol}/price-history`,
     ACCOUNTS: '/portfolio/trade-engine/accounts',
     PLACE_ORDER: '/portfolio/trade-engine/orders',
     GET_ORDER: (id) => `/portfolio/trade-engine/orders/${id}`,
@@ -387,6 +388,10 @@ export const API_ENDPOINTS = {
     GET_PAYMENT_METHODS: '/payments/payment-methods',
     ADD_PAYMENT_METHOD: '/payments/payment-methods',
     DELETE_PAYMENT_METHOD: (id) => `/payments/payment-methods/${id}`,
+    SET_DEFAULT_PAYMENT_METHOD: (id) => `/payments/payment-methods/${id}/default`,
+    // Billing contact (Stripe customer)
+    GET_BILLING_INFO: '/payments/billing-info',
+    UPDATE_BILLING_INFO: '/payments/billing-info',
     // Refunds
     CREATE_REFUND: (id) => `/payments/payments/${id}/refund`,
     GET_REFUNDS: (id) => `/payments/payments/${id}/refunds`,
