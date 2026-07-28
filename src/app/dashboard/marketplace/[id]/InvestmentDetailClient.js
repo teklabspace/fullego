@@ -61,6 +61,8 @@ export default function InvestmentDetailClient() {
   const [perfRange, setPerfRange] = useState('1y');
   const [documents, setDocuments] = useState(null);
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  // Photo gallery: index of the enlarged image.
+  const [activeImage, setActiveImage] = useState(0);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('id');
@@ -247,6 +249,11 @@ export default function InvestmentDetailClient() {
         minimum: formatCurrency(listing.askingPrice),
         askingPriceValue: listing.askingPrice || 0,
         image: listing.thumbnailUrl || listing.imageUrl || null,
+        // Full asset photo gallery from the backend (primary first);
+        // falls back to the single thumbnail for older payloads.
+        images: Array.isArray(listing.images) && listing.images.length > 0
+          ? listing.images
+          : (listing.thumbnailUrl ? [listing.thumbnailUrl] : []),
         // All nullable until the seller provides them — show N/A, not fake data.
         expectedReturns: listing.expectedReturn || 'N/A',
         duration: listing.duration || 'N/A',
@@ -543,6 +550,37 @@ export default function InvestmentDetailClient() {
                 </div>
               )}
             </div>
+
+            {/* Asset photo gallery — main image + thumbnail strip */}
+            {Array.isArray(investment.images) && investment.images.length > 0 && (
+              <div className='mb-6'>
+                <div className='rounded-2xl overflow-hidden mb-3 bg-black/20'>
+                  <img
+                    src={investment.images[Math.min(activeImage, investment.images.length - 1)]}
+                    alt={investment.name || 'Asset photo'}
+                    className='w-full h-72 md:h-96 object-cover'
+                  />
+                </div>
+                {investment.images.length > 1 && (
+                  <div className='flex gap-2 overflow-x-auto pb-1'>
+                    {investment.images.map((src, idx) => (
+                      <button
+                        key={idx}
+                        type='button'
+                        onClick={() => setActiveImage(idx)}
+                        className={`shrink-0 rounded-lg overflow-hidden border-2 transition-colors ${
+                          idx === Math.min(activeImage, investment.images.length - 1)
+                            ? 'border-[#F1CB68]'
+                            : 'border-transparent opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <img src={src} alt={`Photo ${idx + 1}`} className='w-20 h-14 object-cover' />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Stats Section */}
             <div className='grid grid-cols-2 md:grid-cols-5 gap-4 mb-6'>
