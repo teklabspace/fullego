@@ -26,7 +26,8 @@ import {
   createListing,
   getMarketplaceCategories,
 } from '@/utils/marketplaceApi';
-import { getAssets } from '@/utils/assetsApi';
+import { getAssets, getAssetDocuments } from '@/utils/assetsApi';
+import { formatCurrency, formatCurrencyCompact } from '@/utils/formatters';
 import {
   categoryGroupConfig,
   getCategoriesByGroup,
@@ -171,7 +172,7 @@ export default function MarketplacePage() {
             // Standardized: thumbnail_url for cards, image_url for detail.
             image: listing.thumbnailUrl || listing.imageUrl || null,
             imageUrl: listing.imageUrl || null,
-            minimum: listing.askingPrice ? `$${listing.askingPrice.toLocaleString()}` : '$0',
+            minimum: formatCurrency(listing.askingPrice),
             minimumValue: listing.askingPrice || 0,
             targetIRR: listing.expectedReturn || '0%',
             returnValue: parseFloat(listing.expectedReturn?.replace('%', '')) || 0,
@@ -327,7 +328,7 @@ export default function MarketplacePage() {
           assetName: offer.listingTitle || offer.assetName || 'Unknown Asset',
           assetThumbnail: offer.assetThumbnail || offer.thumbnail || 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400',
           category: offer.assetType || offer.category || 'Other',
-          offerAmount: offer.offerAmount ? `$${offer.offerAmount.toLocaleString()}` : '$0',
+          offerAmount: formatCurrency(offer.offerAmount),
           offerAmountValue: offer.offerAmount || 0,
           currency: offer.currency || 'USD',
           offerStatus: offer.status === 'pending' ? 'Pending' :
@@ -2028,7 +2029,7 @@ function MyListingCard({
               isDarkMode ? 'text-white' : 'text-gray-900'
             }`}
           >
-            ${Number(listing.askingPrice || 0).toLocaleString()}
+            {formatCurrency(listing.askingPrice)}
           </span>
         </div>
 
@@ -2145,7 +2146,7 @@ function MyListingTableRow({
             isDarkMode ? 'text-white' : 'text-gray-900'
           }`}
         >
-          ${Number(listing.askingPrice || 0).toLocaleString()}
+          {formatCurrency(listing.askingPrice)}
         </span>
       </td>
       <td className='px-4 py-3'>
@@ -2359,9 +2360,9 @@ function EscrowModal({ offer, isDarkMode, onClose, onChanged }) {
                 <span className={`text-sm font-semibold ${textMain} truncate`}>{cardTitle}</span>
               </div>
               <Row label='Escrow ID' value={escrowId} mono textMain={textMain} textMuted={textMuted} />
-              <Row label='Amount' value={escrow?.amount ? `$${Number(escrow.amount).toLocaleString()}` : offer.offerAmount} textMain={textMain} textMuted={textMuted} />
+              <Row label='Amount' value={escrow?.amount ? formatCurrency(escrow.amount) : offer.offerAmount} textMain={textMain} textMuted={textMuted} />
               {escrow?.commission != null && (
-                <Row label='Commission' value={`$${Number(escrow.commission).toLocaleString()}`} textMain={textMain} textMuted={textMuted} />
+                <Row label='Commission' value={formatCurrency(escrow.commission)} textMain={textMain} textMuted={textMuted} />
               )}
               <Row label='Status' value={escrow?.status || 'unknown'} textMain={textMain} textMuted={textMuted} />
             </div>
@@ -2448,6 +2449,16 @@ function CreateListingModal({ isOpen, onClose, isDarkMode, onCreated }) {
   const [title, setTitle] = useState('');
   const [askingPrice, setAskingPrice] = useState('');
   const [description, setDescription] = useState('');
+  // Investment details — surfaced on the public detail page (BUG: these were
+  // never collected, so every listing showed N/A for returns/duration/risk/slots).
+  const [expectedReturn, setExpectedReturn] = useState('');
+  const [duration, setDuration] = useState('');
+  const [riskLevel, setRiskLevel] = useState('');
+  const [slotsTotal, setSlotsTotal] = useState('');
+  // Documents of the selected asset the seller opts into sharing publicly.
+  const [assetDocs, setAssetDocs] = useState([]);
+  const [selectedDocIds, setSelectedDocIds] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -2466,12 +2477,44 @@ function CreateListingModal({ isOpen, onClose, isDarkMode, onCreated }) {
     })();
   }, [isOpen]);
 
+  // Load the selected asset's documents so the seller can pick which ones
+  // become visible on the listing's public Documents tab.
+  useEffect(() => {
+    setAssetDocs([]);
+    setSelectedDocIds([]);
+    if (!assetId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoadingDocs(true);
+        const res = await getAssetDocuments(assetId);
+        const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+        if (!cancelled) setAssetDocs(list);
+      } catch {
+        if (!cancelled) setAssetDocs([]);
+      } finally {
+        if (!cancelled) setLoadingDocs(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [assetId]);
+
   if (!isOpen) return null;
+
+  const toggleDoc = (docId) =>
+    setSelectedDocIds((prev) =>
+      prev.includes(docId) ? prev.filter((d) => d !== docId) : [...prev, docId]
+    );
 
   const handleSubmit = async () => {
     const price = parseFloat(String(askingPrice).replace(/,/g, ''));
     if (!title.trim()) { toast.error('Please enter a title'); return; }
     if (isNaN(price) || price <= 0) { toast.error('Please enter a valid asking price'); return; }
+    const slots = slotsTotal !== '' ? parseInt(slotsTotal, 10) : null;
+    if (slotsTotal !== '' && (isNaN(slots) || slots <= 0)) {
+      toast.error('Slots must be a positive number');
+      return;
+    }
     setSubmitting(true);
     try {
       await createListing({
@@ -2480,11 +2523,18 @@ function CreateListingModal({ isOpen, onClose, isDarkMode, onCreated }) {
         askingPrice: price,
         currency: 'USD',
         description: description.trim() || undefined,
+        ...(expectedReturn.trim() ? { expectedReturn: expectedReturn.trim() } : {}),
+        ...(duration.trim() ? { duration: duration.trim() } : {}),
+        ...(riskLevel ? { riskLevel } : {}),
+        ...(slots != null ? { slotsTotal: slots } : {}),
+        ...(selectedDocIds.length ? { documentIds: selectedDocIds } : {}),
       });
       toast.success('Listing submitted for approval');
       onCreated?.();
       // reset
       setAssetId(''); setTitle(''); setAskingPrice(''); setDescription('');
+      setExpectedReturn(''); setDuration(''); setRiskLevel(''); setSlotsTotal('');
+      setAssetDocs([]); setSelectedDocIds([]);
     } catch (err) {
       toast.error(err?.data?.detail || err?.message || 'Failed to create listing');
     } finally {
@@ -2536,6 +2586,61 @@ function CreateListingModal({ isOpen, onClose, isDarkMode, onCreated }) {
             <label className={`block text-sm font-medium mb-2 ${textMain}`}>Description</label>
             <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder='Describe the asset…' className={`${inputCls} resize-none`} />
           </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Expected Return</label>
+            <input type='text' value={expectedReturn} onChange={(e) => setExpectedReturn(e.target.value)} placeholder='e.g. 7.2%' className={inputCls} />
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Duration</label>
+            <input type='text' value={duration} onChange={(e) => setDuration(e.target.value)} placeholder='e.g. 24 months' className={inputCls} />
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Risk Level</label>
+            <select value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)} className={inputCls}>
+              <option value=''>Not specified</option>
+              <option value='low'>Low</option>
+              <option value='medium'>Medium</option>
+              <option value='high'>High</option>
+            </select>
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Total Slots</label>
+            <input type='text' inputMode='numeric' value={slotsTotal} onChange={(e) => setSlotsTotal(e.target.value)} placeholder='e.g. 50' className={inputCls} />
+          </div>
+
+          {assetId && (
+            <div className='sm:col-span-2'>
+              <label className={`block text-sm font-medium mb-2 ${textMain}`}>
+                Share documents with buyers
+              </label>
+              <p className={`text-xs mb-2 ${textMuted}`}>
+                Selected documents appear on the listing&apos;s public Documents tab. Unselected ones stay private.
+              </p>
+              {loadingDocs ? (
+                <p className={`text-sm ${textMuted}`}>Loading documents…</p>
+              ) : assetDocs.length === 0 ? (
+                <p className={`text-sm ${textMuted}`}>This asset has no documents uploaded.</p>
+              ) : (
+                <div className={`rounded-lg border max-h-36 overflow-y-auto ${isDarkMode ? 'border-gray-700' : 'border-gray-300'}`}>
+                  {assetDocs.map((doc) => (
+                    <label key={doc.id} className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer ${isDarkMode ? 'hover:bg-white/5 text-white' : 'hover:bg-gray-50 text-gray-900'}`}>
+                      <input
+                        type='checkbox'
+                        checked={selectedDocIds.includes(doc.id)}
+                        onChange={() => toggleDoc(doc.id)}
+                        className='accent-[#F1CB68]'
+                      />
+                      <span className='truncate'>{doc.fileName || doc.file_name || doc.name || 'Document'}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className='flex gap-3'>
@@ -2725,10 +2830,7 @@ function MarketSummaryTiles({ summary, isDarkMode }) {
   const money = v =>
     v === null || v === undefined || isNaN(Number(v))
       ? '—'
-      : `$${Number(v).toLocaleString('en-US', {
-          notation: 'compact',
-          maximumFractionDigits: 1,
-        })}`;
+      : formatCurrencyCompact(Number(v));
 
   const volume =
     summary.totalVolume ?? summary.volume ?? summary.totals?.volume;

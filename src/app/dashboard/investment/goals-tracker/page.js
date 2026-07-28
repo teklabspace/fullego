@@ -5,6 +5,7 @@ import { searchAssets } from '@/utils/portfolioApi';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
+import { formatCurrency as formatCurrencyShared } from '@/utils/formatters';
 
 export default function GoalsTrackerPage() {
   const { isDarkMode } = useTheme();
@@ -146,12 +147,7 @@ export default function GoalsTrackerPage() {
 
   const formatCurrency = (value) => {
     if (!value && value !== 0) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
+    return formatCurrencyShared(value, { minDecimals: 2, maxDecimals: 2 });
   };
 
   // Skeleton block helper for loading regions
@@ -319,12 +315,7 @@ function GoalCard({ goal, isDarkMode }) {
   const formatCurrency = (value) => {
     if (typeof value === 'string' && value.startsWith('$')) return value;
     if (!value && value !== 0) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
+    return formatCurrencyShared(value, { minDecimals: 2, maxDecimals: 2 });
   };
 
   return (

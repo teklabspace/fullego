@@ -53,6 +53,16 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // Force-logout landing (api client redirects here when the backend reports
+  // the account was deactivated mid-session)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('reason') === 'deactivated') {
+      toast.error('Your account has been deactivated. Please contact support.');
+    }
+  }, []);
+
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');

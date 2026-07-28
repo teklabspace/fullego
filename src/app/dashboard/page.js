@@ -6,10 +6,17 @@ import { getBankAccounts } from '@/utils/bankingApi';
 import { getBenchmarks } from '@/utils/marketApi';
 import
   {
+    getCashFlowSummary,
     getPortfolioHistory,
     getPortfolioPerformance,
     getPortfolioSummary,
   } from '@/utils/portfolioApi';
+import {
+  formatCurrency as sharedFormatCurrency,
+  formatCurrencyCompact,
+  formatNumber,
+  formatPercent,
+} from '@/utils/formatters';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
@@ -38,20 +45,39 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState({});
 
+  // Network failures log as warnings (backend unreachable ≠ code bug) so the
+  // dev overlay doesn't raise them as Console Errors; real errors stay loud.
+  const logFetchFailure = (label, error) =>
+    (error?.isNetworkError ? console.warn : console.error)(label, error);
+
+  // One transparent retry for network-level failures ("Failed to fetch"): the
+  // dev backend restarts on save and drops whatever was in flight, and 7
+  // parallel calls make a partial drop likely. A real outage still surfaces —
+  // the retry fails the same way.
+  const withRetry = async (call) => {
+    try {
+      return await call();
+    } catch (err) {
+      if (!err?.isNetworkError) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return call();
+    }
+  };
+
   const fetchAllData = useCallback(async () => {
       try {
         setLoading(true);
         setIsLoadingProfile(true);
-        
+
         // Fetch all data in parallel using Promise.allSettled
         const results = await Promise.allSettled([
-          getUserProfile().catch(err => ({ error: err })),
-          getPortfolioSummary('ALL').catch(err => ({ error: err })),
-          getPortfolioPerformance(365).catch(err => ({ error: err })),
-          getPortfolioHistory(365).catch(err => ({ error: err })),
-          getMyAccount().catch(err => ({ error: err })),
-          getAccountStats().catch(err => ({ error: err })),
-          getBankAccounts().catch(err => ({ error: err })),
+          withRetry(() => getUserProfile()).catch(err => ({ error: err })),
+          withRetry(() => getPortfolioSummary('ALL')).catch(err => ({ error: err })),
+          withRetry(() => getPortfolioPerformance(365)).catch(err => ({ error: err })),
+          withRetry(() => getPortfolioHistory(365)).catch(err => ({ error: err })),
+          withRetry(() => getMyAccount()).catch(err => ({ error: err })),
+          withRetry(() => getAccountStats()).catch(err => ({ error: err })),
+          withRetry(() => getBankAccounts()).catch(err => ({ error: err })),
         ]);
 
         // Process results
@@ -70,7 +96,7 @@ export default function DashboardPage() {
           setUserProfile(profileResult.value);
         } else {
           const error = profileResult.value?.error || profileResult.reason;
-          console.error('Failed to fetch user profile:', error);
+          logFetchFailure('Failed to fetch user profile:', error);
           setErrors(prev => ({ ...prev, profile: error }));
         }
         setIsLoadingProfile(false);
@@ -80,7 +106,7 @@ export default function DashboardPage() {
           setPortfolioSummary(portfolioSummaryResult.value.data || portfolioSummaryResult.value);
         } else {
           const error = portfolioSummaryResult.value?.error || portfolioSummaryResult.reason;
-          console.error('Failed to fetch portfolio summary:', error);
+          logFetchFailure('Failed to fetch portfolio summary:', error);
           setErrors(prev => ({ ...prev, portfolioSummary: error }));
         }
 
@@ -89,7 +115,7 @@ export default function DashboardPage() {
           setPortfolioPerformance(portfolioPerformanceResult.value);
         } else {
           const error = portfolioPerformanceResult.value?.error || portfolioPerformanceResult.reason;
-          console.error('Failed to fetch portfolio performance:', error);
+          logFetchFailure('Failed to fetch portfolio performance:', error);
           setErrors(prev => ({ ...prev, portfolioPerformance: error }));
         }
 
@@ -99,7 +125,7 @@ export default function DashboardPage() {
           setPortfolioHistory(Array.isArray(historyData) ? historyData : []);
         } else {
           const error = portfolioHistoryResult.value?.error || portfolioHistoryResult.reason;
-          console.error('Failed to fetch portfolio history:', error);
+          logFetchFailure('Failed to fetch portfolio history:', error);
           setErrors(prev => ({ ...prev, portfolioHistory: error }));
         }
 
@@ -114,7 +140,7 @@ export default function DashboardPage() {
           }
         } else {
           const error = accountResult.value?.error || accountResult.reason;
-          console.error('Failed to fetch account data:', error);
+          logFetchFailure('Failed to fetch account data:', error);
           setErrors(prev => ({ ...prev, account: error }));
         }
 
@@ -124,8 +150,14 @@ export default function DashboardPage() {
           setBankAccounts(Array.isArray(accounts) ? accounts : []);
         } else {
           const error = bankAccountsResult.value?.error || bankAccountsResult.reason;
-          console.error('Failed to fetch bank accounts:', error);
+          logFetchFailure('Failed to fetch bank accounts:', error);
           setErrors(prev => ({ ...prev, bankAccounts: error }));
+        }
+
+        // One aggregated notice instead of silent gaps when the server was
+        // unreachable — the header Refresh button is the retry path.
+        if (results.some(r => r.status === 'fulfilled' && r.value?.error?.isNetworkError)) {
+          toast.warn('Could not reach the server for some data. Use Refresh to try again.');
         }
 
       } catch (error) {
@@ -228,11 +260,11 @@ function DashboardContent({
           }`}
         >
           {isLoadingProfile ? (
-            'Olá, User'
+            'Welcome, User'
           ) : userProfile ? (
-            `Olá, ${userProfile.first_name || userProfile.email?.split('@')[0] || 'User'}`
+            `Welcome, ${userProfile.first_name || userProfile.email?.split('@')[0] || 'User'}`
           ) : (
-            'Olá, User'
+            'Welcome, User'
           )}
         </h1>
         
@@ -353,31 +385,10 @@ function DashboardContent({
   );
 }
 
-// Helper function to format currency
-const formatCurrency = (value, showMillion = false) => {
-  if (value === null || value === undefined) return '$0';
-  const numValue = typeof value === 'string' ? parseFloat(value) : value;
-  if (isNaN(numValue)) return '$0';
-  
-  if (showMillion && numValue >= 1000000) {
-    return `$${(numValue / 1000000).toFixed(3)} Million`;
-  }
-  
-  if (numValue >= 1000) {
-    return `$${(numValue / 1000).toFixed(1)}K`;
-  }
-  
-  return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+// Full amounts with thousands separators, never more than 2 decimals.
+const formatCurrency = (value) => sharedFormatCurrency(value);
 
-// Helper function to format percentage
-const formatPercentage = (value) => {
-  if (value === null || value === undefined) return '0%';
-  const numValue = typeof value === 'string' ? parseFloat(value) : value;
-  if (isNaN(numValue)) return '0%';
-  const sign = numValue >= 0 ? '+' : '';
-  return `${sign}${numValue.toFixed(2)}%`;
-};
+const formatPercentage = (value) => formatPercent(value);
 
 // Net Worth & Investable Card Component
 function NetWorthInvestableCard({ portfolioSummary, portfolioPerformance, loading }) {
@@ -396,7 +407,7 @@ function NetWorthInvestableCard({ portfolioSummary, portfolioPerformance, loadin
           setBenchmarks(data);
         }
       } catch (error) {
-        console.error('Failed to fetch market benchmarks:', error);
+        (error?.isNetworkError ? console.warn : console.error)('Failed to fetch market benchmarks:', error);
       } finally {
         if (isMounted) {
           setBenchmarksLoading(false);
@@ -845,12 +856,48 @@ function CashOnHandCard({ accountData, bankAccounts, loading }) {
 // Tax Estimate Card Component
 function TaxEstimateCard({ portfolioSummary, portfolioPerformance, loading }) {
   const { isDarkMode } = useTheme();
+  const [plaidIncome, setPlaidIncome] = React.useState(null);
+
+  // Income seen on linked bank accounts (Plaid) over the last 12 months feeds
+  // the estimate too. Banking is subscription-gated — fail silently without it.
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchIncome = async () => {
+      try {
+        const end = new Date();
+        const start = new Date();
+        start.setFullYear(start.getFullYear() - 1);
+        const res = await getCashFlowSummary({
+          period: 'custom',
+          startDate: start.toISOString().slice(0, 10),
+          endDate: end.toISOString().slice(0, 10),
+        });
+        const summary = res?.data || res || {};
+        const inflow = summary.totalInflow ?? summary.total_inflow;
+        if (isMounted && inflow != null && !Number.isNaN(parseFloat(inflow))) {
+          setPlaidIncome(parseFloat(inflow));
+        }
+      } catch (error) {
+        // Expected for accounts without linked banking — never an overlay error.
+        console.warn('Tax estimate: no Plaid cash-flow data available:', error);
+      }
+    };
+    fetchIncome();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Calculate tax estimate (typically 15-20% of gains)
   const totalGains = portfolioPerformance?.totalReturn ??
                      portfolioSummary?.totalReturns ??
                      null;
-  const taxEstimate = totalGains != null ? totalGains * 0.20 : null; // 20% tax estimate
+  const gainsTax = totalGains != null ? totalGains * 0.20 : null; // 20% tax estimate
+  const incomeTax = plaidIncome != null && plaidIncome > 0 ? plaidIncome * 0.20 : null;
+  const taxEstimate =
+    gainsTax != null || incomeTax != null
+      ? (gainsTax || 0) + (incomeTax || 0)
+      : null;
 
   // Adjusted net worth (net worth minus tax estimate)
   const hasPortfolioSummary = !!portfolioSummary;
@@ -914,6 +961,28 @@ function TaxEstimateCard({ portfolioSummary, portfolioPerformance, loading }) {
         }`}>
           {formatCurrency(taxEstimate)}
         </h2>
+      )}
+      {incomeTax != null && (
+        <div className='space-y-1 mb-4'>
+          {gainsTax != null && (
+            <div className='flex items-center justify-between'>
+              <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Investment gains (20%)
+              </span>
+              <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                {formatCurrency(gainsTax)}
+              </span>
+            </div>
+          )}
+          <div className='flex items-center justify-between'>
+            <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Bank income, last 12 mo (20%)
+            </span>
+            <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              {formatCurrency(incomeTax)}
+            </span>
+          </div>
+        </div>
       )}
       <div>
         <p className={`text-xs mb-1 ${
@@ -1051,13 +1120,13 @@ function HistoricalPerformanceGraph({ portfolioHistory, portfolioSummary, loadin
                 <h2 className={`text-3xl font-bold mb-2 ${
                   isDarkMode ? 'text-white' : 'text-black'
                 }`}>
-                  ${currentNetWorth.toFixed(3)} Million
+                  {sharedFormatCurrency(currentNetWorth * 1e6)}
                 </h2>
                 {netWorthGrowth != null && netWorthGrowthPercent != null && (
                   <p className={`text-sm font-medium ${
                     netWorthGrowth >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
                   }`}>
-                    {netWorthGrowth >= 0 ? '+' : ''}${netWorthGrowth.toFixed(2)}M ({netWorthGrowthPercent}%)
+                    {netWorthGrowth >= 0 ? '+' : ''}{formatCurrencyCompact(netWorthGrowth * 1e6)} ({netWorthGrowthPercent}%)
                   </p>
                 )}
               </>
@@ -1076,13 +1145,13 @@ function HistoricalPerformanceGraph({ portfolioHistory, portfolioSummary, loadin
                 <h2 className={`text-3xl font-bold mb-2 ${
                   isDarkMode ? 'text-white' : 'text-black'
                 }`}>
-                  ${currentInvestable.toFixed(3)} Million
+                  {sharedFormatCurrency(currentInvestable * 1e6)}
                 </h2>
                 {investableGrowth != null && investableGrowthPercent != null && (
                   <p className={`text-sm font-medium ${
                     investableGrowth >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
                   }`}>
-                    {investableGrowth >= 0 ? '+' : ''}${investableGrowth.toFixed(2)}M ({investableGrowthPercent}%)
+                    {investableGrowth >= 0 ? '+' : ''}{formatCurrencyCompact(investableGrowth * 1e6)} ({investableGrowthPercent}%)
                   </p>
                 )}
               </>
@@ -1174,7 +1243,7 @@ function HistoricalPerformanceGraph({ portfolioHistory, portfolioSummary, loadin
                   stroke={isDarkMode ? '#666666' : '#9CA3AF'} 
                   style={{ fontSize: '12px' }}
                   tick={{ fill: isDarkMode ? '#666666' : '#9CA3AF' }}
-                  tickFormatter={(value) => `$${value}M`}
+                  tickFormatter={(value) => `$${formatNumber(value)}M`}
                   axisLine={false}
                   tickLine={false}
                 />
@@ -1187,7 +1256,7 @@ function HistoricalPerformanceGraph({ portfolioHistory, portfolioSummary, loadin
                   labelStyle={{ color: isDarkMode ? '#fff' : '#111827' }}
                   formatter={(value, name) => {
                     const label = name === 'netWorth' ? 'Net Worth' : 'Investable';
-                    return [`$${value.toFixed(2)}M`, label];
+                    return [`$${formatNumber(value)}M`, label];
                   }}
                 />
                 {/* Net Worth Area (darker purple, behind) */}

@@ -7,6 +7,7 @@ import { getTradingTransactions } from '@/utils/tradingApi';
 import { getPaymentHistory } from '@/utils/paymentsApi';
 import { getRecentTrades } from '@/utils/portfolioApi';
 import { getBankTransactions, getBankAccounts } from '@/utils/bankingApi';
+import { formatCurrency as formatMoney } from '@/utils/formatters';
 
 export default function TransactionsPage() {
   const { isDarkMode } = useTheme();
@@ -100,7 +101,7 @@ export default function TransactionsPage() {
         id: tx.id || `trading_${tx.date}`,
         type: tx.activityType === 'FILL' ? 'buy' : 'sell',
         name: tx.symbol || tx.description || 'Trading',
-        amount: tx.amount ? (tx.amount >= 0 ? `+$${Math.abs(tx.amount).toFixed(2)}` : `-$${Math.abs(tx.amount).toFixed(2)}`) : '$0.00',
+        amount: tx.amount ? `${tx.amount >= 0 ? '+' : '-'}${formatMoney(Math.abs(tx.amount), { minDecimals: 2 })}` : '$0.00',
         date: tx.date ? new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
         time: tx.date ? new Date(tx.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
         status: 'completed',
@@ -123,7 +124,7 @@ export default function TransactionsPage() {
         id: payment.id,
         type: 'payment',
         name: payment.invoiceNumber ? `Invoice ${payment.invoiceNumber}` : 'Payment',
-        amount: payment.total != null ? `-$${Number(payment.total).toFixed(2)}` : '—',
+        amount: payment.total != null ? `-${formatMoney(payment.total, { minDecimals: 2 })}` : '—',
         date: payment.createdAt ? new Date(payment.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
         time: payment.createdAt ? new Date(payment.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
         status: payment.status,
@@ -160,7 +161,7 @@ export default function TransactionsPage() {
               id: tx.id || `banking_${tx.transactionDate}`,
               type: tx.amount >= 0 ? 'deposit' : 'withdrawal',
               name: tx.description || tx.category || 'Banking Transaction',
-              amount: tx.amount ? (tx.amount >= 0 ? `+$${Math.abs(tx.amount).toFixed(2)}` : `-$${Math.abs(tx.amount).toFixed(2)}`) : '$0.00',
+              amount: tx.amount ? `${tx.amount >= 0 ? '+' : '-'}${formatMoney(Math.abs(tx.amount), { minDecimals: 2 })}` : '$0.00',
               date: tx.transactionDate ? new Date(tx.transactionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
               time: tx.transactionDate ? new Date(tx.transactionDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
               status: 'completed',
@@ -187,7 +188,7 @@ export default function TransactionsPage() {
         id: trade.id || `trade_${trade.executedAt}`,
         type: trade.type || 'buy',
         name: trade.symbol || 'Trade',
-        amount: trade.type === 'buy' ? `-$${trade.total?.toFixed(2) || '0.00'}` : `+$${trade.total?.toFixed(2) || '0.00'}`,
+        amount: `${trade.type === 'buy' ? '-' : '+'}${formatMoney(trade.total || 0, { minDecimals: 2 })}`,
         date: trade.executedAt ? new Date(trade.executedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
         time: trade.executedAt ? new Date(trade.executedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
         status: trade.status || 'completed',
@@ -203,7 +204,7 @@ export default function TransactionsPage() {
     if (typeof amount === 'string') {
       return amount;
     }
-    return amount >= 0 ? `+$${Math.abs(amount).toFixed(2)}` : `-$${Math.abs(amount).toFixed(2)}`;
+    return `${amount >= 0 ? '+' : '-'}${formatMoney(Math.abs(amount), { minDecimals: 2 })}`;
   };
 
   return (

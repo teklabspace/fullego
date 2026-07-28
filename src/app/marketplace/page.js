@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { searchMarketplace, getMarketplaceCategories, getMarketHighlights, getMarketTrends } from '@/utils/marketplaceApi';
 import { categoryGroupConfig, getCategoriesByGroup } from '@/config/assetConfig';
 import { getCategoryIcon } from '@/utils/categoryIcons';
+import { formatCurrency } from '@/utils/formatters';
 
 const allInvestmentFunds = [
   {
@@ -307,13 +308,11 @@ export default function Marketplace() {
             name: listing.title || listing.assetName || listing.name || 'Untitled Listing',
             category: listing.category || listing.assetType || 'Others',
             assetType: listing.assetType || listing.category || 'Others',
-            minimum: listing.askingPrice 
-              ? `$${listing.askingPrice.toLocaleString()}` 
-              : listing.minimumInvestment 
-                ? `$${listing.minimumInvestment.toLocaleString()}`
-                : listing.minimumValue
-                  ? `$${listing.minimumValue.toLocaleString()}`
-                  : '$0',
+            minimum: formatCurrency(
+              listing.askingPrice ||
+                listing.minimumInvestment ||
+                listing.minimumValue
+            ),
             minimumValue: listing.askingPrice || listing.minimumInvestment || listing.minimumValue || 0,
             targetIRR: listing.expectedReturn 
               ? `${listing.expectedReturn}%`

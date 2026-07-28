@@ -1,7 +1,8 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
+import AssetChart from './components/AssetChart';
 import AssetSearchBar from './components/AssetSearchBar';
 import OrderConfirmationModal from './components/OrderConfirmationModal';
 import OrderForm from './components/OrderForm';
@@ -24,14 +25,18 @@ export default function TradeEnginePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [orderType, setOrderType] = useState('buy');
   const [orderMode, setOrderMode] = useState('market');
-  const [selectedStock, setSelectedStock] = useState('AAPL');
+  // Empty until the browse list loads and auto-selects its first instrument —
+  // a hardcoded default here would burn Polygon rate budget on a symbol the
+  // auto-select immediately replaces.
+  const [selectedStock, setSelectedStock] = useState('');
   const [quantity, setQuantity] = useState('10');
   const [limitPrice, setLimitPrice] = useState('185.92');
   const [openUntil, setOpenUntil] = useState('2023-09-15');
-  const [brokerageAccount, setBrokerageAccount] = useState('****4321');
+  const [brokerageAccount, setBrokerageAccount] = useState('');
   const [orderDuration, setOrderDuration] = useState('day-only');
   const [notes, setNotes] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const hasAutoSelected = useRef(false);
 
   // Loading and error states
   const [loading, setLoading] = useState(true);
@@ -63,7 +68,8 @@ export default function TradeEnginePage() {
         if (accountsRes.data) {
           setBrokerageAccounts(accountsRes.data);
           if (accountsRes.data.length > 0) {
-            setBrokerageAccount(accountsRes.data[0].accountNumber || '****4321');
+            const first = accountsRes.data[0];
+            setBrokerageAccount(first.accountNumber || first.account_number || first.id || '');
           }
         }
       } catch (err) {
@@ -122,22 +128,28 @@ export default function TradeEnginePage() {
     fetchAssetDetails();
   }, [selectedStock]);
 
-  // Handle search
+  // Handle search. An empty query is browse mode: the backend lists the
+  // class's available instruments, and the search bar paginates them locally
+  // (50 fetched in one call — the free-tier market data key allows 5 req/min,
+  // so pagination must not cost a request per page).
   const handleSearch = async (query) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
     try {
+      // Backend expects "stocks" | "crypto" (the old 'stock' mapping matched
+      // nothing server-side, so class filtering silently never applied).
       const searchRes = await searchAssets({
-        query,
-        assetClass: assetClass === 'stocks' ? 'stock' : assetClass,
-        limit: 10,
+        query: query.trim(),
+        assetClass,
+        limit: 100,
       });
 
       if (searchRes.data) {
         setSearchResults(searchRes.data);
+        // First browse load: make the first available instrument the active
+        // one so its chart shows immediately (instead of a hardcoded default).
+        if (!hasAutoSelected.current && !query.trim() && searchRes.data.length > 0) {
+          hasAutoSelected.current = true;
+          setSelectedStock(searchRes.data[0].symbol);
+        }
       }
     } catch (err) {
       console.error('Error searching assets:', err);
@@ -150,14 +162,16 @@ export default function TradeEnginePage() {
     try {
       setLoading(true);
 
+      // Field names must match the backend OrderRequest model —
+      // brokerage_account_id / order_duration (422 otherwise).
       const orderData = {
         symbol: selectedStock,
         orderType: orderType,
         orderMode: orderMode,
         quantity: parseFloat(quantity),
         limitPrice: orderMode === 'limit' ? parseFloat(limitPrice) : undefined,
-        brokerageAccount: brokerageAccount,
-        duration: orderDuration,
+        brokerageAccountId: brokerageAccount,
+        orderDuration: orderDuration,
         notes: notes,
       };
 
@@ -266,34 +280,39 @@ export default function TradeEnginePage() {
             </button>
           </div>
         ) : showLoading ? (
+          /* Chart-shaped skeleton: title + range pills + plot area */
           <div
-            className={`rounded-2xl border p-6 my-6 animate-pulse ${
+            className={`rounded-2xl border p-6 my-6 ${
               isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'
             }`}
           >
+            <div className='flex items-center justify-between mb-4'>
+              <div
+                className={`h-6 w-40 rounded-lg animate-pulse ${
+                  isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
+                }`}
+              />
+              <div className='flex items-center gap-1'>
+                {[...Array(8)].map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-7 w-10 rounded-lg animate-pulse ${
+                      isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
             <div
-              className={`h-6 w-32 rounded-lg mb-4 animate-pulse ${
+              className={`h-72 rounded-lg animate-pulse ${
                 isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
               }`}
             />
-            <div className='grid grid-cols-2 md:grid-cols-5 gap-4'>
-              {[...Array(5)].map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-20 rounded-lg animate-pulse ${
-                    isDarkMode ? 'bg-[#2A2A2D]' : 'bg-gray-200'
-                  }`}
-                />
-              ))}
-            </div>
           </div>
         ) : (
-          <RecentTrades
-            trades={recentTrades}
-            selectedStock={selectedStock}
-            setSelectedStock={setSelectedStock}
-            isDarkMode={isDarkMode}
-          />
+          /* Price chart of the selected instrument (Recent Trades moved to
+             the bottom of the page). */
+          <AssetChart symbol={selectedStock} isDarkMode={isDarkMode} />
         )}
 
         {/* Main Trading Interface */}
@@ -319,6 +338,8 @@ export default function TradeEnginePage() {
             setNotes={setNotes}
             calculateTotal={calculateTotal}
             handlePlaceOrder={handlePlaceOrder}
+            assetDetails={assetDetails}
+            brokerageAccounts={brokerageAccounts}
             isDarkMode={isDarkMode}
           />
 
@@ -373,6 +394,8 @@ export default function TradeEnginePage() {
               quantity={quantity}
               limitPrice={limitPrice}
               calculateTotal={calculateTotal}
+              symbol={selectedStock}
+              assetDetails={assetDetails}
               recentTrades={recentAAPlTrades.map(trade => ({
                 type: trade.type || trade.orderType,
                 shares: trade.quantity || trade.shares,
@@ -383,6 +406,18 @@ export default function TradeEnginePage() {
             />
           )}
         </div>
+
+        {/* Recent Trades — at the end of the page */}
+        {!showLoading && !showError && (
+          <div className='mt-6'>
+            <RecentTrades
+              trades={recentTrades}
+              selectedStock={selectedStock}
+              setSelectedStock={setSelectedStock}
+              isDarkMode={isDarkMode}
+            />
+          </div>
+        )}
 
         {/* Order Confirmation Modal */}
         {showConfirmation && (

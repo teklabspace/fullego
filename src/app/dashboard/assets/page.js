@@ -17,6 +17,7 @@ import {
   getSharedWithMe,
   formatCurrency,
 } from '@/utils/assetsApi';
+import { formatCurrency as formatCurrencyShared } from '@/utils/formatters';
 import AssetCardSkeleton from '@/components/skeletons/AssetCardSkeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearch } from '@/context/SearchContext';
@@ -907,7 +908,7 @@ function AssetCard({
   const formatMoney = value => {
     if (value === null || value === undefined || value === '') return value;
     const n = typeof value === 'number' ? value : parseFloat(String(value).replace(/[^0-9.-]+/g, ''));
-    return Number.isFinite(n) ? `$${n.toLocaleString()}` : value;
+    return Number.isFinite(n) ? formatCurrencyShared(n) : value;
   };
 
   // Helper function to get field value from asset. Only the promoted columns
@@ -1055,7 +1056,7 @@ function AssetCard({
         lowerName.includes('owed'))
     ) {
       if (!value.startsWith('$')) {
-        displayValue = `$${value}`;
+        displayValue = formatMoney(value);
       }
     }
 
@@ -1286,7 +1287,7 @@ function AssetCard({
                 lowerName.includes('owed'))
             ) {
               if (!value.startsWith('$')) {
-                displayValue = `$${value}`;
+                displayValue = formatMoney(value);
               }
             }
 

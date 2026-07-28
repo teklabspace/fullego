@@ -323,6 +323,15 @@ export const apiRequest = async (endpoint, options = {}) => {
         }
       }
 
+      // Admin deactivated this account: the token may still be technically
+      // valid, but every request will be rejected — end the session now.
+      if (errorCode === 'ACCOUNT_DEACTIVATED' && typeof window !== 'undefined') {
+        clearStoredTokens();
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login?reason=deactivated';
+        }
+      }
+
       // Create error object with backend error details
       const error = new Error(errorMessage);
       error.status = response.status;

@@ -1,11 +1,14 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 export default function RecentTrades({
   trades,
   selectedStock,
   setSelectedStock,
   isDarkMode,
 }) {
+  const router = useRouter();
   return (
     <div
       className={`mb-6 rounded-4xl border p-6 ${
@@ -30,6 +33,7 @@ export default function RecentTrades({
           Recent Trade
         </h3>
         <button
+          onClick={() => router.push('/dashboard/transactions')}
           className={`text-sm ${
             isDarkMode ? 'text-[#F1CB68]' : 'text-[#C49D2E]'
           } hover:underline`}

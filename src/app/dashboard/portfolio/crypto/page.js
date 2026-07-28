@@ -20,6 +20,11 @@ import {
   getCryptoHoldings,
 } from '@/utils/portfolioApi';
 import CryptoPortfolioSkeleton from '@/components/skeletons/CryptoPortfolioSkeleton';
+import {
+  formatNumber,
+  formatPercent,
+  formatCurrency as formatCurrencyShared,
+} from '@/utils/formatters';
 
 export default function CryptoPortfolioPage() {
   const { isDarkMode } = useTheme();
@@ -100,15 +105,10 @@ export default function CryptoPortfolioPage() {
     fetchCryptoData();
   }, [timeRange, performanceTab, portfolioBreakdownTab]);
 
-  // Format currency
+  // Format currency (delegates to shared formatter)
   const formatCurrency = (value) => {
     if (!value && value !== 0) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
+    return formatCurrencyShared(value, { minDecimals: 2, maxDecimals: 2 });
   };
 
   // Get chart data
@@ -432,7 +432,7 @@ export default function CryptoPortfolioPage() {
           <StatCard
             label='Volatility'
             value={cryptoSummary?.volatility || 'Low'}
-            subtitle={cryptoSummary?.volatilityScore?.toString() || '0.000'}
+            subtitle={cryptoSummary?.volatilityScore != null ? formatNumber(cryptoSummary.volatilityScore) : '0.000'}
             isDarkMode={isDarkMode}
           />
           <StatCard
@@ -545,8 +545,8 @@ export default function CryptoPortfolioPage() {
                         performanceTab === 'value-over-time'
                           ? `$${(value / 1000).toFixed(0)}k`
                           : performanceTab === 'return-rate'
-                          ? `${value}%`
-                          : `${value}`
+                          ? formatPercent(value, { sign: false })
+                          : formatNumber(value)
                       }
                     />
                     <Tooltip
@@ -560,10 +560,10 @@ export default function CryptoPortfolioPage() {
                       }}
                       formatter={value =>
                         performanceTab === 'value-over-time'
-                          ? [`$${value.toLocaleString()}`, 'Value']
+                          ? [formatCurrency(value), 'Value']
                           : performanceTab === 'return-rate'
-                          ? [`${value}%`, 'Return']
-                          : [`${value}`, 'Risk']
+                          ? [formatPercent(value, { sign: false }), 'Return']
+                          : [formatNumber(value), 'Risk']
                       }
                     />
                     <Area
@@ -701,11 +701,11 @@ export default function CryptoPortfolioPage() {
                       formatter={(value, name, props) => {
                         if (portfolioBreakdownTab === 'value') {
                           return [
-                            `$${props.payload.value.toLocaleString()}`,
+                            formatCurrency(props.payload.value),
                             'Value',
                           ];
                         } else {
-                          return [`${value}%`, 'Return Rate'];
+                          return [formatPercent(value, { sign: false }), 'Return Rate'];
                         }
                       }}
                     />
@@ -756,7 +756,7 @@ export default function CryptoPortfolioPage() {
                         isDarkMode ? 'text-white' : 'text-gray-900'
                       }`}
                     >
-                      {item.percentage}%
+                      {formatPercent(item.percentage, { sign: false })}
                     </span>
                   </div>
                   ))

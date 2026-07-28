@@ -1,5 +1,7 @@
 'use client';
 
+import { formatCurrency, formatPercent } from '@/utils/formatters';
+
 export default function OrderForm({
   orderType,
   setOrderType,
@@ -20,8 +22,20 @@ export default function OrderForm({
   setNotes,
   calculateTotal,
   handlePlaceOrder,
+  assetDetails,
+  brokerageAccounts = [],
   isDarkMode,
 }) {
+  const price = assetDetails?.currentPrice;
+  const changePct = assetDetails?.changePercentage;
+  const changeUp = (changePct ?? 0) >= 0;
+  const selectedAccount =
+    brokerageAccounts.find(
+      (a) => (a.accountNumber || a.account_number || a.id) === brokerageAccount
+    ) || brokerageAccounts[0];
+  const accountBalance =
+    selectedAccount?.buyingPower ?? selectedAccount?.buying_power ??
+    selectedAccount?.cash ?? null;
   return (
     <div className='lg:col-span-2'>
       <div
@@ -83,12 +97,18 @@ export default function OrderForm({
           </div>
           <div className='flex'>
             <div className='ms-2'>
-              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Apple Inc.</p>
-              <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>$185.92</p>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                {assetDetails?.name || selectedStock || 'Select an instrument'}
+              </p>
+              <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                {price != null ? formatCurrency(price, { minDecimals: 2 }) : '—'}
+              </p>
             </div>
             <div className='text-right ms-4'>
               <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>{selectedStock}</p>
-              <p className='text-xs text-[#36D399]'>+1.2%</p>
+              <p className={`text-xs ${changeUp ? 'text-[#36D399]' : 'text-[#FF6B6B]'}`}>
+                {changePct != null ? formatPercent(changePct) : ''}
+              </p>
             </div>
           </div>
         </div>
@@ -213,17 +233,23 @@ export default function OrderForm({
           >
             <div>
               <p className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Current Price</p>
-              <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>$185.92</p>
-            </div>
-            <div>
-              <p className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Bid-Bid/Ask</p>
               <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                $185.90 / $185.95
+                {price != null ? formatCurrency(price, { minDecimals: 2 }) : '—'}
               </p>
             </div>
             <div>
-              <p className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Ask-Bid/Ask</p>
-              <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>Ask-$185.95</p>
+              <p className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Prev Close</p>
+              <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                {assetDetails?.previousClose != null
+                  ? formatCurrency(assetDetails.previousClose, { minDecimals: 2 })
+                  : '—'}
+              </p>
+            </div>
+            <div>
+              <p className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Day Change</p>
+              <p className={`text-sm font-semibold ${changeUp ? 'text-[#36D399]' : 'text-[#FF6B6B]'}`}>
+                {changePct != null ? formatPercent(changePct) : '—'}
+              </p>
             </div>
           </div>
 
@@ -285,11 +311,25 @@ export default function OrderForm({
               onChange={e => setBrokerageAccount(e.target.value)}
               className="w-full"
             >
-              <option value='****4321'>Brokerage Account (****4321)</option>
-              <option value='****5678'>Brokerage Account (****5678)</option>
+              {brokerageAccounts.length === 0 ? (
+                <option value=''>No brokerage account connected</option>
+              ) : (
+                brokerageAccounts.map((acc) => {
+                  const number = acc.accountNumber || acc.account_number || acc.id;
+                  return (
+                    <option key={number} value={number}>
+                      Brokerage Account ({number})
+                    </option>
+                  );
+                })
+              )}
             </select>
             <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Available balance: $125,789.65
+              {brokerageAccounts.length === 0
+                ? 'Connect a brokerage in Settings → Linked Accounts to place orders.'
+                : accountBalance != null
+                  ? `Available balance: ${formatCurrency(accountBalance, { minDecimals: 2 })}`
+                  : ''}
             </p>
           </div>
 

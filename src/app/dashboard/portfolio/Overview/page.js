@@ -27,6 +27,11 @@ import {
   getPortfolioBenchmark,
 } from '@/utils/portfolioApi';
 import PortfolioOverviewSkeleton from '@/components/skeletons/PortfolioOverviewSkeleton';
+import {
+  formatNumber,
+  formatCurrency as formatCurrencyShared,
+  formatCurrencyCompact as formatCurrencyCompactShared,
+} from '@/utils/formatters';
 
 export default function PortfolioOverviewPage() {
   const { isDarkMode } = useTheme();
@@ -88,14 +93,15 @@ export default function PortfolioOverviewPage() {
           setPortfolioSummary(summaryRes.data);
         }
 
-        // Format performance data for chart
-        if (performanceRes.daily_returns) {
+        // Format performance data for chart (util now camelizes keys)
+        const dailyReturns = performanceRes.dailyReturns || performanceRes.daily_returns;
+        if (dailyReturns) {
           // Check if dates span multiple years
-          const dates = performanceRes.daily_returns.map(item => new Date(item.date));
+          const dates = dailyReturns.map(item => new Date(item.date));
           const years = new Set(dates.map(d => d.getFullYear()));
           const spansMultipleYears = years.size > 1;
-          
-          const formatted = performanceRes.daily_returns.map(item => {
+
+          const formatted = dailyReturns.map(item => {
             const date = new Date(item.date);
             let dateLabel;
             
@@ -219,30 +225,16 @@ export default function PortfolioOverviewPage() {
     }
   }, [portfolioSummary]);
 
-  // Format currency
+  // Format currency (delegates to shared formatter)
   const formatCurrency = (value) => {
     if (!value && value !== 0) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
+    return formatCurrencyShared(value, { minDecimals: 2, maxDecimals: 2 });
   };
 
-  // Format currency compactly for large numbers
+  // Format currency compactly for large numbers (delegates to shared formatter)
   const formatCurrencyCompact = (value) => {
     if (!value && value !== 0) return '$0.00';
-    const absValue = Math.abs(value);
-    if (absValue >= 1000000) {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        notation: 'compact',
-        maximumFractionDigits: 2,
-      }).format(value);
-    }
-    return formatCurrency(value);
+    return formatCurrencyCompactShared(value);
   };
 
   return (
@@ -549,7 +541,7 @@ export default function PortfolioOverviewPage() {
                   <YAxis
                     stroke={isDarkMode ? '#6B7280' : '#9CA3AF'}
                     style={{ fontSize: '12px' }}
-                    tickFormatter={value => `$${(value / 1000).toFixed(0)}k`}
+                    tickFormatter={value => formatCurrencyCompactShared(value)}
                   />
                   <Tooltip
                     contentStyle={{
@@ -561,7 +553,7 @@ export default function PortfolioOverviewPage() {
                       color: isDarkMode ? '#fff' : '#000',
                     }}
                     formatter={value => [
-                      `$${value.toLocaleString()}`,
+                      formatCurrency(value),
                       'Portfolio Value',
                     ]}
                   />
@@ -622,7 +614,7 @@ export default function PortfolioOverviewPage() {
                         border: `1px solid ${isDarkMode ? '#333' : '#e5e7eb'}`,
                         borderRadius: '8px',
                       }}
-                      formatter={value => `$${value.toLocaleString()}`}
+                      formatter={value => formatCurrency(value)}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -656,7 +648,7 @@ export default function PortfolioOverviewPage() {
                         isDarkMode ? 'text-white' : 'text-gray-900'
                       }`}
                     >
-                      ${item.value.toLocaleString()}
+                      {formatCurrency(item.value)}
                     </p>
                     <p className='text-xs text-gray-400'>{item.percentage != null ? parseFloat(item.percentage).toFixed(1) : '0.0'}%</p>
                   </div>
@@ -806,7 +798,7 @@ export default function PortfolioOverviewPage() {
                           isDarkMode ? 'text-white' : 'text-gray-900'
                         }`}
                       >
-                        {holding.shares?.toLocaleString() || '0'}
+                        {holding.shares != null ? formatNumber(holding.shares) : '0'}
                       </td>
                       <td
                         className={`px-6 py-4 text-right text-sm ${
@@ -975,8 +967,8 @@ export default function PortfolioOverviewPage() {
                               : 'text-[#FF6B6B]'
                           }`}
                         >
-                          {activity.type === 'sell' ? '-' : '+'}$
-                          {activity.total.toLocaleString()}
+                          {activity.type === 'sell' ? '-' : '+'}
+                          {formatCurrency(activity.total)}
                         </p>
                         <p className='text-xs text-gray-400'>
                           {activity.date} • {activity.time}
@@ -986,8 +978,8 @@ export default function PortfolioOverviewPage() {
                     <div className='flex items-center justify-between text-xs text-gray-400'>
                       <span>
                         {activity.amount}{' '}
-                        {activity.type === 'dividend' ? 'shares' : 'units'} @ $
-                        {activity.price}
+                        {activity.type === 'dividend' ? 'shares' : 'units'} @{' '}
+                        {formatCurrency(activity.price)}
                       </span>
                       <span
                         className={`px-2 py-1 rounded ${
@@ -1178,7 +1170,7 @@ export default function PortfolioOverviewPage() {
                             isDarkMode ? 'text-white' : 'text-gray-900'
                           }`}
                         >
-                          {index.value?.toLocaleString() || '0.00'}
+                          {index.value != null ? formatNumber(index.value, { minDecimals: 2 }) : '0.00'}
                         </p>
                         <p className={`text-xs ${
                           (index.changePercentage || 0) >= 0 ? 'text-[#36D399]' : 'text-[#FF6B6B]'

@@ -4,7 +4,7 @@
  */
 
 import { API_ENDPOINTS } from '@/config/api';
-import { apiGet, apiPost, apiDelete } from '@/lib/api/client';
+import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api/client';
 
 /**
  * Transform snake_case object keys to camelCase
@@ -225,6 +225,52 @@ export const addPaymentMethod = async (paymentMethodData) => {
 export const removePaymentMethod = async (methodId) => {
   const endpoint = API_ENDPOINTS.PAYMENTS.DELETE_PAYMENT_METHOD(methodId);
   return await apiDelete(endpoint);
+};
+
+/**
+ * Set Default Payment Method (switch cards)
+ * PUT /api/v1/payments/payment-methods/{method_id}/default
+ */
+export const setDefaultPaymentMethod = async (methodId) => {
+  const endpoint = API_ENDPOINTS.PAYMENTS.SET_DEFAULT_PAYMENT_METHOD(methodId);
+  return await apiPut(endpoint);
+};
+
+/**
+ * Get Billing Info (Stripe customer contact)
+ * GET /api/v1/payments/billing-info
+ */
+export const getBillingInfo = async () => {
+  const response = await apiGet(API_ENDPOINTS.PAYMENTS.GET_BILLING_INFO);
+
+  if (response.data) {
+    response.data = transformKeys(response.data);
+  }
+
+  return response;
+};
+
+/**
+ * Update Billing Info (Stripe customer contact)
+ * PUT /api/v1/payments/billing-info
+ */
+export const updateBillingInfo = async (billingInfo) => {
+  const body = {
+    name: billingInfo.name,
+    email: billingInfo.email,
+    phone: billingInfo.phone,
+    address: billingInfo.address
+      ? {
+          line1: billingInfo.address.line1,
+          line2: billingInfo.address.line2,
+          city: billingInfo.address.city,
+          state: billingInfo.address.state,
+          postal_code: billingInfo.address.postalCode ?? billingInfo.address.postal_code,
+          country: billingInfo.address.country,
+        }
+      : undefined,
+  };
+  return await apiPut(API_ENDPOINTS.PAYMENTS.UPDATE_BILLING_INFO, body);
 };
 
 // ============================================================================

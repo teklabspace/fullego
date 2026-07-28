@@ -12,6 +12,11 @@ import {
   getListingPerformance,
   payListingFee,
 } from '@/utils/marketplaceApi';
+import {
+  formatCurrency,
+  formatCurrencyCompact,
+  formatNumber,
+} from '@/utils/formatters';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -84,9 +89,7 @@ export default function InvestmentDetailClient() {
           // rather than a placeholder amount.
           if (listingRes.data.askingPrice) {
             setOfferAmount(
-              Number(listingRes.data.askingPrice).toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-              })
+              formatNumber(listingRes.data.askingPrice, { minDecimals: 2 })
             );
           }
         } else {
@@ -127,7 +130,7 @@ export default function InvestmentDetailClient() {
     buyHandled.current = true;
     if (listing.askingPrice) {
       setOfferAmount(
-        Number(listing.askingPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })
+        formatNumber(listing.askingPrice, { minDecimals: 2 })
       );
     }
     setIsOfferModalOpen(true);
@@ -241,9 +244,7 @@ export default function InvestmentDetailClient() {
                         ? 'Cancelled'
                         : 'Closed',
         rejectionReason: listing.rejectionReason || listing.rejection_reason || '',
-        minimum: listing.askingPrice
-          ? `$${listing.askingPrice.toLocaleString()}`
-          : '$0',
+        minimum: formatCurrency(listing.askingPrice),
         askingPriceValue: listing.askingPrice || 0,
         image: listing.thumbnailUrl || listing.imageUrl || null,
         // All nullable until the seller provides them — show N/A, not fake data.
@@ -1179,10 +1180,7 @@ const formatPct = value =>
 const formatCompactMoney = value =>
   value === null || value === undefined || isNaN(Number(value))
     ? '—'
-    : `${Number(value) < 0 ? '-' : ''}$${Math.abs(Number(value)).toLocaleString(
-        'en-US',
-        { notation: 'compact', maximumFractionDigits: 1 }
-      )}`;
+    : formatCurrencyCompact(Number(value));
 
 const formatBytes = bytes => {
   if (bytes === null || bytes === undefined || isNaN(Number(bytes))) return '';
@@ -1367,9 +1365,7 @@ function MakeOfferModal({
         onClose();
         // Reset form back to the listed price
         setOfferAmount(
-          listedPrice
-            ? listedPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })
-            : ''
+          listedPrice ? formatNumber(listedPrice, { minDecimals: 2 }) : ''
         );
         setOfferMessage('');
       } else {
@@ -1508,7 +1504,7 @@ function MakeOfferModal({
                     isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}
                 >
-                  ${listedPrice.toLocaleString()}
+                  {formatCurrency(listedPrice)}
                 </span>
               </div>
 
@@ -1623,8 +1619,7 @@ function MakeOfferModal({
                       isDarkMode ? 'text-white' : 'text-gray-900'
                     }`}
                   >
-                    $
-                    {parseFloat(offerAmount.replace(/,/g, '')).toLocaleString()}
+                    {formatCurrency(offerAmount.replace(/,/g, ''))}
                   </span>
                 </div>
 
@@ -1641,7 +1636,7 @@ function MakeOfferModal({
                       isDarkMode ? 'text-white' : 'text-gray-900'
                     }`}
                   >
-                    ${parseFloat(transactionFee).toLocaleString()}
+                    {formatCurrency(transactionFee, { minDecimals: 2 })}
                   </span>
                 </div>
 
@@ -1662,7 +1657,7 @@ function MakeOfferModal({
                       isDarkMode ? 'text-white' : 'text-gray-900'
                     }`}
                   >
-                    ${parseFloat(total).toLocaleString()}
+                    {formatCurrency(total, { minDecimals: 2 })}
                   </span>
                 </div>
               </div>
