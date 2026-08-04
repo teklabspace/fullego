@@ -1,7 +1,7 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
 import {
   listListings,
@@ -17,6 +17,8 @@ import {
   acceptOffer,
   rejectOffer,
   counterOffer,
+  acceptCounterOffer,
+  declineCounterOffer,
   withdrawOffer,
   getEscrow,
   fundEscrow,
@@ -36,6 +38,12 @@ import {
 import { getCategoryIcon } from '@/utils/categoryIcons';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/hooks/useAuth';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { getStripe } from '@/lib/stripe';
+
+// Shared Stripe instance for the escrow payment form (same pattern as
+// AddPaymentMethodModal in settings).
+const stripePromise = getStripe();
 
 export default function MarketplacePage() {
   const { isDarkMode } = useTheme();
@@ -330,6 +338,9 @@ export default function MarketplacePage() {
           category: offer.assetType || offer.category || 'Other',
           offerAmount: formatCurrency(offer.offerAmount),
           offerAmountValue: offer.offerAmount || 0,
+          // Seller's counter price (buyer accepts/declines it).
+          counterAmountValue: offer.counterAmount || null,
+          counterAmountDisplay: offer.counterAmount ? formatCurrency(offer.counterAmount) : null,
           currency: offer.currency || 'USD',
           offerStatus: offer.status === 'pending' ? 'Pending' :
                       offer.status === 'accepted' ? 'Accepted' :
@@ -434,6 +445,32 @@ export default function MarketplacePage() {
       fetchMyOffers();
       fetchMyListings();
     }
+  }, [activeTab, fetchMyOffers, fetchMyListings]);
+
+  // REAL-TIME offers: the notifications WebSocket broadcasts every push as an
+  // `app:notification` window event (RealtimeNotifications). Offers, counters,
+  // acceptances and escrow changes all push a notification — refetch on those
+  // so the other party's action appears without a manual refresh.
+  useEffect(() => {
+    if (activeTab !== 'active-offers') return;
+    const onPush = (e) => {
+      const msg = e?.detail || {};
+      const text = `${msg.type || ''} ${msg.title || ''} ${msg.preview || msg.message || ''}`;
+      if (msg.listing_id || /offer|counter|escrow|listing/i.test(text)) {
+        fetchMyOffers();
+        fetchMyListings();
+      }
+    };
+    window.addEventListener('app:notification', onPush);
+    // Polling fallback (30s) for pushes lost to reconnects; skipped while hidden.
+    const intervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      fetchMyOffers();
+    }, 30000);
+    return () => {
+      window.removeEventListener('app:notification', onPush);
+      clearInterval(intervalId);
+    };
   }, [activeTab, fetchMyOffers, fetchMyListings]);
 
   // Tabs come from GET /marketplace/categories: main groups with at least one
@@ -1029,11 +1066,30 @@ function ActiveOffersContent({
   const handleReject = (offer) => runAction(offer, 'reject', () => rejectOffer(offer.id), 'Offer rejected');
   const handleWithdraw = (offer) => runAction(offer, 'withdraw', () => withdrawOffer(offer.id), 'Offer withdrawn');
 
+  // Buyer accepts the seller's counter: the accepted price IS the counter
+  // amount (never editable) and the payment modal opens on the new escrow.
+  const handleAcceptCounter = (offer) => runAction(offer, 'acceptCounter', async () => {
+    const res = await acceptCounterOffer(offer.id);
+    const escrowId = res?.escrowId || res?.escrow_id || res?.data?.escrowId;
+    if (escrowId) {
+      setEscrowTarget({
+        ...offer,
+        escrowId,
+        offerStatus: 'Accepted',
+        offerAmount: offer.counterAmountDisplay || offer.offerAmount,
+      });
+    }
+  }, 'Counter accepted — complete the payment to fund the escrow');
+  const handleDeclineCounter = (offer) =>
+    runAction(offer, 'declineCounter', () => declineCounterOffer(offer.id), 'Counter offer declined');
+
   const offerActionHandlers = {
     onAccept: handleAccept,
     onReject: handleReject,
     onWithdraw: handleWithdraw,
     onCounter: (offer) => setCounterTarget(offer),
+    onAcceptCounter: handleAcceptCounter,
+    onDeclineCounter: handleDeclineCounter,
     onViewEscrow: (offer) => setEscrowTarget(offer),
     actionLoading,
   };
@@ -1486,7 +1542,7 @@ function OfferCard({
   router,
   handlers = {},
 }) {
-  const { onAccept, onReject, onWithdraw, onCounter, onViewEscrow, actionLoading = {} } = handlers;
+  const { onAccept, onReject, onWithdraw, onCounter, onAcceptCounter, onDeclineCounter, onViewEscrow, actionLoading = {} } = handlers;
   const busy = (action) => !!actionLoading[`${offer.id}_${action}`];
 
   const getActions = () => {
@@ -1505,6 +1561,27 @@ function OfferCard({
         primary: false,
         danger: true,
       });
+    }
+
+    // The seller countered — the buyer decides at the seller's price.
+    if (offer.role === 'Buyer' && offer.offerStatus === 'Countered') {
+      actions.push(
+        {
+          label: busy('acceptCounter')
+            ? 'Accepting…'
+            : `Accept Counter${offer.counterAmountDisplay ? ` ${offer.counterAmountDisplay}` : ''}`,
+          onClick: () => onAcceptCounter?.(offer),
+          disabled: busy('acceptCounter'),
+          primary: true,
+        },
+        {
+          label: busy('declineCounter') ? 'Declining…' : 'Decline',
+          onClick: () => onDeclineCounter?.(offer),
+          disabled: busy('declineCounter'),
+          primary: false,
+          danger: true,
+        }
+      );
     }
 
     if ((offer.role === 'Seller' || offer.role === 'Lister') && offer.offerStatus === 'Pending') {
@@ -1727,7 +1804,7 @@ function OfferTableRow({
   router,
   handlers = {},
 }) {
-  const { onAccept, onReject, onWithdraw, onCounter, onViewEscrow, actionLoading = {} } = handlers;
+  const { onAccept, onReject, onWithdraw, onCounter, onAcceptCounter, onDeclineCounter, onViewEscrow, actionLoading = {} } = handlers;
   const busy = (action) => !!actionLoading[`${offer.id}_${action}`];
 
   const getActions = () => {
@@ -1743,6 +1820,21 @@ function OfferTableRow({
         onClick: () => onWithdraw?.(offer),
         disabled: busy('withdraw'),
       });
+    }
+
+    if (offer.role === 'Buyer' && offer.offerStatus === 'Countered') {
+      actions.push(
+        {
+          label: busy('acceptCounter') ? '…' : `Accept ${offer.counterAmountDisplay || 'Counter'}`,
+          onClick: () => onAcceptCounter?.(offer),
+          disabled: busy('acceptCounter'),
+        },
+        {
+          label: busy('declineCounter') ? '…' : 'Decline',
+          onClick: () => onDeclineCounter?.(offer),
+          disabled: busy('declineCounter'),
+        }
+      );
     }
 
     if ((offer.role === 'Seller' || offer.role === 'Lister') && offer.offerStatus === 'Pending') {
@@ -2274,17 +2366,25 @@ function EscrowModal({ offer, isDarkMode, onClose, onChanged }) {
   const isBuyer = offer.role === 'Buyer';
   const isSeller = offer.role === 'Seller' || offer.role === 'Lister';
 
+  // Background refetches (window focus) must NOT flip the modal back into its
+  // loading state — that unmounts the Stripe CardElement and wipes whatever
+  // card details the buyer already typed.
+  const loadedOnce = useRef(false);
+
   const loadEscrow = useCallback(async () => {
     if (!escrowId) { setLoading(false); return; }
     try {
-      setLoading(true);
+      if (!loadedOnce.current) setLoading(true);
       const res = await getEscrow(escrowId);
       setEscrow(res?.data ?? res ?? null);
+      loadedOnce.current = true;
     } catch (err) {
       if (!(err?.status === 405 || err?.status === 400)) {
         toast.error('Failed to load escrow');
       }
-      setEscrow(null);
+      // Keep previously loaded data — a failed background refetch (window
+      // focus) must not wipe a working payment form mid-checkout.
+      setEscrow((prev) => prev ?? null);
     } finally {
       setLoading(false);
     }
@@ -2380,14 +2480,27 @@ function EscrowModal({ offer, isDarkMode, onClose, onChanged }) {
               </div>
             )}
 
+            {/* pending → only the BUYER pays. The amount is the accepted offer
+                (fixed server-side in the payment intent — never typed). */}
+            {isBuyer && status === 'pending' && (
+              (escrow?.clientSecret || escrow?.client_secret) ? (
+                <Elements stripe={stripePromise}>
+                  <EscrowPayForm
+                    clientSecret={escrow.clientSecret || escrow.client_secret}
+                    amount={escrow.amount}
+                    escrowId={escrowId}
+                    isDarkMode={isDarkMode}
+                    onPaid={async () => { await loadEscrow(); onChanged?.(); }}
+                  />
+                </Elements>
+              ) : (
+                <p className={`text-sm mb-4 ${textMuted}`}>
+                  Preparing the payment… if this persists, close and reopen this dialog.
+                </p>
+              )
+            )}
+
             <div className='flex flex-wrap gap-2'>
-              {/* pending → only the BUYER can fund (spec §2e). */}
-              {isBuyer && status === 'pending' && (
-                <button onClick={() => run('fund', () => fundEscrow(escrowId), 'Escrow funded')} disabled={!!actionBusy}
-                  className='flex-1 min-w-[120px] py-2 rounded-lg text-sm font-semibold bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] disabled:opacity-60'>
-                  {actionBusy === 'fund' ? 'Funding…' : 'Fund / Pay'}
-                </button>
-              )}
               {/* funded → only the SELLER can release (spec §2f). This was
                   incorrectly wired to the buyer, which the backend rejects with
                   401 "Only seller can release escrow". */}
@@ -2427,6 +2540,77 @@ function EscrowModal({ offer, isDarkMode, onClose, onChanged }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// Fixed-amount escrow payment: confirms the escrow's Stripe payment intent
+// (created at accept time for EXACTLY the agreed price — the buyer can't
+// change it), then tells the backend to mark the escrow funded. The backend
+// re-verifies the intent actually succeeded before flipping the status.
+function EscrowPayForm({ clientSecret, amount, escrowId, isDarkMode, onPaid }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [busy, setBusy] = useState(false);
+  const [cardError, setCardError] = useState(null);
+
+  const pay = async () => {
+    if (!stripe || !elements) return;
+    setBusy(true);
+    setCardError(null);
+    const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+      payment_method: { card: elements.getElement(CardElement) },
+    });
+    if (error) {
+      setCardError(error.message);
+      setBusy(false);
+      return;
+    }
+    if (paymentIntent?.status === 'succeeded') {
+      try {
+        await fundEscrow(escrowId);
+        toast.success(`Payment of ${formatCurrency(amount)} completed — escrow funded`);
+        onPaid?.();
+      } catch (err) {
+        toast.error(err?.data?.message || err?.message || 'Payment completed but confirmation failed — please refresh.');
+      }
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className='mb-4'>
+      <div
+        className={`rounded-lg px-4 py-3.5 mb-2 border ${
+          isDarkMode ? 'bg-white/5 border-[#FFFFFF14]' : 'bg-white border-gray-200'
+        }`}
+      >
+        <CardElement
+          options={{
+            style: {
+              base: {
+                color: isDarkMode ? '#FFFFFF' : '#111827',
+                fontFamily: 'inherit',
+                fontSize: '15px',
+                '::placeholder': { color: isDarkMode ? '#9CA3AF' : '#6B7280' },
+                iconColor: '#F1CB68',
+              },
+              invalid: { color: '#F87171', iconColor: '#F87171' },
+            },
+          }}
+        />
+      </div>
+      {cardError && <p className='text-xs text-red-400 mb-2'>{cardError}</p>}
+      <button
+        onClick={pay}
+        disabled={busy || !stripe}
+        className='w-full py-2.5 rounded-lg text-sm font-semibold bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] disabled:opacity-60'
+      >
+        {busy ? 'Processing payment…' : `Pay ${formatCurrency(amount)}`}
+      </button>
+      <p className={`text-[11px] mt-1.5 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+        The amount is fixed to the accepted offer and held in escrow until release.
+      </p>
     </div>
   );
 }

@@ -67,7 +67,6 @@ export default function Sidebar({ isOpen, onClose }) {
         roles: ALL_ROLES,
         items: [
           { id: 'assets', label: 'Assets', icon: 'Grid', href: '/dashboard/assets', roles: ALL_ROLES },
-          { id: 'debts', label: 'Debts', icon: 'BarChart', href: '/dashboard/debts', roles: ALL_ROLES },
           {
             id: 'portfolio',
             label: 'Portfolio',

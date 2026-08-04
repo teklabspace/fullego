@@ -150,6 +150,33 @@ export default function SupportDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFilter, searchQuery]);
 
+  // REAL-TIME messages: every backend push arrives instantly as an
+  // `app:notification` window event (notifications WebSocket). When a push
+  // carries a conversation/ticket, refetch the open thread right away instead
+  // of waiting for the next poll tick.
+  useEffect(() => {
+    const onPush = (e) => {
+      const msg = e?.detail || {};
+      const text = `${msg.type || ''} ${msg.title || ''} ${msg.preview || msg.message || ''}`;
+      const isChat = !!msg.conversation_id;
+      const isTicket = /ticket|support|repl/i.test(text);
+      if (!isChat && !isTicket) return;
+      if (isChat) fetchConversations();
+      if (isTicket) fetchTickets();
+      if (selectedItem) {
+        if (selectedItem.type === 'chat' &&
+            (!msg.conversation_id || String(msg.conversation_id) === String(selectedItem.id))) {
+          fetchConversationMessages(selectedItem.id);
+        } else if (selectedItem.type === 'ticket' && isTicket) {
+          fetchTicketComments(selectedItem.id);
+        }
+      }
+    };
+    window.addEventListener('app:notification', onPush);
+    return () => window.removeEventListener('app:notification', onPush);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItem, activeFilter, searchQuery]);
+
   // Reports tab analytics, refetched when the range changes. Admin gets the
   // richer all-tickets dashboard endpoint; advisor/investor get the
   // role-scoped /support/analytics (assigned tickets / own tickets).
