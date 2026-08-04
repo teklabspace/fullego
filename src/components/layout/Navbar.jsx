@@ -337,7 +337,7 @@ const Navbar = () => {
                 >
                   <motion.div whileTap={{ scale: 0.95 }}>
                     <Link
-                      href='/dashboard'
+                      href='/login'
                       onClick={toggleMobileMenu}
                       className='block w-full text-center rounded-3xl border border-[#FFFFFF1A] py-4 px-6 text-sm text-brand-white hover:bg-white/5 transition-colors'
                     >
@@ -346,7 +346,7 @@ const Navbar = () => {
                   </motion.div>
                   <motion.div whileTap={{ scale: 0.95 }}>
                     <Link
-                      href='#signup'
+                      href='/signup'
                       onClick={toggleMobileMenu}
                       className='block w-full text-center rounded-3xl border border-[#FFFFFF1A] bg-[#F1CB68] py-4 px-6 text-sm font-medium text-black hover:brightness-105 transition-all'
                     >

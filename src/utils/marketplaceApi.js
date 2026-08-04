@@ -390,12 +390,30 @@ export const counterOffer = async (offerId, counterData) => {
   const transformedData = transformToSnake(counterData);
   const endpoint = API_ENDPOINTS.MARKETPLACE.COUNTER_OFFER(offerId);
   const response = await apiPost(endpoint, transformedData);
-  
+
   if (response.data) {
     response.data = transformKeys(response.data);
   }
-  
+
   return response;
+};
+
+/**
+ * Accept Counter Offer (buyer side)
+ * POST /api/v1/marketplace/offers/{offer_id}/accept-counter
+ * Returns { escrowId, paymentIntentId, clientSecret, amount, commission }
+ */
+export const acceptCounterOffer = async (offerId) => {
+  const response = await apiPost(`/marketplace/offers/${offerId}/accept-counter`, {});
+  return transformKeys(response);
+};
+
+/**
+ * Decline Counter Offer (buyer side)
+ * POST /api/v1/marketplace/offers/{offer_id}/decline-counter
+ */
+export const declineCounterOffer = async (offerId) => {
+  return await apiPost(`/marketplace/offers/${offerId}/decline-counter`, {});
 };
 
 /**
