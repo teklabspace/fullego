@@ -242,6 +242,24 @@ export default function ConciergeServicePage() {
       .catch(() => {});
   }, [loading, appraisals]);
 
+  // Jump to the full asset detail page. Staff (admin/advisor) load any user's
+  // asset by code via the staff-gated /admin/assets/{code} endpoint; advisors
+  // have no id fallback (GET /assets/{id} stays owner-scoped for them).
+  // Investors open their own asset through the standard id route.
+  const handleViewAsset = (appraisal) => {
+    if (isStaff && appraisal.assetCode) {
+      router.push(`/dashboard/assets/detail?code=${encodeURIComponent(appraisal.assetCode)}`);
+    } else if (!isAdvisor && appraisal.assetId) {
+      router.push(`/dashboard/assets/detail?id=${appraisal.assetId}`);
+    }
+  };
+  const canViewAsset = (appraisal) =>
+    isAdmin
+      ? !!(appraisal.assetCode || appraisal.assetId)
+      : isAdvisor
+      ? !!appraisal.assetCode
+      : !!appraisal.assetId;
+
   const handleAssignConcierge = async (assignmentData) => {
     if (selectedAppraisal) {
       try {
@@ -732,6 +750,11 @@ export default function ConciergeServicePage() {
           // support dashboard, which gates re-assign behind isAdmin). Advisors do
           // the appraisal work (upload, reject, finalize) but don't assign it.
           onAssign={isAdmin ? () => setAssignmentModalOpen(true) : undefined}
+          onViewAsset={
+            canViewAsset(selectedAppraisal)
+              ? () => handleViewAsset(selectedAppraisal)
+              : undefined
+          }
           onDocumentUpload={() => setDocumentModalOpen(true)}
           onReject={isStaff ? () => setRejectTarget(selectedAppraisal) : undefined}
           onFinalizeValuation={isStaff ? () => setFinalizeTarget(selectedAppraisal) : undefined}
@@ -1353,6 +1376,7 @@ function AppraisalDetailModal({
   getStatusColor,
   isStaff,
   onAssign,
+  onViewAsset,
   onDocumentUpload,
   onReject,
   onFinalizeValuation,
@@ -1676,6 +1700,29 @@ function AppraisalDetailModal({
               )}
             </div>
             <div className='flex gap-2'>
+              {onViewAsset && (
+                <button
+                  onClick={onViewAsset}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                    isDarkMode
+                      ? 'bg-white/5 text-gray-300 hover:bg-white/10'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <svg
+                    width='16'
+                    height='16'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeWidth='2'
+                  >
+                    <path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' />
+                    <circle cx='12' cy='12' r='3' />
+                  </svg>
+                  View Asset
+                </button>
+              )}
               {onAssign && (
                 <button
                   onClick={onAssign}
