@@ -59,3 +59,16 @@ next-env.d.ts
 
 # scratch design/planning docs (specs, plans, working notes)
 docs/superpowers/
+/docs/
+/doc/
+
+# QA test reports and evidence
+/test report/
+
+# editor / assistant config
+/.claude/
+/.vscode/
+/.superpowers/
+
+# non-code documents
+*.docx

@@ -161,7 +161,11 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
   // Role gating: investors transact on assets (sell / request appraisal / run AI
   // tools); admins get a read-only view and only see AI results that already
   // exist (no run controls, no transactional actions). See gating below.
-  const { isAdmin, isInvestor, mounted: authMounted } = useAuth();
+  const { isAdmin, isAdvisor, isInvestor, mounted: authMounted } = useAuth();
+  // Staff (admin/advisor) get the read-only view: no AI run controls, no
+  // transactional actions. Advisors reach other users' assets from the
+  // concierge queue via ?code= just like admins (staff-gated backend endpoint).
+  const isStaffView = isAdmin || isAdvisor;
   
   // Get asset ID from multiple sources (for static export compatibility)
   // Priority: prop > params > query parameter > window.location
@@ -308,7 +312,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     // Wait until the role is known so we pick the right fetch path.
     if (!authMounted) return;
 
-    const useAdminFetch = isAdmin && !!adminCode;
+    const useAdminFetch = isStaffView && !!adminCode;
     if (!assetId && !useAdminFetch) {
       setError('Asset ID is required');
       setLoading(false);
@@ -492,7 +496,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
     };
 
     fetchAssetData();
-  }, [assetId, adminCode, isAdmin, authMounted]);
+  }, [assetId, adminCode, isStaffView, authMounted]);
 
   // Fetch the current-month AI quota so we can show "X left" and disable the
   // button once it's exhausted (guide §5). Best-effort: a failure here just
@@ -1098,16 +1102,20 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   Edit Asset
                 </button>
               )}
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              className={`px-4 py-3 rounded-lg font-semibold transition-colors border ${
-                isDarkMode
-                  ? 'border-red-500/50 text-red-400 hover:bg-red-500/10'
-                  : 'border-red-300 text-red-600 hover:bg-red-50'
-              }`}
-            >
-              Delete
-            </button>
+            {/* Advisors get a strictly read-only view — deletion stays with
+                the owner (investor) and admins. */}
+            {!isAdvisor && (
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className={`px-4 py-3 rounded-lg font-semibold transition-colors border ${
+                  isDarkMode
+                    ? 'border-red-500/50 text-red-400 hover:bg-red-500/10'
+                    : 'border-red-300 text-red-600 hover:bg-red-50'
+                }`}
+              >
+                Delete
+              </button>
+            )}
             {isInvestor && (
               <>
             {/* Listing indicator. There is NO auto-listing at asset creation —
@@ -1553,7 +1561,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
 
             {/* AI Appraisal — instant, synchronous AI valuation. Admins see this
                 read-only and only when a result already exists (no run controls). */}
-            {(!isAdmin || aiResult) && (
+            {(!isStaffView || aiResult) && (
             <div className={`border rounded-2xl p-6 ${
               isDarkMode
                 ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
@@ -1576,7 +1584,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                     AI Appraisal
                   </h3>
                   {/* Remaining-quota badge (null limit => unlimited) */}
-                  {!isAdmin && aiUsage?.aiAppraisals && (
+                  {!isStaffView && aiUsage?.aiAppraisals && (
                     <span className={`inline-block mt-1.5 text-xs px-2 py-1 rounded-full whitespace-nowrap ${
                       aiLimitReached
                         ? isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'
@@ -1600,7 +1608,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
               </button>
 
               {showAiAppraisal && (<>
-              {!isAdmin && (
+              {!isStaffView && (
                 <p className={`text-sm mb-4 mt-2 ${
                   isDarkMode ? 'text-gray-400' : 'text-gray-600'
                 }`}>
@@ -1798,7 +1806,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
               )}
 
               {/* Action — investors only; admins view results without running. */}
-              {!isAdmin && (<>
+              {!isStaffView && (<>
               <button
                 onClick={handleRunAiAppraisal}
                 disabled={runningAiAppraisal || aiLimitReached}
@@ -1838,7 +1846,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
 
             {/* AI Asset Review — advisory accept/reject decision. Admins see this
                 read-only and only when a review already exists (no run controls). */}
-            {(!isAdmin || (aiReview && aiReview.decision && aiReview.decision !== 'not_reviewed')) && (
+            {(!isStaffView || (aiReview && aiReview.decision && aiReview.decision !== 'not_reviewed')) && (
             <div className={`border rounded-2xl p-6 ${
               isDarkMode
                 ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
@@ -1854,7 +1862,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   </svg>
                   AI Asset Review
                 </h3>
-                {!isAdmin && aiUsage?.aiReviews && (
+                {!isStaffView && aiUsage?.aiReviews && (
                   <span className={`inline-block mt-1.5 text-xs px-2 py-1 rounded-full whitespace-nowrap ${
                     aiReviewLimitReached
                       ? isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'
@@ -1866,7 +1874,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   </span>
                 )}
               </div>
-              {!isAdmin && (
+              {!isStaffView && (
                 <p className={`text-sm mb-4 ${
                   isDarkMode ? 'text-gray-400' : 'text-gray-600'
                 }`}>
@@ -1915,7 +1923,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
               })()}
 
               {/* Action — investors only; admins view the verdict without running. */}
-              {!isAdmin && (<>
+              {!isStaffView && (<>
               <button
                 onClick={handleRunAiReview}
                 disabled={runningAiReview || aiReviewLimitReached}
@@ -2191,7 +2199,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
             )}
 
             {/* Quick Actions — hidden for admins (read-only asset view). */}
-            {!isAdmin && (
+            {!isStaffView && (
             <div className={`border rounded-2xl p-6 ${
               isDarkMode
                 ? 'bg-gradient-to-r from-[#222126] to-[#111116] border-[#FFFFFF14]'
