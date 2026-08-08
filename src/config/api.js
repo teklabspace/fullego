@@ -609,6 +609,7 @@ export const API_ENDPOINTS = {
   // Advisor (self) endpoints
   ADVISOR: {
     CLIENTS: '/advisor/clients',
+    BOOK: '/advisor/book',
   },
   // Notifications endpoints
   NOTIFICATIONS: {

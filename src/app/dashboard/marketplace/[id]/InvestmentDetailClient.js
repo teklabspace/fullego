@@ -3,15 +3,19 @@
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  activateListing,
   createOffer,
   deleteListing,
   getListing,
   getListingDocuments,
   getListingOffers,
   getListingPerformance,
-  payListingFee,
 } from '@/utils/marketplaceApi';
+import {
+  adminRefundEscrow,
+  adminReleaseEscrow,
+  listEscrows,
+  resolveDispute,
+} from '@/utils/adminApi';
 import {
   formatCurrency,
   formatCurrencyCompact,
@@ -33,7 +37,7 @@ export default function InvestmentDetailClient() {
   const { isDarkMode } = useTheme();
   // Buying is investor-only — the backend rejects staff offers with
   // 403 STAFF_CANNOT_BUY, so staff never see the Trade Now entry points.
-  const { user, isInvestor } = useAuth();
+  const { user, isInvestor, isAdmin } = useAuth();
   const params = useParams();
   const [activeTab, setActiveTab] = useState('overview');
   const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
@@ -63,6 +67,9 @@ export default function InvestmentDetailClient() {
   const [documentsLoading, setDocumentsLoading] = useState(false);
   // Photo gallery: index of the enlarged image.
   const [activeImage, setActiveImage] = useState(0);
+  // Admin escrow oversight: every escrow on this listing (null = loading).
+  const [adminEscrows, setAdminEscrows] = useState(null);
+  const [escrowBusy, setEscrowBusy] = useState('');
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('id');
@@ -120,6 +127,54 @@ export default function InvestmentDetailClient() {
     fetchListingDetails();
   }, [investmentId]);
 
+  // Admin escrow oversight: admins don't buy or sell — they arbitrate. Load
+  // every escrow tied to this listing (the /admin/escrow list has no listing
+  // filter, so filter client-side; items are snake_case — no case transform
+  // in adminApi).
+  useEffect(() => {
+    if (!isAdmin || !investmentId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const payload = await listEscrows({ limit: 100 });
+        if (cancelled) return;
+        const items = Array.isArray(payload?.items)
+          ? payload.items
+          : Array.isArray(payload)
+          ? payload
+          : [];
+        setAdminEscrows(items.filter((e) => e.listing_id === investmentId));
+      } catch (err) {
+        console.error('Error loading escrows for listing:', err);
+        if (!cancelled) setAdminEscrows([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, investmentId]);
+
+  // Force-release / force-refund a funded escrow, or resolve a disputed one.
+  const runAdminEscrowAction = async (escrowId, action, fn, confirmMsg) => {
+    if (typeof window !== 'undefined' && !window.confirm(confirmMsg)) return;
+    setEscrowBusy(`${escrowId}:${action}`);
+    try {
+      await fn();
+      toast.success(
+        action.includes('refund')
+          ? 'Escrow refunded to the buyer.'
+          : 'Funds released to the seller.'
+      );
+      const payload = await listEscrows({ limit: 100 });
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      setAdminEscrows(items.filter((e) => e.listing_id === investmentId));
+    } catch (err) {
+      toast.error(err?.data?.detail || err?.message || 'Escrow action failed');
+    } finally {
+      setEscrowBusy('');
+    }
+  };
+
   // Deep link: ?buy=1 (Buy buttons on the marketplace lists / the public-page
   // guest handoff) opens the offer modal pre-filled with the asking price —
   // a "buy now" is an offer at asking price (offer → accept → escrow).
@@ -128,6 +183,12 @@ export default function InvestmentDetailClient() {
     if (buyHandled.current || !listing || typeof window === 'undefined') return;
     // Staff can't buy — ignore the ?buy=1 deep link entirely for them.
     if (!isInvestor) return;
+    // Owners can't buy their own listing either (backend would reject the
+    // offer) — ignore the deep link when the viewer is the seller.
+    const dlOwnerId = listing.sellerId || listing.ownerId || listing.userId || null;
+    const viewerOwnsListing =
+      listing.isOwner ?? (!!user?.id && !!dlOwnerId && dlOwnerId === user.id);
+    if (viewerOwnsListing) return;
     if (!new URLSearchParams(window.location.search).get('buy')) return;
     buyHandled.current = true;
     if (listing.askingPrice) {
@@ -136,7 +197,7 @@ export default function InvestmentDetailClient() {
       );
     }
     setIsOfferModalOpen(true);
-  }, [listing, isInvestor]);
+  }, [listing, isInvestor, user]);
 
   // Fetch listing offers
   useEffect(() => {
@@ -318,18 +379,6 @@ export default function InvestmentDetailClient() {
     }
   };
 
-  const handlePayFee = () =>
-    runOwnerAction(
-      'pay fee',
-      () => payListingFee(investmentId),
-      'Listing fee paid',
-    );
-  const handleActivate = () =>
-    runOwnerAction(
-      'activate',
-      () => activateListing(investmentId),
-      'Listing is now active',
-    );
   const handleCancel = () => {
     if (
       typeof window !== 'undefined' &&
@@ -430,28 +479,10 @@ export default function InvestmentDetailClient() {
                 </span>
                 {isOwner ? (
                   <div className='flex flex-wrap items-center gap-2'>
-                    {listingStatus === 'approved' && !feePaid && (
-                      <button
-                        onClick={handlePayFee}
-                        disabled={!!ownerActionBusy}
-                        className='px-4 py-2 bg-[#F1CB68] text-[#101014] font-semibold rounded-lg hover:bg-[#C49D2E] transition-all disabled:opacity-60'
-                      >
-                        {ownerActionBusy === 'pay fee'
-                          ? 'Processing…'
-                          : 'Pay Listing Fee'}
-                      </button>
-                    )}
-                    {listingStatus === 'approved' && (
-                      <button
-                        onClick={handleActivate}
-                        disabled={!!ownerActionBusy}
-                        className='px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-all disabled:opacity-60'
-                      >
-                        {ownerActionBusy === 'activate'
-                          ? 'Activating…'
-                          : 'Activate Listing'}
-                      </button>
-                    )}
+                    {/* Pay Listing Fee / Activate Listing were removed for
+                        owners: completing a concierge appraisal auto-publishes
+                        the listing as approved (live), so there is no manual
+                        fee/activation step in the investor flow anymore. */}
                     {/* Suspended (under valuation) is excluded too: the listing
                         is off-market and the backend will re-publish/restore it
                         when the appraisal ends — cancelling mid-valuation has
@@ -550,6 +581,170 @@ export default function InvestmentDetailClient() {
                 </div>
               )}
             </div>
+
+            {/* Admin escrow oversight — refund the buyer, release to the
+                seller, or resolve a dispute on any escrow of this listing. */}
+            {isAdmin && (
+              <div
+                className={`rounded-2xl border p-6 mb-6 ${
+                  isDarkMode
+                    ? 'bg-[#1A1A1D] border-[#FFFFFF14]'
+                    : 'bg-white border-gray-200'
+                }`}
+              >
+                <div className='flex items-center justify-between mb-4'>
+                  <h3
+                    className={`text-lg font-semibold ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}
+                  >
+                    Escrow Oversight
+                    <span className='ml-2 text-xs font-medium px-2 py-0.5 rounded bg-[#F1CB68]/15 text-[#F1CB68]'>
+                      Admin
+                    </span>
+                  </h3>
+                  <button
+                    onClick={() => router.push('/dashboard/admin/disputes')}
+                    className={`text-xs font-medium underline ${
+                      isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Open Disputes Center
+                  </button>
+                </div>
+                {adminEscrows === null ? (
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Loading escrows…
+                  </p>
+                ) : adminEscrows.length === 0 ? (
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    No escrows on this listing yet — they appear once a buyer&apos;s
+                    offer is accepted.
+                  </p>
+                ) : (
+                  <div className='space-y-3'>
+                    {adminEscrows.map((e) => {
+                      const st = (e.status || '').toLowerCase();
+                      const busyKey = (a) => `${e.id}:${a}`;
+                      return (
+                        <div
+                          key={e.id}
+                          className={`rounded-lg border p-4 ${
+                            isDarkMode ? 'border-[#FFFFFF14] bg-white/5' : 'border-gray-200 bg-gray-50'
+                          }`}
+                        >
+                          <div className='flex flex-wrap items-center gap-x-4 gap-y-1 mb-2'>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded font-semibold uppercase ${
+                                st === 'disputed'
+                                  ? 'bg-orange-500/15 text-orange-400'
+                                  : st === 'funded'
+                                  ? 'bg-blue-500/15 text-blue-400'
+                                  : st === 'released'
+                                  ? 'bg-green-500/15 text-green-400'
+                                  : st === 'refunded'
+                                  ? 'bg-gray-500/15 text-gray-400'
+                                  : 'bg-yellow-500/15 text-yellow-500'
+                              }`}
+                            >
+                              {st || 'unknown'}
+                            </span>
+                            <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {e.amount != null ? formatCurrency(e.amount) : '—'}
+                            </span>
+                            {e.commission != null && (
+                              <span className='text-xs font-medium text-[#F1CB68]'>
+                                Commission: {formatCurrency(e.commission)}
+                              </span>
+                            )}
+                            <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              Buyer: {e.buyer?.account_name || '—'} · Seller: {e.seller?.account_name || '—'}
+                            </span>
+                            <span className={`text-[11px] font-mono ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                              {e.id}
+                            </span>
+                          </div>
+                          {(e.dispute_reason || e.disputeReason) && (
+                            <p className='text-xs text-orange-400 mb-2'>
+                              Dispute reason: {e.dispute_reason || e.disputeReason}
+                            </p>
+                          )}
+                          {e.resolution_reason && (
+                            <p className={`text-xs mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              Admin resolution: {e.resolution_reason}
+                            </p>
+                          )}
+                          {st === 'funded' && (
+                            <div className='flex flex-wrap gap-2'>
+                              <button
+                                onClick={() =>
+                                  runAdminEscrowAction(
+                                    e.id,
+                                    'release',
+                                    () => adminReleaseEscrow(e.id),
+                                    'Force-release these funds to the seller?'
+                                  )
+                                }
+                                disabled={!!escrowBusy}
+                                className='px-3 py-1.5 text-xs rounded-lg font-semibold bg-green-500 text-white hover:bg-green-600 disabled:opacity-60'
+                              >
+                                {escrowBusy === busyKey('release') ? 'Releasing…' : 'Release to Seller'}
+                              </button>
+                              <button
+                                onClick={() =>
+                                  runAdminEscrowAction(
+                                    e.id,
+                                    'refund',
+                                    () => adminRefundEscrow(e.id),
+                                    'Force-refund this escrow to the buyer?'
+                                  )
+                                }
+                                disabled={!!escrowBusy}
+                                className='px-3 py-1.5 text-xs rounded-lg font-semibold border border-red-400/40 text-red-400 hover:bg-red-400/10 disabled:opacity-60'
+                              >
+                                {escrowBusy === busyKey('refund') ? 'Refunding…' : 'Refund Buyer'}
+                              </button>
+                            </div>
+                          )}
+                          {st === 'disputed' && (
+                            <div className='flex flex-wrap gap-2'>
+                              <button
+                                onClick={() =>
+                                  runAdminEscrowAction(
+                                    e.id,
+                                    'resolve-release',
+                                    () => resolveDispute(e.id, 'release'),
+                                    'Resolve this dispute by releasing the funds to the seller?'
+                                  )
+                                }
+                                disabled={!!escrowBusy}
+                                className='px-3 py-1.5 text-xs rounded-lg font-semibold bg-green-500 text-white hover:bg-green-600 disabled:opacity-60'
+                              >
+                                {escrowBusy === busyKey('resolve-release') ? 'Resolving…' : 'Resolve · Release to Seller'}
+                              </button>
+                              <button
+                                onClick={() =>
+                                  runAdminEscrowAction(
+                                    e.id,
+                                    'resolve-refund',
+                                    () => resolveDispute(e.id, 'refund'),
+                                    'Resolve this dispute by refunding the buyer?'
+                                  )
+                                }
+                                disabled={!!escrowBusy}
+                                className='px-3 py-1.5 text-xs rounded-lg font-semibold border border-red-400/40 text-red-400 hover:bg-red-400/10 disabled:opacity-60'
+                              >
+                                {escrowBusy === busyKey('resolve-refund') ? 'Resolving…' : 'Resolve · Refund Buyer'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Asset photo gallery — main image + thumbnail strip */}
             {Array.isArray(investment.images) && investment.images.length > 0 && (

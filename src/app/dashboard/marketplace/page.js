@@ -342,7 +342,10 @@ export default function MarketplacePage() {
           counterAmountValue: offer.counterAmount || null,
           counterAmountDisplay: offer.counterAmount ? formatCurrency(offer.counterAmount) : null,
           currency: offer.currency || 'USD',
-          offerStatus: offer.status === 'pending' ? 'Pending' :
+          // A refunded escrow overrides the offer status: the sale was voided
+          // and the listing is back on the marketplace.
+          offerStatus: (offer.escrowStatus || '').toLowerCase() === 'refunded' ? 'Refunded' :
+                      offer.status === 'pending' ? 'Pending' :
                       offer.status === 'accepted' ? 'Accepted' :
                       offer.status === 'rejected' ? 'Rejected' :
                       offer.status === 'countered' ? 'Countered' :
@@ -365,6 +368,9 @@ export default function MarketplacePage() {
             offer.offerMessage || offer.comment || '',
           // Escrow is created when an offer is accepted
           escrowId: offer.escrowId || offer.escrow?.id || null,
+          // Sale outcome: 'refunded' means the deal was voided and the
+          // listing went back on the marketplace — badge it on the card.
+          escrowStatus: (offer.escrowStatus || offer.escrow?.status || '').toLowerCase() || null,
         }));
         setMyOffers(transformedOffers);
       } else {
@@ -446,6 +452,14 @@ export default function MarketplacePage() {
       fetchMyListings();
     }
   }, [activeTab, fetchMyOffers, fetchMyListings]);
+
+  // Investors also need their own listing ids on the BROWSE tab, so the Buy
+  // button can be hidden on listings they own (sellers can't buy their own
+  // asset — the backend rejects the offer anyway).
+  useEffect(() => {
+    if (isInvestor) fetchMyListings();
+  }, [isInvestor, fetchMyListings]);
+  const myListingIds = new Set(myListings.map(l => l.id));
 
   // REAL-TIME offers: the notifications WebSocket broadcasts every push as an
   // `app:notification` window event (RealtimeNotifications). Offers, counters,
@@ -771,6 +785,7 @@ export default function MarketplacePage() {
                               isDarkMode={isDarkMode}
                               isWatched={watchlistIdByListing.has(fund.id)}
                               onToggleWatchlist={handleToggleWatchlist}
+                              isOwn={myListingIds.has(fund.id)}
                             />
                           ))}
                         </div>
@@ -1138,6 +1153,8 @@ function ActiveOffersContent({
         return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
       case 'Expired':
         return 'text-gray-500 bg-gray-500/10 border-gray-500/20';
+      case 'Refunded':
+        return 'text-orange-400 bg-orange-500/10 border-orange-500/20';
       default:
         return 'text-gray-400 bg-gray-400/10 border-gray-400/20';
     }
@@ -1607,10 +1624,11 @@ function OfferCard({
       );
     }
 
-    // Once accepted, funds move through escrow
-    if (offer.offerStatus === 'Accepted') {
+    // Once accepted, funds move through escrow. Refunded deals keep the
+    // (read-only) escrow view so both parties can see the outcome.
+    if (offer.offerStatus === 'Accepted' || offer.offerStatus === 'Refunded') {
       actions.push({
-        label: 'Manage Escrow',
+        label: offer.offerStatus === 'Refunded' ? 'View Escrow' : 'Manage Escrow',
         onClick: () => onViewEscrow?.(offer),
         primary: true,
       });
@@ -1856,7 +1874,7 @@ function OfferTableRow({
       );
     }
 
-    if (offer.offerStatus === 'Accepted') {
+    if (offer.offerStatus === 'Accepted' || offer.offerStatus === 'Refunded') {
       actions.push({
         label: 'Escrow',
         onClick: () => onViewEscrow?.(offer),
@@ -3068,10 +3086,12 @@ function MarketSummaryTiles({ summary, isDarkMode }) {
 }
 
 // Investment Card Component
-function InvestmentCard({ fund, isDarkMode, isWatched = false, onToggleWatchlist }) {
+function InvestmentCard({ fund, isDarkMode, isWatched = false, onToggleWatchlist, isOwn = false }) {
   const router = useRouter();
-  // Buying is investor-only (staff get 403 STAFF_CANNOT_BUY server-side).
+  // Buying is investor-only (staff get 403 STAFF_CANNOT_BUY server-side),
+  // and sellers can't buy their own listing (isOwn).
   const { isInvestor } = useAuth();
+  const canBuy = isInvestor && !isOwn;
   const CategoryIcon = getCategoryIcon(fund.category);
 
   const handleViewDetails = () => {
@@ -3219,8 +3239,16 @@ function InvestmentCard({ fund, isDarkMode, isWatched = false, onToggleWatchlist
         </div>
       </div>
 
+      {/* Owner's own listing — say so instead of offering a Buy that the
+          backend would reject. */}
+      {isOwn && (
+        <p className='text-[11px] font-medium text-[#F1CB68] mb-2'>
+          Your listing
+        </p>
+      )}
+
       {/* Actions */}
-      <div className={isInvestor ? 'grid grid-cols-2 gap-2' : ''}>
+      <div className={canBuy ? 'grid grid-cols-2 gap-2' : ''}>
         <button
           onClick={handleViewDetails}
           className={`w-full py-1.5 text-xs rounded-lg font-medium border transition-all ${
@@ -3231,7 +3259,7 @@ function InvestmentCard({ fund, isDarkMode, isWatched = false, onToggleWatchlist
         >
           View Details
         </button>
-        {isInvestor && (
+        {canBuy && (
           <button
             onClick={handleBuy}
             className='w-full py-1.5 text-xs rounded-lg font-semibold text-[#0B0D12] bg-[#F1CB68] hover:bg-[#d4b55a] transition-all'
