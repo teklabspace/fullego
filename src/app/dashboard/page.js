@@ -4,6 +4,8 @@ import { getAccountStats, getMyAccount } from '@/utils/accountsApi';
 import { getUserProfile } from '@/utils/authApi';
 import { getBankAccounts } from '@/utils/bankingApi';
 import { getBenchmarks } from '@/utils/marketApi';
+import AllocationCharts from '@/components/dashboard/AllocationCharts';
+import StaffDashboardCharts from '@/components/dashboard/StaffDashboardCharts';
 import
   {
     getCashFlowSummary,
@@ -334,6 +336,12 @@ function DashboardContent({
         </div>
       </div>
 
+      {/* Role-specific charts: advisor book of business / admin escrow money
+          story (same donut + Sankey forms; renders nothing for investors).
+          Placed FIRST for staff — the investor widgets below are mostly empty
+          for them, and the charts were being missed at the bottom. */}
+      <StaffDashboardCharts />
+
       {/* Top Row Cards */}
       <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-6'>
         {/* Net Worth & Investable Card */}
@@ -376,11 +384,15 @@ function DashboardContent({
       </div>
 
       {/* Historical Performance Graph */}
-      <HistoricalPerformanceGraph 
+      <HistoricalPerformanceGraph
         portfolioHistory={portfolioHistory}
         portfolioSummary={portfolioSummary}
         loading={loading}
       />
+
+      {/* Asset allocation Sankey + asset-class donut (investor only — staff
+          have no portfolio; the component renders nothing for them). */}
+      <AllocationCharts />
     </>
   );
 }

@@ -125,6 +125,27 @@ const extractDocuments = (res) => {
   return [];
 };
 
+// Classify a document row for the Uploaded Documents list. `kind` drives the
+// badge: staff uploads tagged 'valuation' are the final report, untagged staff
+// uploads are help documents shared with the investor, and investor uploads
+// are client documents. `isImage` switches the icon to a photo thumbnail.
+const STAFF_DOC_ROLES = ['admin', 'advisor', 'staff'];
+const classifyDocument = (doc) => {
+  const type = (doc.documentType || doc.type || '').toString().toLowerCase();
+  const role = (doc.uploadedByRole || doc.uploaded_by_role || '').toString().toLowerCase();
+  const kind = type.includes('valuation')
+    ? 'valuation'
+    : STAFF_DOC_ROLES.includes(role)
+    ? 'help'
+    : role
+    ? 'client'
+    : null;
+  const name = (doc.name || doc.fileName || doc.file_name || '').toString();
+  const mime = (doc.mimeType || doc.mime_type || '').toString().toLowerCase();
+  const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
+  return { kind, isImage };
+};
+
 // Page numbers to render, collapsing long ranges with '…'.
 const getPageList = (current, total) => {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -2028,6 +2049,7 @@ function AppraisalDetailModal({
                       typeof rawSize === 'number'
                         ? `${(rawSize / 1024 / 1024).toFixed(2)} MB`
                         : null;
+                    const { kind, isImage } = classifyDocument(doc);
                     return (
                       <DocumentItem
                         key={doc.id || index}
@@ -2036,6 +2058,8 @@ function AppraisalDetailModal({
                         size={size}
                         url={doc.url || doc.fileUrl || doc.downloadUrl || null}
                         isDarkMode={isDarkMode}
+                        kind={kind}
+                        isImage={isImage}
                       />
                     );
                   })
@@ -2183,8 +2207,25 @@ function AppraisalDetailModal({
   );
 }
 
-// Document Item Component
-function DocumentItem({ name, type, size, url, isDarkMode }) {
+// Document Item Component. `kind` tags where the upload came from (valuation
+// report / staff help doc / client upload); `isImage` swaps the file icon for
+// a photo thumbnail so images read as images at a glance.
+function DocumentItem({ name, type, size, url, isDarkMode, kind, isImage }) {
+  const kindMeta = {
+    valuation: {
+      label: 'Valuation Report',
+      classes: isDarkMode ? 'bg-[#F1CB68]/15 text-[#F1CB68]' : 'bg-[#F1CB68]/15 text-[#a07d1f]',
+    },
+    help: {
+      label: 'Help Document',
+      classes: isDarkMode ? 'bg-blue-500/15 text-blue-400' : 'bg-blue-50 text-blue-600',
+    },
+    client: {
+      label: 'Client Upload',
+      classes: isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600',
+    },
+  }[kind];
+
   return (
     <div
       className={`flex items-center justify-between p-3 rounded-lg border ${
@@ -2193,42 +2234,62 @@ function DocumentItem({ name, type, size, url, isDarkMode }) {
           : 'bg-white border-gray-200'
       }`}
     >
-      <div className='flex items-center gap-3'>
-        <div
-          className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-            isDarkMode ? 'bg-white/5' : 'bg-gray-100'
-          }`}
-        >
-          <svg
-            width='20'
-            height='20'
-            viewBox='0 0 24 24'
-            fill='none'
-            stroke={isDarkMode ? '#F1CB68' : '#F1CB68'}
-            strokeWidth='2'
+      <div className='flex items-center gap-3 min-w-0'>
+        {isImage && url ? (
+          // Image files show their actual thumbnail (click to open full size).
+          <a href={url} target='_blank' rel='noreferrer' className='shrink-0'>
+            <img
+              src={url}
+              alt={name}
+              className='w-10 h-10 rounded-lg object-cover border border-black/10'
+            />
+          </a>
+        ) : (
+          <div
+            className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+              isDarkMode ? 'bg-white/5' : 'bg-gray-100'
+            }`}
           >
-            <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
-            <path d='M14 2v6h6' />
-            <path d='M16 13H8' />
-            <path d='M16 17H8' />
-            <path d='M10 9H8' />
-          </svg>
-        </div>
-        <div>
+            {isImage ? (
+              // Image without a URL yet — picture icon instead of the doc icon.
+              <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
+                <rect x='3' y='3' width='18' height='18' rx='2' />
+                <circle cx='8.5' cy='8.5' r='1.5' />
+                <path d='M21 15l-5-5L5 21' />
+              </svg>
+            ) : (
+              <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
+                <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+                <path d='M14 2v6h6' />
+                <path d='M16 13H8' />
+                <path d='M16 17H8' />
+                <path d='M10 9H8' />
+              </svg>
+            )}
+          </div>
+        )}
+        <div className='min-w-0'>
           <p
-            className={`text-sm font-medium ${
+            className={`text-sm font-medium truncate ${
               isDarkMode ? 'text-white' : 'text-gray-900'
             }`}
           >
             {name}
           </p>
-          <p
-            className={`text-xs ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}
-          >
-            {type}{size ? ` • ${size}` : ''}
-          </p>
+          <div className='flex items-center gap-1.5 flex-wrap mt-0.5'>
+            {kindMeta ? (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${kindMeta.classes}`}>
+                {kindMeta.label}
+              </span>
+            ) : (
+              <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                {type}
+              </span>
+            )}
+            <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              {isImage ? 'Image' : 'Document'}{size ? ` • ${size}` : ''}
+            </span>
+          </div>
         </div>
       </div>
       {url && (
