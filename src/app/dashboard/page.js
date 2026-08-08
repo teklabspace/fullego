@@ -345,16 +345,18 @@ function DashboardContent({
       {/* Top Row Cards */}
       <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-6'>
         {/* Net Worth & Investable Card */}
-        <NetWorthInvestableCard 
+        <NetWorthInvestableCard
           portfolioSummary={portfolioSummary}
           portfolioPerformance={portfolioPerformance}
+          portfolioHistory={portfolioHistory}
           loading={loading}
         />
 
         {/* Assets Card */}
-        <AssetsCard 
+        <AssetsCard
           portfolioSummary={portfolioSummary}
           portfolioPerformance={portfolioPerformance}
+          portfolioHistory={portfolioHistory}
           loading={loading}
         />
 
@@ -402,8 +404,86 @@ const formatCurrency = (value) => sharedFormatCurrency(value);
 
 const formatPercentage = (value) => formatPercent(value);
 
+// ── Stat-tile building blocks ────────────────────────────────────────────────
+
+// Pill that shows a signed change: ▲ +$X (+Y%) green, ▼ red, dash when null.
+function DeltaChip({ amount, percent, isDarkMode }) {
+  if (amount == null && percent == null) return null;
+  const up = (amount ?? percent) >= 0;
+  const cls = up
+    ? 'bg-[#10B981]/10 text-[#10B981]'
+    : 'bg-[#EF4444]/10 text-[#EF4444]';
+  const parts = [];
+  if (amount != null) parts.push(`${up ? '+' : ''}${formatCurrency(amount)}`);
+  if (percent != null) parts.push(`${amount != null ? '(' : ''}${formatPercentage(percent)}${amount != null ? ')' : ''}`);
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}>
+      <svg width='9' height='9' viewBox='0 0 10 10' fill='currentColor' style={{ transform: up ? 'none' : 'rotate(180deg)' }}>
+        <path d='M5 1l4 6H1z' />
+      </svg>
+      {parts.join(' ')}
+    </span>
+  );
+}
+
+// Tiny axis-less area chart of {date, value} history — trend at a glance.
+function MiniSparkline({ history, isDarkMode, height = 48 }) {
+  const data = (history || [])
+    .map((item) => ({ value: parseFloat(item.value) || 0 }))
+    .filter((d) => d.value > 0);
+  if (data.length < 2) return null;
+  const gold = isDarkMode ? '#F1CB68' : '#c98500';
+  const gradId = `spark-${isDarkMode ? 'd' : 'l'}-${height}`;
+  return (
+    <div style={{ height }} className='mt-3 -mx-1'>
+      <ResponsiveContainer width='100%' height='100%'>
+        <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+          {/* Padded domain so a flat history renders as a mid-height line
+              instead of hugging the top edge like a solid block. */}
+          <YAxis hide domain={[(min) => min * 0.96, (max) => max * 1.04]} />
+          <defs>
+            <linearGradient id={gradId} x1='0' y1='0' x2='0' y2='1'>
+              <stop offset='0%' stopColor={gold} stopOpacity={0.35} />
+              <stop offset='100%' stopColor={gold} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area
+            type='monotone'
+            dataKey='value'
+            stroke={gold}
+            strokeWidth={2}
+            fill={`url(#${gradId})`}
+            isAnimationActive={false}
+            dot={false}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// Horizontal meter: `ratio` (0..1) of the track filled in `color`.
+function MeterBar({ ratio, color, isDarkMode, label }) {
+  const pct = Math.max(0, Math.min(1, ratio ?? 0)) * 100;
+  return (
+    <div>
+      <div className={`h-2 rounded-full overflow-hidden ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}>
+        <div
+          className='h-full rounded-full transition-all'
+          style={{ width: `${pct}%`, backgroundColor: color }}
+        />
+      </div>
+      {label && (
+        <p className={`text-[11px] mt-1.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          {label}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // Net Worth & Investable Card Component
-function NetWorthInvestableCard({ portfolioSummary, portfolioPerformance, loading }) {
+function NetWorthInvestableCard({ portfolioSummary, portfolioPerformance, portfolioHistory, loading }) {
   const { isDarkMode } = useTheme();
   const [benchmarks, setBenchmarks] = React.useState([]);
   const [benchmarksLoading, setBenchmarksLoading] = React.useState(true);
@@ -489,8 +569,8 @@ function NetWorthInvestableCard({ portfolioSummary, portfolioPerformance, loadin
     <div className={`bg-transparent border rounded-2xl p-6 ${
       isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
     }`}>
-      {/* Net Worth */}
-      <div className='mb-6'>
+      {/* Net Worth — hero + delta chip + trend sparkline */}
+      <div className='mb-5'>
         <div className='flex items-center gap-2 mb-2'>
           <h3 className={`text-sm font-medium ${
             isDarkMode ? 'text-gray-400' : 'text-gray-600'
@@ -499,28 +579,35 @@ function NetWorthInvestableCard({ portfolioSummary, portfolioPerformance, loadin
           </h3>
           <InfoIcon />
         </div>
-        <h2 className={`text-3xl font-bold ${
-          isDarkMode ? 'text-white' : 'text-black'
-        }`}>
-          {formatCurrency(netWorth, true)}
-        </h2>
+        <div className='flex items-center gap-3 flex-wrap'>
+          <h2 className={`text-3xl font-bold ${
+            isDarkMode ? 'text-white' : 'text-black'
+          }`}>
+            {formatCurrency(netWorth, true)}
+          </h2>
+          <DeltaChip percent={netWorthReturn} isDarkMode={isDarkMode} />
+        </div>
+        <MiniSparkline history={portfolioHistory} isDarkMode={isDarkMode} height={48} />
       </div>
 
-      {/* Investable */}
-      <div className='mb-6'>
-        <div className='flex items-center gap-2 mb-2'>
-          <h3 className={`text-sm font-medium ${
+      {/* Investable — secondary metric with its own chip */}
+      <div className={`mb-5 pt-4 border-t ${isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-100'}`}>
+        <div className='flex items-center gap-2 mb-1'>
+          <h3 className={`text-xs font-medium ${
             isDarkMode ? 'text-gray-400' : 'text-gray-600'
           }`}>
             Investable
           </h3>
           <InfoIcon />
         </div>
-        <h2 className={`text-3xl font-bold ${
-            isDarkMode ? 'text-white' : 'text-black'
-        }`}>
-          {formatCurrency(investable, true)}
-        </h2>
+        <div className='flex items-center gap-3 flex-wrap'>
+          <h2 className={`text-xl font-bold ${
+              isDarkMode ? 'text-white' : 'text-black'
+          }`}>
+            {formatCurrency(investable, true)}
+          </h2>
+          <DeltaChip percent={investableReturn} isDarkMode={isDarkMode} />
+        </div>
       </div>
 
       {/* CAGR YTD Section */}
@@ -592,7 +679,7 @@ function NetWorthInvestableCard({ portfolioSummary, portfolioPerformance, loadin
 }
 
 // Assets Card Component
-function AssetsCard({ portfolioSummary, portfolioPerformance, loading }) {
+function AssetsCard({ portfolioSummary, portfolioPerformance, portfolioHistory, loading }) {
   const { isDarkMode } = useTheme();
 
   // Get total assets value
@@ -653,41 +740,30 @@ function AssetsCard({ portfolioSummary, portfolioPerformance, loading }) {
       }`}>
         Assets
       </h3>
-      <h2 className={`text-3xl font-bold mb-6 ${
+      <h2 className={`text-3xl font-bold ${
               isDarkMode ? 'text-white' : 'text-black'
       }`}>
         {formatCurrency(totalAssets, true)}
       </h2>
-      
-      <div className='space-y-3'>
-        <div>
-          <p className={`text-xs mb-1 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            1 DAY
-          </p>
-          {todayChange != null && todayChangePercent != null && (
-            <p className={`text-sm font-medium ${
-              todayChange >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
-            }`}>
-              {todayChange >= 0 ? '+' : ''}{formatCurrency(todayChange)} ({formatPercentage(todayChangePercent)})
+      <MiniSparkline history={portfolioHistory} isDarkMode={isDarkMode} height={44} />
+
+      <div className='space-y-2.5 mt-4'>
+        {todayChange != null && todayChangePercent != null && (
+          <div className='flex items-center justify-between gap-2'>
+            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              1 DAY
             </p>
-          )}
-        </div>
-        <div>
-          <p className={`text-xs mb-1 ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            1 YEAR
-          </p>
-          {oneYearChange != null && oneYearChangePercent != null && (
-            <p className={`text-sm font-medium ${
-              oneYearChange >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
-            }`}>
-              {oneYearChange >= 0 ? '+' : ''}{formatCurrency(oneYearChange)} ({formatPercentage(oneYearChangePercent)})
+            <DeltaChip amount={todayChange} percent={todayChangePercent} isDarkMode={isDarkMode} />
+          </div>
+        )}
+        {oneYearChange != null && oneYearChangePercent != null && (
+          <div className='flex items-center justify-between gap-2'>
+            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              1 YEAR
             </p>
-          )}
-        </div>
+            <DeltaChip amount={oneYearChange} percent={oneYearChangePercent} isDarkMode={isDarkMode} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -745,39 +821,46 @@ function DebtsCard({ portfolioSummary, portfolioPerformance, loading }) {
       }`}>
         Debts
       </h3>
-      <h2 className={`text-3xl font-bold mb-6 ${
+      <h2 className={`text-3xl font-bold mb-5 ${
           isDarkMode ? 'text-white' : 'text-black'
       }`}>
         {formatCurrency(totalDebts, true)}
       </h2>
 
-      <div className='space-y-3'>
-        <div>
-          <p className={`text-xs mb-1 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
+      {/* Leverage meter: debts as a share of gross assets. */}
+      {(() => {
+        const grossAssets = portfolioSummary?.totalAssets || 0;
+        if (!(grossAssets > 0)) return null;
+        const ratio = totalDebts / grossAssets;
+        return (
+          <div className='mb-5'>
+            <MeterBar
+              ratio={ratio}
+              color='#EF4444'
+              isDarkMode={isDarkMode}
+              label={`${(ratio * 100).toFixed(1)}% of gross assets (${formatCurrency(grossAssets, true)})`}
+            />
+          </div>
+        );
+      })()}
+
+      <div className='space-y-2.5'>
+        <div className='flex items-center justify-between gap-2'>
+          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             1 DAY
           </p>
-          <p className={`text-sm font-medium ${
-            isDarkMode ? 'text-gray-300' : 'text-gray-700'
-          }`}>
+          <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
             {formatCurrency(oneDayChange)}
-          </p>
+          </span>
         </div>
-        <div>
-          <p className={`text-xs mb-1 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            1 YEAR
-          </p>
-          {oneYearChange != null && (
-            <p className={`text-sm font-medium ${
-              oneYearChange >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'
-            }`}>
-              {oneYearChange >= 0 ? '+' : ''}{formatCurrency(oneYearChange)}
+        {oneYearChange != null && (
+          <div className='flex items-center justify-between gap-2'>
+            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              1 YEAR
             </p>
-          )}
-        </div>
+            <DeltaChip amount={oneYearChange} isDarkMode={isDarkMode} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -849,6 +932,36 @@ function CashOnHandCard({ accountData, bankAccounts, loading }) {
       }`}>
         {formatCurrency(totalCash)}
       </h2>
+      {/* Per-account breakdown, bar length proportional to balance. */}
+      {Array.isArray(bankAccounts) && bankAccounts.length > 0 && totalCash > 0 && (
+        <div className='space-y-2.5 mb-1'>
+          {[...bankAccounts]
+            .map((a) => ({
+              name: a.accountName || a.name || a.institutionName || a.institution_name || 'Account',
+              mask: a.mask || a.accountNumber?.slice(-4) || null,
+              balance: parseFloat(a.balance) || 0,
+            }))
+            .sort((a, b) => b.balance - a.balance)
+            .slice(0, 4)
+            .map((a, i) => (
+              <div key={`${a.name}-${i}`}>
+                <div className='flex items-center justify-between gap-2 mb-1'>
+                  <span className={`text-xs truncate ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {a.name}{a.mask ? ` ··${a.mask}` : ''}
+                  </span>
+                  <span className={`text-xs font-medium shrink-0 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                    {formatCurrency(a.balance)}
+                  </span>
+                </div>
+                <MeterBar
+                  ratio={a.balance / totalCash}
+                  color={isDarkMode ? '#F1CB68' : '#c98500'}
+                  isDarkMode={isDarkMode}
+                />
+              </div>
+            ))}
+        </div>
+      )}
       {overdue != null && overdue < 0 && (
         <div>
           <p className={`text-xs mb-1 ${
@@ -974,25 +1087,46 @@ function TaxEstimateCard({ portfolioSummary, portfolioPerformance, loading }) {
           {formatCurrency(taxEstimate)}
         </h2>
       )}
-      {incomeTax != null && (
-        <div className='space-y-1 mb-4'>
-          {gainsTax != null && (
-            <div className='flex items-center justify-between'>
-              <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Investment gains (20%)
-              </span>
-              <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                {formatCurrency(gainsTax)}
-              </span>
-            </div>
-          )}
-          <div className='flex items-center justify-between'>
-            <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Bank income, last 12 mo (20%)
-            </span>
-            <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              {formatCurrency(incomeTax)}
-            </span>
+      {/* Where the estimate comes from: gains vs bank income as one split bar. */}
+      {taxEstimate != null && taxEstimate > 0 && (gainsTax != null || incomeTax != null) && (
+        <div className='mb-4'>
+          <div className={`flex h-2 rounded-full overflow-hidden gap-0.5 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}>
+            {gainsTax > 0 && (
+              <div
+                className='h-full'
+                style={{ width: `${(gainsTax / taxEstimate) * 100}%`, backgroundColor: isDarkMode ? '#F1CB68' : '#c98500' }}
+              />
+            )}
+            {incomeTax > 0 && (
+              <div
+                className='h-full'
+                style={{ width: `${(incomeTax / taxEstimate) * 100}%`, backgroundColor: isDarkMode ? '#3987e5' : '#2a78d6' }}
+              />
+            )}
+          </div>
+          <div className='space-y-1 mt-2'>
+            {gainsTax != null && gainsTax > 0 && (
+              <div className='flex items-center justify-between gap-2'>
+                <span className={`inline-flex items-center gap-1.5 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <span className='w-2 h-2 rounded-sm inline-block' style={{ backgroundColor: isDarkMode ? '#F1CB68' : '#c98500' }} />
+                  Investment gains (20%)
+                </span>
+                <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {formatCurrency(gainsTax)}
+                </span>
+              </div>
+            )}
+            {incomeTax != null && incomeTax > 0 && (
+              <div className='flex items-center justify-between gap-2'>
+                <span className={`inline-flex items-center gap-1.5 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <span className='w-2 h-2 rounded-sm inline-block' style={{ backgroundColor: isDarkMode ? '#3987e5' : '#2a78d6' }} />
+                  Bank income, last 12 mo (20%)
+                </span>
+                <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {formatCurrency(incomeTax)}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}

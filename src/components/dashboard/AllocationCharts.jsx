@@ -26,6 +26,7 @@ import {
   PieChart,
   ResponsiveContainer,
   Sankey,
+  Sector,
   Tooltip,
 } from 'recharts';
 
@@ -51,6 +52,71 @@ export const prettyClass = (s) =>
     .toString()
     .replace(/[_-]+/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
+
+// Shared interactive donut: rounded slice ends, hovered slice grows outward,
+// and the center readout switches from the total to the hovered slice's
+// name · value · share. Slices carry {type, value, color, count?}.
+export function VizDonut({ slices, total, centerLabel, isDarkMode, surface }) {
+  const [active, setActive] = useState(null);
+  const activeSlice = active != null ? slices[active] : null;
+  const share =
+    activeSlice && total > 0 ? ((activeSlice.value / total) * 100).toFixed(1) : null;
+  return (
+    <div className='relative h-56'>
+      <ResponsiveContainer width='100%' height='100%'>
+        <PieChart>
+          <Pie
+            data={slices}
+            dataKey='value'
+            nameKey='type'
+            innerRadius='66%'
+            outerRadius='90%'
+            paddingAngle={1.5}
+            cornerRadius={5}
+            stroke={surface}
+            strokeWidth={2}
+            isAnimationActive={false}
+            activeIndex={active ?? undefined}
+            activeShape={(p) => (
+              <Sector {...p} outerRadius={p.outerRadius + 7} cornerRadius={5} />
+            )}
+            onMouseEnter={(_, i) => setActive(i)}
+            onMouseLeave={() => setActive(null)}
+          >
+            {slices.map((s) => (
+              <Cell key={s.type} fill={s.color} style={{ cursor: 'pointer', outline: 'none' }} />
+            ))}
+          </Pie>
+        </PieChart>
+      </ResponsiveContainer>
+      {/* Center readout — hovered slice details, else the total. */}
+      <div className='absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-10'>
+        {activeSlice ? (
+          <>
+            <p className={`text-[11px] font-semibold truncate max-w-full ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              {activeSlice.type}
+            </p>
+            <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              {formatCurrencyCompact(activeSlice.value)}
+            </p>
+            <p className='text-[11px] font-medium' style={{ color: activeSlice.color }}>
+              {share}% of total
+            </p>
+          </>
+        ) : (
+          <>
+            <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              {formatCurrencyCompact(total)}
+            </p>
+            <p className={`text-[11px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              {centerLabel}
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function AllocationCharts() {
   const { isDarkMode } = useTheme();
@@ -185,39 +251,13 @@ export default function AllocationCharts() {
         <h3 className={titleCls}>Asset Class Distribution</h3>
         <p className={subCls}>Share of gross owned assets by class</p>
 
-        <div className='relative h-56'>
-          <ResponsiveContainer width='100%' height='100%'>
-            <PieChart>
-              <Pie
-                data={classes}
-                dataKey='value'
-                nameKey='type'
-                innerRadius='64%'
-                outerRadius='96%'
-                paddingAngle={1.5}
-                stroke={surface}
-                strokeWidth={2}
-                isAnimationActive={false}
-              >
-                {classes.map((cls) => (
-                  <Cell key={cls.type} fill={cls.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                content={<DonutTooltip total={totalValue} isDarkMode={isDarkMode} />}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          {/* Center hero number */}
-          <div className='absolute inset-0 flex flex-col items-center justify-center pointer-events-none'>
-            <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-              {formatCurrencyCompact(totalValue)}
-            </p>
-            <p className={`text-[11px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Total assets
-            </p>
-          </div>
-        </div>
+        <VizDonut
+          slices={classes}
+          total={totalValue}
+          centerLabel='Total assets'
+          isDarkMode={isDarkMode}
+          surface={surface}
+        />
 
         {/* Legend doubles as the accessible table: swatch + name + share + value */}
         <div className='mt-4 space-y-1.5'>
@@ -247,67 +287,69 @@ export default function AllocationCharts() {
         <p className={subCls}>
           How your portfolio splits into classes and their largest holdings
         </p>
-        <div className='overflow-x-auto'>
-          <div className='min-w-[560px] h-[400px]'>
-            <ResponsiveContainer width='100%' height='100%'>
-              <Sankey
-                data={sankeyData}
-                nodePadding={26}
-                nodeWidth={8}
-                margin={{ top: 8, right: 170, bottom: 8, left: 8 }}
-                node={<SankeyNode isDarkMode={isDarkMode} />}
-                link={<SankeyLink />}
-              >
-                <Tooltip content={<SankeyTooltip isDarkMode={isDarkMode} />} />
-              </Sankey>
-            </ResponsiveContainer>
-          </div>
+        {/* Full-width and responsive — no horizontal scrolling. */}
+        <div className='h-[400px]'>
+          <ResponsiveContainer width='100%' height='100%'>
+            <Sankey
+              data={sankeyData}
+              nodePadding={26}
+              nodeWidth={10}
+              margin={{ top: 8, right: 150, bottom: 8, left: 8 }}
+              node={<SankeyNode isDarkMode={isDarkMode} />}
+              link={<SankeyLink />}
+            >
+              <Tooltip content={<SankeyTooltip isDarkMode={isDarkMode} />} />
+            </Sankey>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>
   );
 }
 
-// Node: thin rounded bar in the class hue + a text-token label (name + value).
+// Node: thin rounded bar + a single-line "Name · $value" label. The label
+// wears a halo in the surface color (paint-order stroke) so it stays legible
+// on top of crossing ribbons, and its y is clamped inside the plot so labels
+// of tiny bottom nodes don't clip. Single-line keeps adjacent small nodes'
+// labels from stacking into each other.
 export function SankeyNode({ x, y, width, height, payload, containerWidth, isDarkMode }) {
   if (Number.isNaN(x) || Number.isNaN(y)) return null;
   const isRight = x > containerWidth / 2;
   const label = payload.name;
   const ink = isDarkMode ? '#E5E7EB' : '#1F2937';
   const inkMuted = isDarkMode ? '#9CA3AF' : '#6B7280';
+  const halo = isDarkMode ? SURFACE_DARK : SURFACE_LIGHT;
+  const barHeight = Math.max(height, 2);
+  // Keep the baseline at least 10px from the top and 6px above the bottom of
+  // the 400px plot area.
+  const textY = Math.min(Math.max(y + barHeight / 2 + 4, 12), 392);
   return (
     <g>
-      <rect
-        x={x}
-        y={y}
-        width={width}
-        height={Math.max(height, 2)}
-        rx={2}
-        fill={payload.color}
-      />
+      <rect x={x} y={y} width={width} height={barHeight} rx={3} fill={payload.color} />
       <text
         x={isRight ? x - 8 : x + width + 8}
-        y={y + Math.max(height, 2) / 2 - 2}
+        y={textY}
         textAnchor={isRight ? 'end' : 'start'}
         fontSize={11}
-        fill={ink}
+        stroke={halo}
+        strokeWidth={3}
+        strokeLinejoin='round'
+        paintOrder='stroke'
       >
-        {label.length > 21 ? `${label.slice(0, 20)}…` : label}
-      </text>
-      <text
-        x={isRight ? x - 8 : x + width + 8}
-        y={y + Math.max(height, 2) / 2 + 11}
-        textAnchor={isRight ? 'end' : 'start'}
-        fontSize={10}
-        fill={inkMuted}
-      >
-        {formatCurrencyCompact(payload.value)}
+        <tspan fontWeight={600} fill={ink}>
+          {label.length > 18 ? `${label.slice(0, 17)}…` : label}
+        </tspan>
+        <tspan dx={6} fontSize={10} fill={inkMuted}>
+          {formatCurrencyCompact(payload.value)}
+        </tspan>
       </text>
     </g>
   );
 }
 
-// Link: bezier ribbon in the flow's class hue, translucent so crossings read.
+// Link: bezier ribbon with a source→target color gradient, translucent so
+// crossings read. Gradient ids are namespaced by geometry so several Sankeys
+// can coexist on one page.
 export function SankeyLink({
   sourceX,
   sourceY,
@@ -316,16 +358,34 @@ export function SankeyLink({
   targetY,
   targetControlX,
   linkWidth,
+  index,
   payload,
 }) {
+  const from = payload?.source?.color || payload?.color || '#999';
+  const to = payload?.target?.color || payload?.color || from;
+  const gradId = `sankey-grad-${index}-${Math.round(sourceX)}-${Math.round(targetY)}`;
   return (
-    <path
-      d={`M${sourceX},${sourceY} C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`}
-      fill='none'
-      stroke={payload.color || payload?.source?.color}
-      strokeWidth={Math.max(linkWidth, 1)}
-      strokeOpacity={0.3}
-    />
+    <g>
+      <defs>
+        <linearGradient
+          id={gradId}
+          gradientUnits='userSpaceOnUse'
+          x1={sourceX}
+          x2={targetX}
+          y1={0}
+          y2={0}
+        >
+          <stop offset='0%' stopColor={from} stopOpacity={0.5} />
+          <stop offset='100%' stopColor={to} stopOpacity={0.5} />
+        </linearGradient>
+      </defs>
+      <path
+        d={`M${sourceX},${sourceY} C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`}
+        fill='none'
+        stroke={`url(#${gradId})`}
+        strokeWidth={Math.max(linkWidth, 2)}
+      />
+    </g>
   );
 }
 

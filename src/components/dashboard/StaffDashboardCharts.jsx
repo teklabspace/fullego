@@ -15,16 +15,8 @@ import { getAdvisorBook } from '@/utils/advisorApi';
 import { listEscrows } from '@/utils/adminApi';
 import { formatCurrencyCompact } from '@/utils/formatters';
 import { useEffect, useMemo, useState } from 'react';
+import { ResponsiveContainer, Sankey, Tooltip } from 'recharts';
 import {
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Sankey,
-  Tooltip,
-} from 'recharts';
-import {
-  DonutTooltip,
   OTHER_DARK,
   OTHER_LIGHT,
   PALETTE_DARK,
@@ -34,6 +26,7 @@ import {
   SankeyTooltip,
   SURFACE_DARK,
   SURFACE_LIGHT,
+  VizDonut,
   prettyClass,
 } from './AllocationCharts';
 
@@ -46,7 +39,9 @@ const ESCROW_STATUS_META = {
   funded: { label: 'In Escrow', dark: '#3987e5', light: '#2a78d6' },
   pending: { label: 'Awaiting Payment', dark: '#c98500', light: '#eda100' },
   disputed: { label: 'Disputed', dark: '#e66767', light: '#e34948' },
-  refunded: { label: 'Refunded', dark: '#8a8f98', light: '#9ca3af' },
+  // Violet, not gray — refunded currently dominates the QA data and a gray
+  // donut/sankey reads as "disabled" rather than as money movement.
+  refunded: { label: 'Refunded', dark: '#9085e9', light: '#4a3aa7' },
 };
 
 export default function StaffDashboardCharts() {
@@ -81,34 +76,13 @@ function ChartsGrid({ donut, sankey, styles }) {
       <div className={`${card} xl:col-span-2`}>
         <h3 className={titleCls}>{donut.title}</h3>
         <p className={subCls}>{donut.subtitle}</p>
-        <div className='relative h-56'>
-          <ResponsiveContainer width='100%' height='100%'>
-            <PieChart>
-              <Pie
-                data={donut.slices}
-                dataKey='value'
-                nameKey='type'
-                innerRadius='64%'
-                outerRadius='96%'
-                paddingAngle={1.5}
-                stroke={surface}
-                strokeWidth={2}
-                isAnimationActive={false}
-              >
-                {donut.slices.map((s) => (
-                  <Cell key={s.type} fill={s.color} />
-                ))}
-              </Pie>
-              <Tooltip content={<DonutTooltip total={donut.total} isDarkMode={isDarkMode} />} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className='absolute inset-0 flex flex-col items-center justify-center pointer-events-none'>
-            <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-              {formatCurrencyCompact(donut.total)}
-            </p>
-            <p className={`text-[11px] ${inkMuted}`}>{donut.centerLabel}</p>
-          </div>
-        </div>
+        <VizDonut
+          slices={donut.slices}
+          total={donut.total}
+          centerLabel={donut.centerLabel}
+          isDarkMode={isDarkMode}
+          surface={surface}
+        />
         <div className='mt-4 space-y-1.5'>
           {donut.slices.map((s) => (
             <div key={s.type} className='flex items-center gap-2 text-xs'>
@@ -128,21 +102,20 @@ function ChartsGrid({ donut, sankey, styles }) {
       <div className={`${card} xl:col-span-3`}>
         <h3 className={titleCls}>{sankey.title}</h3>
         <p className={subCls}>{sankey.subtitle}</p>
-        <div className='overflow-x-auto'>
-          <div className='min-w-[560px] h-[400px]'>
-            <ResponsiveContainer width='100%' height='100%'>
-              <Sankey
-                data={sankey.data}
-                nodePadding={26}
-                nodeWidth={8}
-                margin={{ top: 8, right: 170, bottom: 8, left: 8 }}
-                node={<SankeyNode isDarkMode={isDarkMode} />}
-                link={<SankeyLink />}
-              >
-                <Tooltip content={<SankeyTooltip isDarkMode={isDarkMode} />} />
-              </Sankey>
-            </ResponsiveContainer>
-          </div>
+        {/* Full-width and responsive — no horizontal scrolling. */}
+        <div className='h-[400px]'>
+          <ResponsiveContainer width='100%' height='100%'>
+            <Sankey
+              data={sankey.data}
+              nodePadding={26}
+              nodeWidth={10}
+              margin={{ top: 8, right: 150, bottom: 8, left: 8 }}
+              node={<SankeyNode isDarkMode={isDarkMode} />}
+              link={<SankeyLink />}
+            >
+              <Tooltip content={<SankeyTooltip isDarkMode={isDarkMode} />} />
+            </Sankey>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>
