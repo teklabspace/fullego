@@ -1,6 +1,6 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
-import { getInvestmentStrategies } from '@/utils/investmentApi';
+import { createInvestmentStrategy, getInvestmentStrategies } from '@/utils/investmentApi';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -16,6 +16,11 @@ export default function StrategiesPage() {
 
   // Data states
   const [strategies, setStrategies] = useState([]);
+
+  // Create-strategy modal
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  // Bumped after a successful create to refetch the list
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Fetch investment strategies
   useEffect(() => {
@@ -69,7 +74,18 @@ export default function StrategiesPage() {
     };
 
     fetchStrategies();
-  }, [strategiesFilter, openSourceOnly]);
+  }, [strategiesFilter, openSourceOnly, refreshKey]);
+
+  const handleStrategyCreated = () => {
+    setShowCreateModal(false);
+    toast.success('Strategy created');
+    // Show the user's list so the new strategy is visible immediately.
+    if (strategiesFilter !== 'mine') {
+      setStrategiesFilter('mine');
+    } else {
+      setRefreshKey(k => k + 1);
+    }
+  };
 
   // Format date
   const formatDate = (dateString) => {
@@ -118,15 +134,10 @@ export default function StrategiesPage() {
 
             {/* Action Buttons */}
             <div className='flex items-center gap-2 sm:gap-3 flex-wrap'>
-              {/* Add Strategy Button — creation has no backend endpoint yet;
-                  saving (cloning) a platform strategy is the supported path. */}
+              {/* Add Strategy Button */}
               <button
-                onClick={() =>
-                  toast.info(
-                    'Creating strategies from scratch is coming soon. Open a platform strategy and press "Save Strategy" to add it to your list.'
-                  )
-                }
-                title='Create strategy (coming soon)'
+                onClick={() => setShowCreateModal(true)}
+                title='Create strategy'
                 className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${
                   isDarkMode
                     ? 'border-[#F1CB68] hover:bg-[#F1CB68]/10'
@@ -260,7 +271,9 @@ export default function StrategiesPage() {
             strategies.map((strategy) => (
               <Link
                 key={strategy.id}
-                href={`/dashboard/investment/strategies/${strategy.id}`}
+                // Query-param route: works for every strategy id under static
+                // export (path routes only exist for the 4 platform ids).
+                href={`/dashboard/investment/strategies/detail?id=${strategy.id}`}
               >
                 <StrategyCard strategy={strategy} isDarkMode={isDarkMode} />
               </Link>
@@ -270,13 +283,194 @@ export default function StrategiesPage() {
               isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
             }`}>
               <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-                No strategies found. {strategiesFilter === 'my' ? 'You haven\'t created any strategies yet.' : 'Be the first to create a strategy!'}
+                No strategies found. {strategiesFilter === 'mine' ? 'You haven\'t created any strategies yet.' : 'Be the first to create a strategy!'}
               </p>
             </div>
           )}
         </div>
       </div>
+
+      {showCreateModal && (
+        <CreateStrategyModal
+          isDarkMode={isDarkMode}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={handleStrategyCreated}
+        />
+      )}
     </>
+  );
+}
+
+// Create Strategy Modal
+function CreateStrategyModal({ isDarkMode, onClose, onCreated }) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [fullDescription, setFullDescription] = useState('');
+  const [chartType, setChartType] = useState('line');
+  const [isOpenSource, setIsOpenSource] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const inputClasses = `w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:border-[#F1CB68] ${
+    isDarkMode
+      ? 'bg-[#2C2C2E] border-gray-700 text-white placeholder-gray-500'
+      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+  }`;
+  const labelClasses = `block text-xs font-medium mb-2 ${
+    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+  }`;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      toast.error('Please give your strategy a name.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await createInvestmentStrategy({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        fullDescription: fullDescription.trim() || undefined,
+        chartType,
+        isOpenSource,
+      });
+      onCreated();
+    } catch (err) {
+      console.error('Error creating strategy:', err);
+      toast.error(err.data?.detail || err.message || 'Failed to create strategy');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className='fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto'
+      onClick={onClose}
+    >
+      <div
+        className={`w-full max-w-lg my-auto rounded-2xl border shadow-2xl ${
+          isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
+        }`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div
+          className={`flex items-center justify-between px-6 py-4 border-b ${
+            isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'
+          }`}
+        >
+          <h2
+            className={`text-lg font-bold ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}
+          >
+            Create Strategy
+          </h2>
+          <button
+            onClick={onClose}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+              isDarkMode ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+            }`}
+          >
+            <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+              <path d='M18 6L6 18M6 6l12 12' />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className='p-6 space-y-4'>
+          <div>
+            <label className={labelClasses}>Name *</label>
+            <input
+              type='text'
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder='e.g. My Dividend Compounder'
+              maxLength={255}
+              className={inputClasses}
+            />
+          </div>
+
+          <div>
+            <label className={labelClasses}>Short Description</label>
+            <input
+              type='text'
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder='One line shown on the strategy card'
+              maxLength={1000}
+              className={inputClasses}
+            />
+          </div>
+
+          <div>
+            <label className={labelClasses}>Full Description</label>
+            <textarea
+              value={fullDescription}
+              onChange={e => setFullDescription(e.target.value)}
+              placeholder='Explain the rules: entries, exits, rebalancing, risk controls…'
+              rows={4}
+              className={`${inputClasses} resize-none`}
+            />
+          </div>
+
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+            <div>
+              <label className={labelClasses}>Chart Type</label>
+              <select
+                value={chartType}
+                onChange={e => setChartType(e.target.value)}
+                className={inputClasses}
+              >
+                <option value='line'>Line</option>
+                <option value='area'>Area</option>
+                <option value='candlestick'>Candlestick</option>
+                <option value='pie'>Pie</option>
+              </select>
+            </div>
+            <div className='flex items-end pb-1'>
+              <label className='flex items-center gap-2 cursor-pointer'>
+                <input
+                  type='checkbox'
+                  checked={isOpenSource}
+                  onChange={e => setIsOpenSource(e.target.checked)}
+                  className='w-4 h-4 accent-[#F1CB68]'
+                />
+                <span
+                  className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}
+                >
+                  Open source
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div className='flex gap-3 pt-2'>
+            <button
+              type='button'
+              onClick={onClose}
+              className={`flex-1 py-3 rounded-lg text-sm font-medium border transition-all ${
+                isDarkMode
+                  ? 'border-[#FFFFFF22] text-white hover:bg-white/5'
+                  : 'border-gray-300 text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type='submit'
+              disabled={submitting || !title.trim()}
+              className='flex-1 py-3 rounded-lg text-sm font-bold bg-[#F1CB68] text-black hover:bg-[#F1CB68]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed'
+            >
+              {submitting ? 'Creating…' : 'Create Strategy'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
