@@ -1,7 +1,9 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
+import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
+import { addToWatchlist } from '@/utils/investmentApi';
 import {
   Area,
   AreaChart,
@@ -28,6 +30,42 @@ import {
 
 export default function CryptoPortfolioPage() {
   const { isDarkMode } = useTheme();
+  const router = useRouter();
+
+  // Which holding row's 3-dot menu is open (keyed by symbol/id)
+  const [openHoldingMenu, setOpenHoldingMenu] = useState(null);
+
+  // Close the row menu on any outside click
+  useEffect(() => {
+    if (!openHoldingMenu) return;
+    const close = () => setOpenHoldingMenu(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [openHoldingMenu]);
+
+  const handleTradeHolding = (holding) => {
+    setOpenHoldingMenu(null);
+    router.push('/dashboard/portfolio/trade-engine');
+  };
+
+  const handleWatchlistHolding = async (holding) => {
+    setOpenHoldingMenu(null);
+    const symbol = holding.symbol && holding.symbol !== 'Unknown' ? holding.symbol : null;
+    if (!symbol) {
+      toast.info('This holding has no market symbol to watch.');
+      return;
+    }
+    try {
+      await addToWatchlist(symbol, 'crypto', holding.name);
+      toast.success(`${symbol} added to watchlist`);
+    } catch (err) {
+      if (/already/i.test(err.message || '') || err.status === 409) {
+        toast.info(`${symbol} is already in your watchlist`);
+      } else {
+        toast.error(err.data?.detail || err.message || 'Failed to add to watchlist');
+      }
+    }
+  };
   const [performanceTab, setPerformanceTab] = useState('value-over-time');
   const [timeRange, setTimeRange] = useState('24h');
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
@@ -963,12 +1001,17 @@ export default function CryptoPortfolioPage() {
                           </span>
                         </div>
                       </td>
-                      <td className='px-6 py-4'>
+                      <td className='px-6 py-4 relative'>
                         <button
-                          className={`${
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const key = holding.id || holding.symbol;
+                            setOpenHoldingMenu(openHoldingMenu === key ? null : key);
+                          }}
+                          className={`p-1 rounded-lg ${
                             isDarkMode
-                              ? 'text-gray-400 hover:text-white'
-                              : 'text-gray-600 hover:text-gray-900'
+                              ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-black/5'
                           } transition-colors`}
                         >
                           <svg
@@ -977,12 +1020,51 @@ export default function CryptoPortfolioPage() {
                             viewBox='0 0 24 24'
                             fill='none'
                             stroke='currentColor'
+                            strokeWidth='2'
                           >
                             <circle cx='12' cy='12' r='1' />
                             <circle cx='12' cy='5' r='1' />
                             <circle cx='12' cy='19' r='1' />
                           </svg>
                         </button>
+
+                        {openHoldingMenu === (holding.id || holding.symbol) && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className={`absolute right-6 top-12 z-30 min-w-[190px] rounded-xl border overflow-hidden shadow-2xl ${
+                              isDarkMode
+                                ? 'bg-[#141417] border-[#ffffff1f]'
+                                : 'bg-white border-gray-200'
+                            }`}
+                          >
+                            <button
+                              onClick={() => handleTradeHolding(holding)}
+                              className={`w-full px-4 py-3 text-left text-sm flex items-center gap-2.5 transition-colors ${
+                                isDarkMode
+                                  ? 'text-white hover:bg-white/10'
+                                  : 'text-gray-900 hover:bg-gray-50'
+                              }`}
+                            >
+                              <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
+                                <path d='M3 17l6-6 4 4 8-8M14 7h7v7' />
+                              </svg>
+                              Trade
+                            </button>
+                            <button
+                              onClick={() => handleWatchlistHolding(holding)}
+                              className={`w-full px-4 py-3 text-left text-sm flex items-center gap-2.5 transition-colors ${
+                                isDarkMode
+                                  ? 'text-white hover:bg-white/10'
+                                  : 'text-gray-900 hover:bg-gray-50'
+                              }`}
+                            >
+                              <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='#F1CB68' strokeWidth='2'>
+                                <path d='M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' />
+                              </svg>
+                              Save to watchlist
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -1074,34 +1156,19 @@ function StatCard({
 
 // TabButton Component
 function TabButton({ active, onClick, children, isDarkMode }) {
-  if (active) {
-    return (
-      <button
-        onClick={onClick}
-        className={`px-4 py-2 text-xs  font-medium rounded-full transition-all whitespace-nowrap ${
-          isDarkMode ? 'bg-[#313035] text-white' : 'bg-[#F1CB68] text-black'
-        }`}
-      >
-        {children}
-      </button>
-    );
-  }
-
+  // Active tab = gold pill (both themes). Inactive tabs must stay clearly
+  // legible — the old dark-mode style used an invalid color ('#F') which made
+  // them invisible against the card background.
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap ${
-        isDarkMode ? '' : 'text-black'
+      className={`px-4 py-2 text-xs font-medium rounded-full transition-all whitespace-nowrap ${
+        active
+          ? 'bg-[#F1CB68] text-black'
+          : isDarkMode
+          ? 'text-gray-300 hover:text-white hover:bg-white/10'
+          : 'text-gray-600 hover:text-black hover:bg-black/5'
       }`}
-      style={
-        isDarkMode
-          ? {
-              color: '#F',
-            }
-          : {
-              color: '#000',
-            }
-      }
     >
       {children}
     </button>

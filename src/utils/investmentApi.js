@@ -290,12 +290,9 @@ export const createInvestmentStrategy = async (strategyData) => {
   const transformedData = transformToSnake(strategyData);
   const endpoint = API_ENDPOINTS.INVESTMENT.CREATE_STRATEGY;
   const response = await apiPost(endpoint, transformedData);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+
+  // New-style single wrap: payload is { strategy: {...} }.
+  return transformKeys(response);
 };
 
 /**
