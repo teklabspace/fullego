@@ -13,7 +13,10 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
-import { formatCurrency as formatCurrencyShared } from '@/utils/formatters';
+import {
+  formatCurrency as formatCurrencyShared,
+  formatCurrencyCompact as formatCurrencyCompactShared,
+} from '@/utils/formatters';
 
 export default function InvestmentOverviewPage() {
   const { isDarkMode } = useTheme();
@@ -277,6 +280,13 @@ export default function InvestmentOverviewPage() {
                   ? `${investmentPerformance.totalReturnPercentage.toFixed(2)}%`
                   : '—'
               }
+              tone={
+                investmentPerformance?.totalReturnPercentage != null
+                  ? investmentPerformance.totalReturnPercentage >= 0
+                    ? 'up'
+                    : 'down'
+                  : undefined
+              }
               helper='Since selected period'
               isDarkMode={isDarkMode}
             />
@@ -286,6 +296,13 @@ export default function InvestmentOverviewPage() {
                 investmentAnalytics?.annualizedReturn != null
                   ? `${investmentAnalytics.annualizedReturn.toFixed(2)}%`
                   : '—'
+              }
+              tone={
+                investmentAnalytics?.annualizedReturn != null
+                  ? investmentAnalytics.annualizedReturn >= 0
+                    ? 'up'
+                    : 'down'
+                  : undefined
               }
               helper='Portfolio annualized'
               isDarkMode={isDarkMode}
@@ -336,12 +353,17 @@ export default function InvestmentOverviewPage() {
             ) : assetCards.length > 0 ? (
               assetCards.slice(0, 2).map((asset, index) => (
                 <AssetCard
-                  key={asset.id || asset.symbol || index}
-                  name={asset.name || asset.symbol || 'Asset'}
-                  value={asset.value ? formatCurrency(asset.value) : '$0.00'}
-                  profit={asset.profitPercentage ? `+${asset.profitPercentage.toFixed(2)}%` : '+0.00%'}
-                  loss={asset.lossPercentage ? `-${Math.abs(asset.lossPercentage).toFixed(2)}%` : '-0.00%'}
-                  neutral='0.00%'
+                  key={asset.type || asset.label || index}
+                  name={asset.label || asset.name || asset.symbol || 'Asset'}
+                  value={
+                    asset.value != null
+                      ? Math.abs(asset.value) >= 100000
+                        ? formatCurrencyCompactShared(asset.value)
+                        : formatCurrency(asset.value)
+                      : '$0.00'
+                  }
+                  change={asset.change}
+                  changePercentage={asset.changePercentage}
                   chartData={asset.chartData || asset.historyData || [{ value: 0 }]}
                   chartColor='#F1CB68'
                   isGradient={index === 0}
@@ -837,8 +859,9 @@ export default function InvestmentOverviewPage() {
   );
 }
 
-// Simple analytics metric card
-function AnalyticsMetricCard({ label, value, helper, isDarkMode }) {
+// Simple analytics metric card. `tone` colors the value: 'up' green,
+// 'down' red, default theme text.
+function AnalyticsMetricCard({ label, value, helper, tone, isDarkMode }) {
   return (
     <div
       className={`rounded-2xl border p-4 ${
@@ -854,7 +877,13 @@ function AnalyticsMetricCard({ label, value, helper, isDarkMode }) {
       </p>
       <p
         className={`text-xl font-bold mb-1 ${
-          isDarkMode ? 'text-white' : 'text-gray-900'
+          tone === 'up'
+            ? 'text-green-500'
+            : tone === 'down'
+            ? 'text-red-500'
+            : isDarkMode
+            ? 'text-white'
+            : 'text-gray-900'
         }`}
       >
         {value}
@@ -872,14 +901,16 @@ function AnalyticsMetricCard({ label, value, helper, isDarkMode }) {
 function AssetCard({
   name,
   value,
-  profit,
-  loss,
-  neutral,
+  change,
+  changePercentage,
   chartData,
   chartColor,
   isGradient,
   isDarkMode,
 }) {
+  const hasChange = change != null && changePercentage != null;
+  const changeUp = (change || 0) >= 0;
+
   return (
     <div
       className={`rounded-2xl p-6 border overflow-hidden relative ${
@@ -899,9 +930,20 @@ function AssetCard({
       }
     >
       <div className='flex items-start justify-between mb-4'>
-        <div>
+        <div className='min-w-0'>
+          <p
+            className={`text-xs font-medium mb-1 ${
+              isGradient
+                ? 'text-white/80'
+                : isDarkMode
+                ? 'text-gray-400'
+                : 'text-gray-600'
+            }`}
+          >
+            {name}
+          </p>
           <span
-            className={`text-4xl font-bold mb-2 block ${
+            className={`text-3xl md:text-4xl font-bold mb-2 block ${
               isGradient
                 ? 'text-white'
                 : isDarkMode
@@ -911,48 +953,24 @@ function AssetCard({
           >
             {value}
           </span>
-          <div className='space-y-1'>
-            <div className='flex items-center gap-2'>
-              <span className='text-xs text-green-500 font-medium'>
-                {profit}
-              </span>
-              <span
-                className={`text-xs ${
-                  isGradient
-                    ? 'text-white/80'
-                    : isDarkMode
-                    ? 'text-gray-400'
-                    : 'text-gray-600'
-                }`}
-              >
-                Profit
-              </span>
-            </div>
-            <div className='flex items-center gap-2'>
-              <span className='text-xs text-red-500 font-medium'>{loss}</span>
-              <span
-                className={`text-xs ${
-                  isGradient
-                    ? 'text-white/80'
-                    : isDarkMode
-                    ? 'text-gray-400'
-                    : 'text-gray-600'
-                }`}
-              >
-                Loss
-              </span>
-            </div>
+          {hasChange ? (
             <div className='flex items-center gap-2'>
               <span
                 className={`text-xs font-medium ${
                   isGradient
-                    ? 'text-white/80'
-                    : isDarkMode
-                    ? 'text-gray-400'
-                    : 'text-gray-600'
+                    ? 'text-white'
+                    : changeUp
+                    ? 'text-green-500'
+                    : 'text-red-500'
                 }`}
               >
-                {neutral}
+                {changeUp ? '+' : '−'}$
+                {Math.abs(change).toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{' '}
+                ({changeUp ? '+' : ''}
+                {Number(changePercentage).toFixed(2)}%)
               </span>
               <span
                 className={`text-xs ${
@@ -963,10 +981,22 @@ function AssetCard({
                     : 'text-gray-600'
                 }`}
               >
-                Neutral
+                today
               </span>
             </div>
-          </div>
+          ) : (
+            <span
+              className={`text-xs ${
+                isGradient
+                  ? 'text-white/80'
+                  : isDarkMode
+                  ? 'text-gray-500'
+                  : 'text-gray-500'
+              }`}
+            >
+              Current value
+            </span>
+          )}
         </div>
         <div className='w-24 h-16'>
           <ResponsiveContainer width='100%' height='100%'>
