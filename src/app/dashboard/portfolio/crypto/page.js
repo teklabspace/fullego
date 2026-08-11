@@ -544,9 +544,8 @@ export default function CryptoPortfolioPage() {
                       tickFormatter={value =>
                         performanceTab === 'value-over-time'
                           ? `$${(value / 1000).toFixed(0)}k`
-                          : performanceTab === 'return-rate'
-                          ? formatPercent(value, { sign: false })
-                          : formatNumber(value)
+                          : // return-rate and risk-exposure are both % series
+                            formatPercent(value, { sign: false })
                       }
                     />
                     <Tooltip
@@ -563,7 +562,7 @@ export default function CryptoPortfolioPage() {
                           ? [formatCurrency(value), 'Value']
                           : performanceTab === 'return-rate'
                           ? [formatPercent(value, { sign: false }), 'Return']
-                          : [formatNumber(value), 'Risk']
+                          : [formatPercent(value, { sign: false }), 'Crypto share']
                       }
                     />
                     <Area

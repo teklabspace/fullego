@@ -274,6 +274,7 @@ export const API_ENDPOINTS = {
     PLACE_ORDER: '/portfolio/trade-engine/orders',
     GET_ORDER: (id) => `/portfolio/trade-engine/orders/${id}`,
     CANCEL_ORDER: (id) => `/portfolio/trade-engine/orders/${id}`,
+    QUOTES: '/portfolio/trade-engine/quotes',
   },
   // Marketplace APIs (from INVESTMENT_APIS.md)
   MARKETPLACE: {

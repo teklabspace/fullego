@@ -1311,19 +1311,24 @@ function AssetCard({
               }
             }
 
+            // Descriptions can be arbitrarily long — clamp to two lines so
+            // they don't stretch the card; full text lives on the detail page.
+            const isDescription = lowerName.includes('description');
+
             return (
-              <div key={field} className='flex justify-between items-center'>
+              <div key={field} className='flex justify-between items-center gap-3'>
                 <p
-                  className={`text-xs ${
+                  className={`text-xs shrink-0 ${
                     isDarkMode ? 'text-gray-500' : 'text-gray-600'
                   }`}
                 >
                   {field}:
                 </p>
                 <p
-                  className={`font-semibold text-sm text-right ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}
+                  className={`font-semibold text-sm text-right min-w-0 ${
+                    isDescription ? 'line-clamp-2 break-words' : ''
+                  } ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+                  title={isDescription ? String(displayValue) : undefined}
                 >
                   {displayValue}
                 </p>

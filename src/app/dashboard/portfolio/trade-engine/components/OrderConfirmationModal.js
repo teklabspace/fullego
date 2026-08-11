@@ -1,5 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { getOrderStatus } from '@/utils/portfolioApi';
 
 export default function OrderConfirmationModal({
   isDarkMode,
@@ -8,9 +10,70 @@ export default function OrderConfirmationModal({
   quantity,
   pricePerUnit,
   totalValue,
+  orderId,
+  pollOrderId,
+  finalStatus,
   onClose,
 }) {
-  const [orderStatus, setOrderStatus] = useState('placed');
+  // Stepper stage: placed → processing → completed (filled orders) or
+  // open (resting limit orders — honest end state, no infinite spinner).
+  const router = useRouter();
+  const isFilled = !finalStatus || finalStatus === 'filled';
+  const [stage, setStage] = useState('placed');
+
+  useEffect(() => {
+    const toProcessing = setTimeout(() => setStage('processing'), 900);
+    const toFinal = setTimeout(
+      () => setStage(isFilled ? 'completed' : 'open'),
+      2400
+    );
+    return () => {
+      clearTimeout(toProcessing);
+      clearTimeout(toFinal);
+    };
+  }, [isFilled]);
+
+  // Orders that came back "submitted" may fill moments later — poll a few
+  // times and complete the stepper when the broker reports a fill.
+  useEffect(() => {
+    if (isFilled || !pollOrderId) return;
+    let cancelled = false;
+    let attempts = 0;
+
+    const poll = async () => {
+      while (!cancelled && attempts < 5) {
+        await new Promise(r => setTimeout(r, 4000));
+        attempts += 1;
+        try {
+          const res = await getOrderStatus(pollOrderId);
+          const status = res?.data?.status || res?.status;
+          if (!cancelled && status === 'filled') {
+            setStage('completed');
+            return;
+          }
+        } catch {
+          // Status lookup failing shouldn't disturb the confirmation screen.
+          return;
+        }
+      }
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [isFilled, pollOrderId]);
+
+  const statusLabel =
+    stage === 'completed'
+      ? 'Completed'
+      : stage === 'open'
+      ? 'Open — awaiting fill'
+      : stage === 'processing'
+      ? 'Processing'
+      : 'Placed';
+  const statusColor =
+    stage === 'completed' ? 'bg-[#36D399]' : 'bg-[#F1CB68]';
 
   return (
     <div
@@ -102,13 +165,13 @@ export default function OrderConfirmationModal({
                   {stock === 'AAPL' ? 'Apple Inc.' : stock} - Equity
                 </h3>
                 <div className='flex items-center gap-2'>
-                  <div className='w-2 h-2 rounded-full bg-[#F1CB68]' />
+                  <div className={`w-2 h-2 rounded-full ${statusColor}`} />
                   <span
                     className={`text-sm ${
                       isDarkMode ? 'text-white' : 'text-black'
                     }`}
                   >
-                    Pending
+                    {statusLabel}
                   </span>
                 </div>
               </div>
@@ -121,11 +184,11 @@ export default function OrderConfirmationModal({
                   Order ID
                 </p>
                 <p
-                  className={`text-sm font-semibold ${
+                  className={`text-sm font-semibold break-all ${
                     isDarkMode ? 'text-white' : 'text-black'
                   }`}
                 >
-                  #ORD-283947-59
+                  {orderId ? `#${orderId}` : '—'}
                 </p>
               </div>
             </div>
@@ -276,30 +339,63 @@ export default function OrderConfirmationModal({
                     isDarkMode ? 'bg-[#2a2a2d]' : 'bg-gray-200'
                   }`}
                 >
-                  <div className='h-full bg-[#F1CB68] w-1/2' />
+                  <div
+                    className={`h-full bg-[#F1CB68] transition-all duration-700 ${
+                      stage === 'placed' ? 'w-1/2' : 'w-full'
+                    }`}
+                  />
                 </div>
 
                 {/* Processing */}
                 <div className='flex flex-col items-center flex-1'>
-                  <div className='w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#F1CB68] flex items-center justify-center mb-2 relative'>
-                    <svg
-                      className='animate-spin'
-                      width='18'
-                      height='18'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      stroke='white'
-                      strokeWidth='3'
-                    >
-                      <circle
-                        cx='12'
-                        cy='12'
-                        r='10'
-                        strokeDasharray='60'
-                        strokeDashoffset='15'
-                        strokeLinecap='round'
+                  <div
+                    className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-2 relative transition-colors duration-500 ${
+                      stage === 'completed'
+                        ? 'bg-[#36D399]'
+                        : stage === 'placed'
+                        ? isDarkMode
+                          ? 'bg-[#2a2a2d]'
+                          : 'bg-gray-200'
+                        : 'bg-[#F1CB68]'
+                    }`}
+                  >
+                    {stage === 'completed' || stage === 'open' ? (
+                      <svg
+                        width='18'
+                        height='18'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='white'
+                        strokeWidth='3'
+                      >
+                        <path d='M5 13l4 4L19 7' />
+                      </svg>
+                    ) : stage === 'processing' ? (
+                      <svg
+                        className='animate-spin'
+                        width='18'
+                        height='18'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='white'
+                        strokeWidth='3'
+                      >
+                        <circle
+                          cx='12'
+                          cy='12'
+                          r='10'
+                          strokeDasharray='60'
+                          strokeDashoffset='15'
+                          strokeLinecap='round'
+                        />
+                      </svg>
+                    ) : (
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          isDarkMode ? 'bg-gray-500' : 'bg-gray-400'
+                        }`}
                       />
-                    </svg>
+                    )}
                   </div>
                   <p
                     className={`text-xs font-semibold ${
@@ -312,27 +408,60 @@ export default function OrderConfirmationModal({
 
                 {/* Progress Line 2 */}
                 <div
-                  className={`flex-1 h-1 mx-2 sm:mx-3 rounded-full ${
+                  className={`flex-1 h-1 mx-2 sm:mx-3 rounded-full overflow-hidden ${
                     isDarkMode ? 'bg-[#2a2a2d]' : 'bg-gray-200'
                   }`}
-                />
+                >
+                  <div
+                    className={`h-full transition-all duration-700 ${
+                      stage === 'completed'
+                        ? 'w-full bg-[#36D399]'
+                        : stage === 'open'
+                        ? 'w-1/2 bg-[#F1CB68]'
+                        : 'w-0 bg-[#F1CB68]'
+                    }`}
+                  />
+                </div>
 
                 {/* Completed */}
                 <div className='flex flex-col items-center flex-1'>
                   <div
-                    className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-2 ${
-                      isDarkMode ? 'bg-[#2a2a2d]' : 'bg-gray-200'
+                    className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-2 transition-colors duration-500 ${
+                      stage === 'completed'
+                        ? 'bg-[#36D399]'
+                        : isDarkMode
+                        ? 'bg-[#2a2a2d]'
+                        : 'bg-gray-200'
                     }`}
                   >
-                    <div
-                      className={`w-2.5 h-2.5 rounded-full ${
-                        isDarkMode ? 'bg-gray-500' : 'bg-gray-400'
-                      }`}
-                    />
+                    {stage === 'completed' ? (
+                      <svg
+                        width='18'
+                        height='18'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='white'
+                        strokeWidth='3'
+                      >
+                        <path d='M5 13l4 4L19 7' />
+                      </svg>
+                    ) : (
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          isDarkMode ? 'bg-gray-500' : 'bg-gray-400'
+                        }`}
+                      />
+                    )}
                   </div>
                   <p
                     className={`text-xs font-semibold ${
-                      isDarkMode ? 'text-gray-500' : 'text-gray-600'
+                      stage === 'completed'
+                        ? isDarkMode
+                          ? 'text-white'
+                          : 'text-black'
+                        : isDarkMode
+                        ? 'text-gray-500'
+                        : 'text-gray-600'
                     }`}
                   >
                     Completed
@@ -342,13 +471,39 @@ export default function OrderConfirmationModal({
             </div>
           </div>
 
-          {/* Action Button */}
-          <button
-            onClick={onClose}
-            className='w-full py-4 bg-[#F1CB68] text-[#0d0d0f] rounded-xl font-bold text-base sm:text-lg hover:bg-[#d4b55a] transition-all shadow-lg hover:shadow-xl'
-          >
-            View in Portfolio
-          </button>
+          {stage === 'open' && (
+            <p
+              className={`text-xs text-center mb-4 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              Your order has been submitted to the broker and will complete
+              once it fills. You can track it under Recent Trades.
+            </p>
+          )}
+
+          {/* Action Buttons */}
+          <div className='flex flex-col sm:flex-row gap-3'>
+            <button
+              onClick={onClose}
+              className={`flex-1 py-4 rounded-xl font-bold text-base sm:text-lg border transition-all ${
+                isDarkMode
+                  ? 'border-[#FFFFFF22] text-white hover:bg-white/5'
+                  : 'border-gray-300 text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                onClose();
+                router.push('/dashboard/portfolio/Overview');
+              }}
+              className='flex-1 py-4 bg-[#F1CB68] text-[#0d0d0f] rounded-xl font-bold text-base sm:text-lg hover:bg-[#d4b55a] transition-all shadow-lg hover:shadow-xl'
+            >
+              View in Portfolio
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -560,12 +560,40 @@ export const getOrderStatus = async (orderId) => {
 export const cancelOrder = async (orderId) => {
   const endpoint = `/portfolio/trade-engine/orders/${orderId}`;
   const response = await apiDelete(endpoint);
-  
+
   if (response.data) {
     response.data = transformKeys(response.data);
   }
-  
+
   return response;
+};
+
+/**
+ * Batch Quotes for search rows
+ * GET /api/v1/portfolio/trade-engine/quotes?symbols=AAPL,MSFT,BTCUSD
+ *
+ * New-style single wrap: payload is { quotes: { SYMBOL: {price, change,
+ * change_percentage} } }. A symbol may come back { price: null } when the
+ * per-call fresh-lookup budget ran out — re-request those after ~2s.
+ * Max 20 symbols per call; crypto pairs plain (no X: prefix).
+ *
+ * @param {string[]} symbols
+ * @returns {Object} map of SYMBOL -> { price, change, changePercentage }
+ */
+export const getBatchQuotes = async (symbols) => {
+  const list = (symbols || []).filter(Boolean).slice(0, 20);
+  if (!list.length) return {};
+
+  const endpoint = `/portfolio/trade-engine/quotes?symbols=${encodeURIComponent(list.join(','))}`;
+  const response = await apiGet(endpoint);
+  const quotes = response?.quotes || {};
+
+  // Camelize each quote's keys but keep the symbol keys untouched.
+  const result = {};
+  for (const [symbol, quote] of Object.entries(quotes)) {
+    result[symbol] = transformKeys(quote);
+  }
+  return result;
 };
 
 // ============================================================================

@@ -354,7 +354,14 @@ export default function PortfolioOverviewPage() {
                     isDarkMode ? 'text-gray-400' : 'text-gray-600'
                   }`}
                 >
-                  Total Portfolio Value
+                  Net Portfolio Value
+                  <span
+                    className={`ml-2 text-xs ${
+                      isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                    }`}
+                  >
+                    assets + cash − debts
+                  </span>
                 </p>
                 <h2
                   className={`text-4xl md:text-5xl font-bold ${

@@ -152,12 +152,10 @@ export const getInvestmentGoals = async (params = {}) => {
   
   const endpoint = `${API_ENDPOINTS.INVESTMENT.GOALS}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+
+  // New-style single wrap: payload is { goals: [...], total } after the
+  // client unwraps the envelope.
+  return transformKeys(response);
 };
 
 /**
@@ -267,12 +265,9 @@ export const getInvestmentStrategies = async (params = {}) => {
   
   const endpoint = `${API_ENDPOINTS.INVESTMENT.STRATEGIES}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+
+  // New-style single wrap: payload is { strategies: [...], total }.
+  return transformKeys(response);
 };
 
 /**
@@ -282,12 +277,9 @@ export const getInvestmentStrategies = async (params = {}) => {
 export const getStrategyDetails = async (strategyId) => {
   const endpoint = API_ENDPOINTS.INVESTMENT.GET_STRATEGY(strategyId);
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+
+  // New-style single wrap: payload is { strategy: {...} }.
+  return transformKeys(response);
 };
 
 /**
@@ -444,12 +436,9 @@ export const getInvestmentPerformance = async (params = {}) => {
   
   const endpoint = `${API_ENDPOINTS.INVESTMENT.PERFORMANCE}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+
+  // apiGet already unwraps the envelope — response IS the payload
+  return transformKeys(response);
 };
 
 /**
@@ -465,12 +454,9 @@ export const getInvestmentAnalytics = async (params = {}) => {
   
   const endpoint = `${API_ENDPOINTS.INVESTMENT.ANALYTICS}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+
+  // apiGet already unwraps the envelope — response IS the payload
+  return transformKeys(response);
 };
 
 /**
@@ -642,7 +628,7 @@ export const addToWatchlist = async (symbol, assetType, name = null) => {
     const endpoint = API_ENDPOINTS.INVESTMENT.WATCHLIST.ADD;
     const body = {
       symbol: symbol.toUpperCase(),
-      assetType,
+      asset_type: assetType,
       ...(name && { name }),
     };
     const response = await apiPost(endpoint, body);

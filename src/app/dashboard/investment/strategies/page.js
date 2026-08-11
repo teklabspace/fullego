@@ -31,8 +31,12 @@ export default function StrategiesPage() {
           limit: 20,
         });
 
-        if (strategiesRes.data) {
-          const formattedStrategies = Array.isArray(strategiesRes.data) ? strategiesRes.data.map(strategy => ({
+        // New API shape: { strategies: [...], total } (single wrap, camelized).
+        const strategiesList =
+          strategiesRes?.strategies ||
+          (Array.isArray(strategiesRes?.data) ? strategiesRes.data : []);
+        if (strategiesList) {
+          const formattedStrategies = Array.isArray(strategiesList) ? strategiesList.map(strategy => ({
             id: strategy.id,
             title: strategy.title || strategy.name,
             description: strategy.description,

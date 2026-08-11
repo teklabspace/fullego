@@ -28,19 +28,21 @@ export default function StrategyDetailsPage() {
 
         const strategyRes = await getStrategyDetails(params.id);
 
-        if (strategyRes.data) {
+        // New API shape: { strategy: {...} } (single wrap, camelized).
+        const s = strategyRes?.strategy || strategyRes?.data;
+        if (s) {
           const formattedStrategy = {
-            id: strategyRes.data.id,
-            title: strategyRes.data.title || strategyRes.data.name,
-            description: strategyRes.data.description,
-            fullDescription: strategyRes.data.fullDescription || strategyRes.data.description,
-            author: strategyRes.data.author || strategyRes.data.authorName || 'Unknown',
-            date: formatDate(strategyRes.data.date || strategyRes.data.createdAt),
-            comments: strategyRes.data.comments || strategyRes.data.commentCount || 0,
-            boosts: strategyRes.data.boosts || strategyRes.data.boostCount || 0,
-            chartType: strategyRes.data.chartType || 'candlestick',
-            parameters: strategyRes.data.parameters || {},
-            isSaved: strategyRes.data.isSaved || false,
+            id: s.id,
+            title: s.title || s.name,
+            description: s.description,
+            fullDescription: s.fullDescription || s.description,
+            author: s.author || s.authorName || 'Unknown',
+            date: formatDate(s.date || s.createdAt),
+            comments: s.comments || s.commentCount || 0,
+            boosts: s.boosts || s.boostCount || 0,
+            chartType: s.chartType || 'candlestick',
+            parameters: s.parameters || {},
+            isSaved: s.isSaved || false,
           };
           setStrategy(formattedStrategy);
           setIsSaved(formattedStrategy.isSaved);
