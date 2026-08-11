@@ -1,8 +1,8 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
 import { addToWatchlist, removeFromWatchlist, getInvestmentGoals } from '@/utils/investmentApi';
-import { searchAssets } from '@/utils/portfolioApi';
-import { useEffect, useState } from 'react';
+import { getBatchQuotes, searchAssets } from '@/utils/portfolioApi';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
 import { formatCurrency as formatCurrencyShared } from '@/utils/formatters';
@@ -27,9 +27,11 @@ export default function GoalsTrackerPage() {
         setError(null);
 
         const goalsRes = await getInvestmentGoals({ status: 'active' });
-        
-        if (goalsRes.data) {
-          const formattedGoals = Array.isArray(goalsRes.data) ? goalsRes.data.map(goal => ({
+
+        // New API shape: { goals: [...], total } (single wrap, camelized).
+        const goalsList = goalsRes?.goals || (Array.isArray(goalsRes?.data) ? goalsRes.data : []);
+        if (goalsList) {
+          const formattedGoals = Array.isArray(goalsList) ? goalsList.map(goal => ({
             id: goal.id,
             name: goal.assetName || goal.name || goal.symbol,
             symbol: goal.symbol || goal.assetSymbol,
@@ -64,8 +66,53 @@ export default function GoalsTrackerPage() {
     fetchGoals();
   }, []);
 
+  // Fill prices into search rows via the batch quotes endpoint. A quote can
+  // come back { price: null } when the per-call fresh-lookup budget ran out —
+  // those symbols are re-requested once after ~2s (cache is warm by then).
+  const applyQuotes = (quotes) => {
+    setMarketplaceAssets(prev =>
+      prev.map(asset => {
+        const q = quotes[asset.symbol];
+        if (!q || q.price == null) return asset;
+        const pct = q.changePercentage ?? 0;
+        return {
+          ...asset,
+          price: formatCurrency(q.price),
+          currentValue: formatCurrency(q.price),
+          change: `${pct >= 0 ? '+' : ''}${Number(pct).toFixed(2)}%`,
+          changeType: pct >= 0 ? 'positive' : 'negative',
+        };
+      })
+    );
+  };
+
+  const fetchQuotesForAssets = async (symbols) => {
+    try {
+      const quotes = await getBatchQuotes(symbols);
+      applyQuotes(quotes);
+
+      const missing = symbols.filter(s => !quotes[s] || quotes[s].price == null);
+      if (missing.length > 0) {
+        setTimeout(async () => {
+          try {
+            applyQuotes(await getBatchQuotes(missing));
+          } catch {
+            // Quotes are decorative — a failed retry keeps the "—" placeholders.
+          }
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Error fetching quotes:', err);
+    }
+  };
+
+  // Monotonic sequence so a slow earlier search response can't overwrite the
+  // results of the query the user actually typed.
+  const searchSeqRef = useRef(0);
+
   // Search marketplace assets
   const handleSearch = async (query) => {
+    const seq = ++searchSeqRef.current;
     if (!query.trim()) {
       setMarketplaceAssets([]);
       return;
@@ -77,23 +124,26 @@ export default function GoalsTrackerPage() {
         assetClass: 'crypto',
         limit: 10,
       });
+      if (seq !== searchSeqRef.current) return; // stale response — discard
 
       if (searchRes.data) {
         const formattedAssets = Array.isArray(searchRes.data) ? searchRes.data.map((asset, index) => ({
-          id: asset.id || index,
+          id: asset.id || asset.symbol || index,
           index: index + 1,
           name: asset.name,
           symbol: asset.symbol,
           icon: getCryptoIcon(asset.symbol),
           iconColor: getIconColor(asset.symbol),
-          price: asset.currentPrice ? formatCurrency(asset.currentPrice) : '$0.00',
-          change: asset.changePercentage ? `${asset.changePercentage >= 0 ? '+' : ''}${asset.changePercentage.toFixed(2)}%` : '0.00%',
-          changeType: (asset.changePercentage || 0) >= 0 ? 'positive' : 'negative',
-          currentValue: asset.currentPrice ? formatCurrency(asset.currentPrice) : '$0.00',
+          // Search results carry no prices — filled in by the quotes call.
+          price: '—',
+          change: '—',
+          changeType: 'positive',
+          currentValue: '—',
           chartData: asset.historyData || [20, 35, 25, 45, 38, 52],
           hasSell: asset.quantity > 0,
         })) : [];
         setMarketplaceAssets(formattedAssets);
+        fetchQuotesForAssets(formattedAssets.map(a => a.symbol));
       }
     } catch (err) {
       console.error('Error searching assets:', err);

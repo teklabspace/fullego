@@ -36,6 +36,7 @@ export default function TradeEnginePage() {
   const [orderDuration, setOrderDuration] = useState('day-only');
   const [notes, setNotes] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [orderResult, setOrderResult] = useState(null);
   const hasAutoSelected = useRef(false);
 
   // Loading and error states
@@ -176,6 +177,10 @@ export default function TradeEnginePage() {
       };
 
       const response = await placeOrder(orderData);
+
+      // Backend returns order_id, status (filled|submitted), confirmation
+      // number, execution price and estimated total — camelCased by the util.
+      setOrderResult(response?.data || null);
 
       toast.success('Order placed successfully!');
       setShowConfirmation(true);
@@ -426,8 +431,15 @@ export default function TradeEnginePage() {
             orderType={orderType}
             stock={selectedStock}
             quantity={quantity}
-            pricePerUnit={limitPrice}
-            totalValue={calculateTotal()}
+            pricePerUnit={orderResult?.price ?? limitPrice}
+            totalValue={
+              orderResult?.estimatedTotal != null && orderResult.estimatedTotal > 0
+                ? Number(orderResult.estimatedTotal).toFixed(2)
+                : calculateTotal()
+            }
+            orderId={orderResult?.confirmationNumber || orderResult?.orderId}
+            pollOrderId={orderResult?.orderId}
+            finalStatus={orderResult?.status}
             onClose={() => setShowConfirmation(false)}
           />
         )}

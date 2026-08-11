@@ -158,10 +158,12 @@ export default function CashFlowPage() {
     try {
       setLoading(true);
       
-      // Prepare transfer data based on transfer type
+      // Prepare transfer data based on transfer type. The backend expects
+      // from_account_id/to_account_id (linked-account ids) — the util maps
+      // fromAccountId/toAccountId to those keys.
       const transferPayload = {
         transferType: transferType, // 'internal' or 'external'
-        fromAccount: transferData.fromAccount,
+        fromAccountId: transferData.fromAccount,
         amount: parseFloat(transferData.amount),
         transferDate: transferData.transferDate || new Date().toISOString().split('T')[0],
         frequency: transferData.frequency,
@@ -170,7 +172,7 @@ export default function CashFlowPage() {
 
       // Add destination based on transfer type
       if (transferType === 'internal') {
-        transferPayload.toAccount = transferData.toAccount;
+        transferPayload.toAccountId = transferData.toAccount;
       } else {
         transferPayload.walletAddress = transferData.walletAddress;
       }
@@ -187,7 +189,11 @@ export default function CashFlowPage() {
       }, 2000);
     } catch (err) {
       console.error('Error creating transfer:', err);
-      const errorMessage = err.data?.detail || err.message || 'Failed to create transfer';
+      // Balance validation is server-enforced now (error.code INSUFFICIENT_FUNDS).
+      const errorMessage =
+        err.code === 'INSUFFICIENT_FUNDS'
+          ? 'Amount exceeds your available balance.'
+          : err.data?.detail || err.message || 'Failed to create transfer';
       toast.error(errorMessage);
       // On error, go back to review step so user can edit
       setTransferStep(2);
@@ -1296,22 +1302,36 @@ function TransferModal({
                       } focus:outline-none focus:border-[#F1CB68]`}
                     />
                   </div>
-                  <div className='flex items-center gap-2 mt-2'>
-                    <svg
-                      width='14'
-                      height='14'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      stroke='currentColor'
-                      className='text-[#F1CB68]'
-                    >
-                      <circle cx='12' cy='12' r='10' strokeWidth='2' />
-                      <path d='M12 6v6l4 2' strokeWidth='2' />
-                    </svg>
-                    <p className='text-xs text-[#F1CB68]'>
-                      Maximum transfer amount: $45,320.00
-                    </p>
-                  </div>
+                  {(() => {
+                    // Server enforces the source-account balance — show the
+                    // real limit instead of a hardcoded figure.
+                    const selectedAccount = accounts.find(
+                      acc => (acc.id || acc.accountId) === transferData.fromAccount
+                    );
+                    if (selectedAccount?.balance == null) return null;
+                    return (
+                      <div className='flex items-center gap-2 mt-2'>
+                        <svg
+                          width='14'
+                          height='14'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          stroke='currentColor'
+                          className='text-[#F1CB68]'
+                        >
+                          <circle cx='12' cy='12' r='10' strokeWidth='2' />
+                          <path d='M12 6v6l4 2' strokeWidth='2' />
+                        </svg>
+                        <p className='text-xs text-[#F1CB68]'>
+                          Maximum transfer amount:{' '}
+                          {new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: selectedAccount.currency || 'USD',
+                          }).format(selectedAccount.balance)}
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
