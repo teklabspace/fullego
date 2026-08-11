@@ -118,8 +118,15 @@ export default function StrategiesPage() {
 
             {/* Action Buttons */}
             <div className='flex items-center gap-2 sm:gap-3 flex-wrap'>
-              {/* Add Strategy Button */}
+              {/* Add Strategy Button — creation has no backend endpoint yet;
+                  saving (cloning) a platform strategy is the supported path. */}
               <button
+                onClick={() =>
+                  toast.info(
+                    'Creating strategies from scratch is coming soon. Open a platform strategy and press "Save Strategy" to add it to your list.'
+                  )
+                }
+                title='Create strategy (coming soon)'
                 className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${
                   isDarkMode
                     ? 'border-[#F1CB68] hover:bg-[#F1CB68]/10'
@@ -144,7 +151,7 @@ export default function StrategiesPage() {
                 <button
                   onClick={() =>
                     setStrategiesFilter(
-                      strategiesFilter === 'all' ? 'my' : 'all'
+                      strategiesFilter === 'all' ? 'mine' : 'all'
                     )
                   }
                   className={`px-3 sm:px-4 py-2 rounded-lg border-2 text-xs sm:text-sm font-medium transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
@@ -153,8 +160,12 @@ export default function StrategiesPage() {
                       : 'border-[#F1CB68] text-black bg-[#F1CB68] hover:bg-[#F1CB68]/90'
                   }`}
                 >
-                  <span className='hidden sm:inline'>Strategies</span>
-                  <span className='sm:hidden'>All</span>
+                  <span className='hidden sm:inline'>
+                    {strategiesFilter === 'mine' ? 'My Strategies' : 'All Strategies'}
+                  </span>
+                  <span className='sm:hidden'>
+                    {strategiesFilter === 'mine' ? 'Mine' : 'All'}
+                  </span>
                   <svg
                     width='14'
                     height='14'
@@ -174,12 +185,10 @@ export default function StrategiesPage() {
                 onClick={() => setOpenSourceOnly(!openSourceOnly)}
                 className={`px-3 sm:px-4 py-2 rounded-lg border-2 text-xs sm:text-sm font-medium transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
                   openSourceOnly
-                    ? isDarkMode
-                      ? 'border-[#F1CB68] text-black bg-[#F1CB68]'
-                      : 'border-[#F1CB68] text-black bg-[#F1CB68]'
+                    ? 'border-[#F1CB68] text-black bg-[#F1CB68]'
                     : isDarkMode
-                    ? 'border-[#F1CB68] text-black bg-[#F1CB68] hover:bg-[#F1CB68]/90'
-                    : 'border-[#F1CB68] text-black bg-[#F1CB68] hover:bg-[#F1CB68]/90'
+                    ? 'border-[#F1CB68] text-[#F1CB68] bg-transparent hover:bg-[#F1CB68]/10'
+                    : 'border-[#F1CB68] text-[#b8860b] bg-transparent hover:bg-[#F1CB68]/10'
                 }`}
               >
                 <svg

@@ -1,6 +1,6 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
-import { getStrategyDetails, saveStrategy } from '@/utils/investmentApi';
+import { cloneStrategy, getStrategyDetails } from '@/utils/investmentApi';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -84,17 +84,49 @@ export default function StrategyDetailsPage() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Handle save strategy
+  // Handle save strategy — "saving" clones the strategy into the user's own
+  // list (POST /strategies/{id}/clone); there is no unsave endpoint.
   const handleSaveStrategy = async () => {
     if (!params.id) return;
+    if (isSaved) {
+      toast.info('This strategy is already in your list.');
+      return;
+    }
 
     try {
-      await saveStrategy(params.id, !isSaved);
-      setIsSaved(!isSaved);
-      toast.success(isSaved ? 'Strategy removed from saved' : 'Strategy saved');
+      await cloneStrategy(params.id, { newName: strategy?.title });
+      setIsSaved(true);
+      toast.success('Strategy saved to your list');
     } catch (err) {
       console.error('Error saving strategy:', err);
-      toast.error('Failed to save strategy');
+      toast.error(err.data?.detail || err.message || 'Failed to save strategy');
+    }
+  };
+
+  // Applying = make sure it's in the user's list, then head to the Trade
+  // Engine to act on it. (There is no backend "apply/execute" endpoint.)
+  const handleApplyStrategy = async () => {
+    if (!params.id) return;
+    try {
+      if (!isSaved) {
+        await cloneStrategy(params.id, { newName: strategy?.title });
+        setIsSaved(true);
+      }
+      toast.success('Strategy added to your list — place orders in the Trade Engine to follow it.');
+      router.push('/dashboard/portfolio/trade-engine');
+    } catch (err) {
+      console.error('Error applying strategy:', err);
+      toast.error(err.data?.detail || err.message || 'Failed to apply strategy');
+    }
+  };
+
+  // Share = copy this page's link to the clipboard.
+  const handleShareStrategy = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success('Strategy link copied to clipboard');
+    } catch (err) {
+      toast.error('Could not copy the link — copy it from the address bar.');
     }
   };
 
@@ -520,6 +552,7 @@ export default function StrategyDetailsPage() {
               </h3>
               <div className='space-y-3'>
                 <button
+                  onClick={handleApplyStrategy}
                   className={`w-full px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                     isDarkMode
                       ? 'bg-[#F1CB68] text-black hover:bg-[#F1CB68]/90'
@@ -529,6 +562,7 @@ export default function StrategyDetailsPage() {
                   Apply Strategy
                 </button>
                 <button
+                  onClick={handleShareStrategy}
                   className={`w-full px-4 py-3 rounded-lg text-sm font-medium border transition-all ${
                     isDarkMode
                       ? 'border-[#FFFFFF14] text-white hover:bg-white/5'
