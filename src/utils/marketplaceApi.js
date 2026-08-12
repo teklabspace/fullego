@@ -274,8 +274,10 @@ export const getListingDocuments = async (listingId) => {
  */
 export const searchMarketplace = async (params = {}) => {
   const queryParams = new URLSearchParams();
+  // Free-text match on listing title + description.
   if (params.q) queryParams.append('q', params.q);
-  if (params.assetType) queryParams.append('asset_type', params.assetType);
+  // NOTE: `asset_type` is deprecated backend-side and deliberately not sent —
+  // use category / categoryGroup instead.
   if (params.category) queryParams.append('category', params.category);
   // Filters a whole main tab (Assets, Portfolio, ...) server-side with
   // correct pagination; case-insensitive, combinable with category/q/price.

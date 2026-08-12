@@ -12,6 +12,8 @@ export default function OrderForm({
   setQuantity,
   limitPrice,
   setLimitPrice,
+  stopPrice,
+  setStopPrice,
   openUntil,
   setOpenUntil,
   brokerageAccount,
@@ -185,35 +187,70 @@ export default function OrderForm({
               />
             </div>
 
-            {/* Limit Price */}
-            <div>
-              <label
-                className={`block text-sm font-medium mb-2 ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
-                }`}
-              >
-                Limit Price
-              </label>
-              <div className='relative'>
-                <span
-                  className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold ${
+            {/* Stop Price — stop-limit only: the trigger that activates the limit order */}
+            {orderMode === 'stop-limit' && (
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-2 ${
                     isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}
                 >
-                  $
-                </span>
-                <input
-                  type='text'
-                  value={limitPrice}
-                  onChange={e => setLimitPrice(e.target.value)}
-                  className={`w-full pl-8 pr-4 py-3 rounded-lg border ${
-                    isDarkMode
-                      ? 'bg-gradiend-to-r from-[#222126] to-[#111116] border-[#FFFFFF14] text-white'
-                      : 'bg-white border-gray-300 text-gray-900'
-                  } focus:outline-none focus:border-[#F1CB68]`}
-                />
+                  Stop Price
+                </label>
+                <div className='relative'>
+                  <span
+                    className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}
+                  >
+                    $
+                  </span>
+                  <input
+                    type='text'
+                    value={stopPrice}
+                    onChange={e => setStopPrice(e.target.value)}
+                    placeholder='Trigger price'
+                    className={`w-full pl-8 pr-4 py-3 rounded-lg border ${
+                      isDarkMode
+                        ? 'bg-gradiend-to-r from-[#222126] to-[#111116] border-[#FFFFFF14] text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    } focus:outline-none focus:border-[#F1CB68]`}
+                  />
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Limit Price — limit and stop-limit modes */}
+            {orderMode !== 'market' && (
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-2 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  Limit Price
+                </label>
+                <div className='relative'>
+                  <span
+                    className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}
+                  >
+                    $
+                  </span>
+                  <input
+                    type='text'
+                    value={limitPrice}
+                    onChange={e => setLimitPrice(e.target.value)}
+                    className={`w-full pl-8 pr-4 py-3 rounded-lg border ${
+                      isDarkMode
+                        ? 'bg-gradiend-to-r from-[#222126] to-[#111116] border-[#FFFFFF14] text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    } focus:outline-none focus:border-[#F1CB68]`}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Current Price Info */}
@@ -275,14 +312,14 @@ export default function OrderForm({
               />
             </div>
 
-            {/* Amount to Invest */}
+            {/* Amount to Invest / Estimated Proceeds */}
             <div>
               <label
                 className={`block text-sm font-medium mb-2 ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}
               >
-                Amount to Invest
+                {orderType === 'sell' ? 'Estimated Proceeds' : 'Amount to Invest'}
               </label>
               <input
                 type='text'
@@ -467,9 +504,13 @@ export default function OrderForm({
           {/* Place Order Button */}
           <button
             onClick={handlePlaceOrder}
-            className='w-40  py-4 bg-[#F1CB68] text-[#101014] rounded-lg font-bold text-lg hover:bg-[#C49D2E] transition-all'
+            className={`px-10 py-4 rounded-lg font-bold text-lg transition-all ${
+              orderType === 'sell'
+                ? 'bg-[#FF6B6B] text-white hover:bg-[#e05555]'
+                : 'bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E]'
+            }`}
           >
-            Place Order
+            {orderType === 'sell' ? 'Place Sell Order' : 'Place Buy Order'}
           </button>
         </div>
       </div>
