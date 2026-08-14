@@ -606,11 +606,36 @@ export const API_ENDPOINTS = {
     SUPPORT_CONVERSATIONS: '/admin/support/conversations',
     SUPPORT_CONVERSATION_MESSAGES: (id) => `/admin/support/conversations/${id}/messages`,
     SUPPORT_ANALYTICS: '/admin/support/analytics',
+    // Delegated asset creation queue (Milestone 1)
+    ADVISOR_REQUESTS: '/admin/advisor-requests',
+    APPROVE_ADVISOR_REQUEST: (id) => `/admin/advisor-requests/${id}/approve`,
+    REJECT_ADVISOR_REQUEST: (id) => `/admin/advisor-requests/${id}/reject`,
   },
   // Advisor (self) endpoints
   ADVISOR: {
     CLIENTS: '/advisor/clients',
     BOOK: '/advisor/book',
+    // Client-scoped read access. Gated server-side by advisor_clients —
+    // reaching for a non-client returns 403 NOT_YOUR_CLIENT. Every read is
+    // written to the activity log. These return {success, data} with no
+    // `status_code`, so client.js does NOT unwrap them (payload is res.data).
+    CLIENT_DETAIL: (id) => `/advisor/clients/${id}`,
+    CLIENT_ASSETS: (id) => `/advisor/clients/${id}/assets`,
+    CLIENT_DOCUMENTS: (id) => `/advisor/clients/${id}/documents`,
+    CLIENT_GOALS: (id) => `/advisor/clients/${id}/goals`,
+    CLIENT_REQUESTS: (id) => `/advisor/clients/${id}/requests`,
+    CLIENT_ACTIVITY: (id) => `/advisor/clients/${id}/activity`,
+  },
+  // Delegated asset creation — investor requests an advisor, admin issues a
+  // single-use grant. These return a bare {success, data} envelope with no
+  // `status_code`, so client.js does NOT unwrap them (see delegationApi.js).
+  DELEGATION: {
+    REQUESTS: '/advisor-requests',
+    MY_REQUESTS: '/advisor-requests/me',
+    CANCEL_REQUEST: (id) => `/advisor-requests/${id}`,
+    ADVISOR_DIRECTORY: '/advisor-requests/directory',
+    GRANTS: '/delegation-grants',
+    REVOKE_GRANT: (id) => `/delegation-grants/${id}/revoke`,
   },
   // Notifications endpoints
   NOTIFICATIONS: {
