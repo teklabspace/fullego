@@ -218,6 +218,8 @@ export default function Marketplace() {
     return pages;
   };
   const [priceRange, setPriceRange] = useState([100, 10000]);
+  // Free-text search -> `q` (listing title + description), server-side.
+  const [marketQuery, setMarketQuery] = useState('');
 
   // API data states
   const [listings, setListings] = useState([]);
@@ -233,6 +235,8 @@ export default function Marketplace() {
         setError(null);
 
         const filterParams = {};
+        const trimmedQuery = marketQuery.trim();
+        if (trimmedQuery) filterParams.q = trimmedQuery;
         if (activeCategory !== 'All') {
           // Exact asset-category name; matches listing.category server-side.
           filterParams.category = activeCategory;
@@ -361,8 +365,15 @@ export default function Marketplace() {
       }
     };
 
-    fetchListings();
-  }, [activeGroup, activeCategory, priceRange, sortBy, page, pageSize]);
+    // Debounced so typing in the search box doesn't fire a call per keystroke.
+    const timer = setTimeout(fetchListings, 350);
+    return () => clearTimeout(timer);
+  }, [activeGroup, activeCategory, priceRange, sortBy, page, pageSize, marketQuery]);
+
+  // A new search term re-queries from the first page.
+  useEffect(() => {
+    setPage(1);
+  }, [marketQuery]);
 
   // Filtering, sorting, and pagination all happen server-side in /search —
   // the current page renders as-is.
@@ -766,7 +777,41 @@ export default function Marketplace() {
                   <span>{group}</span>
                 </motion.button>
               ))}
-              <div className='ml-auto relative'>
+              {/* Free-text search -> `q` (title + description), server-side */}
+              <div className='ml-auto relative shrink-0'>
+                <input
+                  type='text'
+                  value={marketQuery}
+                  onChange={e => setMarketQuery(e.target.value)}
+                  placeholder='Search listings'
+                  className='w-40 sm:w-56 pl-9 pr-8 py-2 rounded-lg text-xs bg-white/5 border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-all'
+                />
+                <svg
+                  className='absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none'
+                  fill='none'
+                  stroke='currentColor'
+                  viewBox='0 0 24 24'
+                >
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z'
+                  />
+                </svg>
+                {marketQuery && (
+                  <button
+                    onClick={() => setMarketQuery('')}
+                    aria-label='Clear search'
+                    className='absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10'
+                  >
+                    <svg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3'>
+                      <path d='M18 6L6 18M6 6l12 12' />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              <div className='relative'>
                 <motion.button
                   onClick={() => setIsFilterOpen(!isFilterOpen)}
                   whileHover={{ scale: 1.05 }}

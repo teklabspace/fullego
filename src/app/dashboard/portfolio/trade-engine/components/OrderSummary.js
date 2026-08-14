@@ -6,12 +6,20 @@ import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent } fr
 export default function OrderSummary({
   quantity,
   limitPrice,
+  orderMode = 'market',
+  orderType = 'buy',
   calculateTotal,
   recentTrades,
   symbol,
   assetDetails,
   isDarkMode,
 }) {
+  const modeLabel =
+    orderMode === 'stop-limit'
+      ? 'Stop-Limit Order'
+      : orderMode === 'limit'
+      ? 'Limit Order'
+      : 'Market Order';
   const marketCap = assetDetails?.marketCap;
   const high52 = assetDetails?.high52Week;
   const low52 = assetDetails?.low52Week;
@@ -35,8 +43,10 @@ export default function OrderSummary({
           Order Summary
         </h3>
 
-        {/* Limit Price Label */}
-        <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Limit Price</p>
+        {/* Order mode + side label */}
+        <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          {orderType === 'sell' ? 'Sell' : 'Buy'} · {modeLabel}
+        </p>
 
         {/* Order Details Card */}
         <div
@@ -53,7 +63,7 @@ export default function OrderSummary({
           <div className='flex justify-between items-center'>
             <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Price per share</span>
             <span className={`text-base font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
-              ${limitPrice}
+              ${orderMode === 'market' ? assetDetails?.currentPrice ?? limitPrice : limitPrice}
             </span>
           </div>
           <div className='flex justify-between items-center'>
@@ -63,7 +73,7 @@ export default function OrderSummary({
           <div className={`pt-3 mt-3 border-t ${isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-200'}`}>
             <div className='flex justify-between items-center'>
               <span className={`text-base font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                Total Cost
+                {orderType === 'sell' ? 'Estimated Proceeds' : 'Total Cost'}
               </span>
               <span className='text-xl font-bold text-[#F1CB68]'>
                 ${calculateTotal()}

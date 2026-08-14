@@ -105,8 +105,11 @@ export const getAssets = async (params = {}) => {
   if (params.categoryId) queryParams.append('category_id', params.categoryId);
   if (params.categoryGroup) queryParams.append('category_group', params.categoryGroup);
   if (params.search) queryParams.append('search', params.search);
-  if (params.minValue) queryParams.append('min_value', params.minValue);
-  if (params.maxValue) queryParams.append('max_value', params.maxValue);
+  // Compare against null/'' rather than truthiness so a 0 bound is honoured.
+  if (params.minValue !== undefined && params.minValue !== null && params.minValue !== '')
+    queryParams.append('min_value', params.minValue);
+  if (params.maxValue !== undefined && params.maxValue !== null && params.maxValue !== '')
+    queryParams.append('max_value', params.maxValue);
   if (params.currency) queryParams.append('currency', params.currency);
   if (params.sortBy) queryParams.append('sort_by', params.sortBy);
   if (params.order) queryParams.append('order', params.order);

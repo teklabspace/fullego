@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getAssets,
+  getCategories,
   listAllAssetsAdmin,
   deleteAsset,
   requestAssetSale,
@@ -98,10 +99,19 @@ export default function AssetsPage() {
   // role is known so we don't fire the wrong request on mount.
   const { isAdmin, isInvestor, mounted: authMounted } = useAuth();
   // Search term comes from the shared navbar search box (see SearchContext).
-  const { query: adminSearchInput } = useSearch();
+  // It drives BOTH the admin all-assets search and a regular user's own list —
+  // the backend matches name, symbol, description and asset code.
+  const { query: adminSearchInput, setQuery: setSearchQuery } = useSearch();
   const [adminSearch, setAdminSearch] = useState('');
   const [adminPage, setAdminPage] = useState(1);
   const [adminPagination, setAdminPagination] = useState(null);
+  // Price range filter (inclusive bounds; either side may be left blank).
+  const [minValue, setMinValue] = useState('');
+  const [maxValue, setMaxValue] = useState('');
+  const [appliedRange, setAppliedRange] = useState({ min: '', max: '' });
+  // name → uuid from GET /assets/categories, so the category filter can send
+  // category_id (names contain "&", which is brittle in query strings).
+  const [categoryIdByName, setCategoryIdByName] = useState({});
   // Regular users paginate too — the backend caps a page at 20 by default, so
   // without this anyone with more than one page of assets silently saw only
   // the newest ones.
@@ -132,10 +142,16 @@ export default function AssetsPage() {
   const [sellError, setSellError] = useState('');
   const [submittingAppraisal, setSubmittingAppraisal] = useState(false);
 
+  // Monotonic request id. Filter changes fire overlapping requests and the
+  // assets endpoint is slow, so without this an earlier, broader response can
+  // land after a narrower one and overwrite it with the wrong rows/total.
+  const fetchSeqRef = useRef(0);
+
   // Fetch assets from API
   const fetchAssets = useCallback(async () => {
     // Hold off until we know the role (admin vs. not) so the first call is right.
     if (!authMounted) return;
+    const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
       setError(null);
@@ -148,15 +164,27 @@ export default function AssetsPage() {
           page: adminPage,
           pageSize: ADMIN_PAGE_SIZE,
         });
+        if (seq !== fetchSeqRef.current) return; // superseded by a newer filter
         setAdminPagination(response.pagination || null);
       } else {
+        // Every active filter goes to the API in one call — no client-side
+        // filtering, so pagination totals stay honest.
+        const categoryId =
+          selectedCategory !== 'all' ? categoryIdByName[selectedCategory] : undefined;
         response = await getAssets({
-          category: selectedCategory !== 'all' ? selectedCategory : undefined,
+          search: adminSearch || undefined,
+          // Prefer the id; fall back to the name until the id map loads.
+          categoryId,
+          category:
+            selectedCategory !== 'all' && !categoryId ? selectedCategory : undefined,
+          minValue: appliedRange.min !== '' ? appliedRange.min : undefined,
+          maxValue: appliedRange.max !== '' ? appliedRange.max : undefined,
           sortBy: 'created_at',
           order: 'desc',
           page: userPage,
           pageSize: USER_PAGE_SIZE,
         });
+        if (seq !== fetchSeqRef.current) return; // superseded by a newer filter
         setUserPagination(response.pagination || null);
       }
 
@@ -174,6 +202,7 @@ export default function AssetsPage() {
 
       setAssets(formattedAssets);
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return; // stale failure — ignore
       console.error('Error fetching assets:', err);
       let errorMessage = 'Failed to load assets';
       const rawMessage = err.message || err.data?.detail || err.data?.message || '';
@@ -203,14 +232,25 @@ export default function AssetsPage() {
       }
       setError(errorMessage);
     } finally {
-      setLoading(false);
+      // Keep the spinner up if a newer request is still in flight.
+      if (seq === fetchSeqRef.current) setLoading(false);
     }
-  }, [authMounted, isAdmin, adminSearch, adminPage, userPage, selectedCategory, router]);
+  }, [
+    authMounted,
+    isAdmin,
+    adminSearch,
+    adminPage,
+    userPage,
+    selectedCategory,
+    categoryIdByName,
+    appliedRange,
+    router,
+  ]);
 
-  // Switching category filters server-side — restart from its first page.
+  // Any filter change re-queries server-side — restart from the first page.
   useEffect(() => {
     setUserPage(1);
-  }, [selectedCategory]);
+  }, [selectedCategory, appliedRange]);
 
   useEffect(() => {
     fetchAssets();
@@ -287,15 +327,41 @@ export default function AssetsPage() {
     if (authMounted) fetchOpenAppraisals();
   }, [authMounted, fetchOpenAppraisals]);
 
-  // Debounce the admin search box, resetting to page 1 on each new query.
+  // Debounce the navbar search box, resetting to page 1 on each new query.
+  // Applies to every role — the assets endpoint searches the caller's own
+  // assets, the admin endpoint searches across users.
   useEffect(() => {
-    if (!isAdmin) return;
     const t = setTimeout(() => {
       setAdminSearch(adminSearchInput.trim());
       setAdminPage(1);
-    }, 400);
+      setUserPage(1);
+    }, 300);
     return () => clearTimeout(t);
-  }, [adminSearchInput, isAdmin]);
+  }, [adminSearchInput]);
+
+  // Canonical categories (the 90) — used to resolve a category name to its id.
+  useEffect(() => {
+    if (!authMounted) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getCategories();
+        // Payload is grouped: { Assets: [...], Portfolio: [...], ... }
+        const grouped = res?.data || {};
+        const map = {};
+        Object.values(grouped).forEach(list => {
+          (Array.isArray(list) ? list : []).forEach(cat => {
+            if (cat?.name && cat?.id) map[cat.name] = cat.id;
+          });
+        });
+        if (!cancelled) setCategoryIdByName(map);
+      } catch (err) {
+        // Non-fatal: the filter falls back to sending the category name.
+        console.warn('Could not load category ids:', err?.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authMounted]);
 
   // Get all categories for filtering
   const categories = [
@@ -309,14 +375,33 @@ export default function AssetsPage() {
       })),
   ];
 
-  const normalizeCategory = s => s?.toLowerCase().replace(/[\s_-]+/g, '') || '';
-  const filteredAssets =
-    selectedCategory === 'all'
-      ? assets
-      : assets.filter(
-          asset =>
-            normalizeCategory(asset.category) === normalizeCategory(selectedCategory)
-        );
+  // Filtering happens entirely server-side (search + category + price range),
+  // so the list renders exactly what the API returned.
+  const filteredAssets = assets;
+
+  const hasActiveFilters =
+    selectedCategory !== 'all' ||
+    !!adminSearch ||
+    appliedRange.min !== '' ||
+    appliedRange.max !== '';
+
+  const applyPriceRange = () => {
+    const min = minValue === '' ? '' : Number(minValue);
+    const max = maxValue === '' ? '' : Number(maxValue);
+    if (min !== '' && max !== '' && min > max) {
+      toast.error('Minimum value cannot be greater than the maximum.');
+      return;
+    }
+    setAppliedRange({ min: min === '' ? '' : min, max: max === '' ? '' : max });
+  };
+
+  const clearAllFilters = () => {
+    setSelectedCategory('all');
+    setMinValue('');
+    setMaxValue('');
+    setAppliedRange({ min: '', max: '' });
+    setSearchQuery('');
+  };
 
   const handleViewDetails = asset => {
     // Admins load any user's asset by code via the admin-only detail endpoint.
@@ -550,6 +635,89 @@ export default function AssetsPage() {
         ))}
       </div>
 
+      {/* Value range filter — server-side, inclusive, either bound optional.
+          Admin search hits a different endpoint that has no range filter. */}
+      {!isAdmin && (
+        <div className='flex flex-wrap items-end gap-3 mb-6'>
+          <div>
+            <label
+              className={`block text-xs mb-1.5 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              Min value
+            </label>
+            <input
+              type='number'
+              min='0'
+              value={minValue}
+              onChange={e => setMinValue(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && applyPriceRange()}
+              placeholder='Any'
+              className={`w-32 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:border-[#F1CB68] ${
+                isDarkMode
+                  ? 'bg-[#1C1C1E] border-[#FFFFFF14] text-white placeholder-gray-500'
+                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+              }`}
+            />
+          </div>
+          <div>
+            <label
+              className={`block text-xs mb-1.5 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              Max value
+            </label>
+            <input
+              type='number'
+              min='0'
+              value={maxValue}
+              onChange={e => setMaxValue(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && applyPriceRange()}
+              placeholder='Any'
+              className={`w-32 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:border-[#F1CB68] ${
+                isDarkMode
+                  ? 'bg-[#1C1C1E] border-[#FFFFFF14] text-white placeholder-gray-500'
+                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+              }`}
+            />
+          </div>
+          <button
+            onClick={applyPriceRange}
+            className='px-4 py-2 rounded-lg bg-[#F1CB68] text-[#101014] text-sm font-semibold hover:bg-[#d4b55a] transition-colors'
+          >
+            Apply
+          </button>
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                isDarkMode
+                  ? 'border-[#FFFFFF22] text-gray-300 hover:bg-white/5'
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Clear filters
+            </button>
+          )}
+          {userPagination?.total != null && (
+            <span
+              className={`text-xs ml-auto ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              {userPagination.total} asset{userPagination.total === 1 ? '' : 's'}
+              {hasActiveFilters
+                ? userPagination.total === 1
+                  ? ' matches your filters'
+                  : ' match your filters'
+                : ''}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Assets Grid */}
       {loading ? (
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
@@ -608,6 +776,20 @@ export default function AssetsPage() {
                 ? 'No assets match your search.'
                 : 'There are no assets across any users yet.'}
             </p>
+          ) : hasActiveFilters ? (
+            // An empty result with filters on means "no matches" — not "you
+            // own nothing", so don't push the Add Asset call to action here.
+            <>
+              <p className='text-sm mb-4'>
+                No assets match your current search or filters.
+              </p>
+              <button
+                onClick={clearAllFilters}
+                className='px-6 py-3 bg-[#F1CB68] text-[#101014] rounded-lg font-semibold hover:bg-[#d4b55a] transition-colors'
+              >
+                Clear filters
+              </button>
+            </>
           ) : isInvestor ? (
             <>
               <p className='text-sm mb-4'>Get started by adding your first asset</p>

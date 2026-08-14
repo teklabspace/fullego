@@ -14,7 +14,22 @@ import {
   waitForActiveSubscription,
 } from '@/utils/subscriptionsApi';
 import { clearSubscriptionCache } from '@/utils/onboarding';
+import { getPaymentMethods } from '@/utils/paymentsApi';
 import { getStripe } from '@/lib/stripe';
+
+// Resolve the user's saved default card (Stripe pm_… id). Subscription
+// PaymentIntents created server-side carry no payment method, so confirming
+// without one fails with "A payment method of type card was expected…".
+const getSavedPaymentMethodId = async () => {
+  try {
+    const res = await getPaymentMethods();
+    const list = Array.isArray(res?.data) ? res.data : [];
+    const preferred = list.find(m => m.isDefault || m.is_default) || list[0];
+    return preferred?.id || null;
+  } catch {
+    return null;
+  }
+};
 
 // Backend response shapes are inconsistent; prefer `data`, then a named key,
 // then the raw response, finally the provided fallback.
@@ -98,11 +113,22 @@ export function useSubscription() {
       if (needsAction || clientSecret) {
         const stripe = await getStripe();
         if (stripe && clientSecret) {
-          // Complete 3DS / SCA against the PaymentIntent already attached to the
-          // user's payment method — no card re-entry required.
-          const { error } = await stripe.confirmCardPayment(clientSecret);
+          // Confirm with the user's saved card. The PaymentIntent arrives with
+          // no payment method attached, so omitting one fails with Stripe's
+          // "a payment method of type card was expected" error.
+          const savedPm = await getSavedPaymentMethodId();
+          const { error } = await stripe.confirmCardPayment(
+            clientSecret,
+            savedPm ? { payment_method: savedPm } : undefined
+          );
           if (error) {
-            toast.error(error.message || 'Payment authentication failed.');
+            const noCard =
+              !savedPm && /payment[_ ]method/i.test(error.message || '');
+            toast.error(
+              noCard
+                ? 'No saved card found. Add a payment method in Settings → Billing, then try again.'
+                : error.message || 'Payment authentication failed.'
+            );
             await load();
             return false;
           }

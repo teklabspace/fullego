@@ -1,6 +1,12 @@
 'use client';
 import { useTheme } from '@/context/ThemeContext';
-import { addToWatchlist, removeFromWatchlist, getInvestmentGoals } from '@/utils/investmentApi';
+import {
+  addToWatchlist,
+  deleteInvestmentGoal,
+  getInvestmentGoals,
+  removeFromWatchlist,
+} from '@/utils/investmentApi';
+import GoalModal from './GoalModal';
 import { getBatchQuotes, searchAssets } from '@/utils/portfolioApi';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -19,6 +25,12 @@ export default function GoalsTrackerPage() {
   const [investmentGoals, setInvestmentGoals] = useState([]);
   const [marketplaceAssets, setMarketplaceAssets] = useState([]);
 
+  // Goals tab (active | completed), refresh counter and modal state
+  const [goalsTab, setGoalsTab] = useState('active');
+  const [goalsRefresh, setGoalsRefresh] = useState(0);
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [adjustingGoal, setAdjustingGoal] = useState(null); // raw goal being updated
+
   // Fetch investment goals
   useEffect(() => {
     const fetchGoals = async () => {
@@ -26,7 +38,7 @@ export default function GoalsTrackerPage() {
         setLoading(true);
         setError(null);
 
-        const goalsRes = await getInvestmentGoals({ status: 'active' });
+        const goalsRes = await getInvestmentGoals({ status: goalsTab });
 
         // New API shape: { goals: [...], total } (single wrap, camelized).
         const goalsList = goalsRes?.goals || (Array.isArray(goalsRes?.data) ? goalsRes.data : []);
@@ -37,10 +49,13 @@ export default function GoalsTrackerPage() {
             symbol: goal.symbol || goal.assetSymbol,
             icon: getCryptoIcon(goal.symbol || goal.assetSymbol),
             currentValue: goal.currentValue || goal.currentValueFormatted,
+            targetAmount: goal.targetAmount,
             quantity: goal.currentQuantity || goal.quantity,
             goalCompletion: goal.completionPercentage || goal.goalCompletion || 0,
             gradient: getGradientForSymbol(goal.symbol || goal.assetSymbol),
             progressColor: getProgressColor(goal.completionPercentage || goal.goalCompletion || 0),
+            status: goal.status,
+            raw: goal, // full server object — the adjust modal prefills from it
           })) : [];
           setInvestmentGoals(formattedGoals);
         }
@@ -64,7 +79,35 @@ export default function GoalsTrackerPage() {
     };
 
     fetchGoals();
-  }, []);
+  }, [goalsTab, goalsRefresh]);
+
+  const refreshGoals = () => setGoalsRefresh(k => k + 1);
+
+  // Called by the modal after a successful create/adjust — the server decides
+  // completion (current_value >= target_amount ⇒ status "completed").
+  const handleGoalSaved = (goal, wasAdjust) => {
+    setShowGoalModal(false);
+    setAdjustingGoal(null);
+    if (goal?.status === 'completed' && goalsTab !== 'completed') {
+      toast.success('🎉 Goal completed! Find it under the Completed tab.');
+    } else {
+      toast.success(wasAdjust ? 'Progress updated' : 'Goal created');
+    }
+    refreshGoals();
+  };
+
+  const handleDeleteGoal = async (goal) => {
+    if (!window.confirm(`Delete the goal "${goal.name}"? This cannot be undone.`)) {
+      return;
+    }
+    try {
+      await deleteInvestmentGoal(goal.id);
+      toast.success('Goal deleted');
+      refreshGoals();
+    } catch (err) {
+      toast.error(err.data?.detail || err.message || 'Failed to delete goal');
+    }
+  };
 
   // Fill prices into search rows via the batch quotes endpoint. A quote can
   // come back { price: null } when the per-call fresh-lookup budget ran out —
@@ -218,17 +261,49 @@ export default function GoalsTrackerPage() {
     <>
       <div>
         {/* Header */}
-        <div className='mb-8'>
-          <h1
-            className={`text-3xl md:text-4xl font-bold mb-3 ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
-            }`}
-          >
-            Investment Goals
-          </h1>
-          <p className='text-gray-400 text-sm md:text-base'>
-            Track and manage your cryptocurrency investment goals
-          </p>
+        <div className='mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4'>
+          <div>
+            <h1
+              className={`text-3xl md:text-4xl font-bold mb-3 ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}
+            >
+              Investment Goals
+            </h1>
+            <p className='text-gray-400 text-sm md:text-base'>
+              Track and manage your investment goals
+            </p>
+          </div>
+          <div className='flex items-center gap-3'>
+            {/* Active / Completed tabs */}
+            <div
+              className={`flex p-1 rounded-full border ${
+                isDarkMode ? 'border-[#FFFFFF14] bg-[#1C1C1E]' : 'border-gray-200 bg-white'
+              }`}
+            >
+              {['active', 'completed'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setGoalsTab(tab)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium capitalize transition-all ${
+                    goalsTab === tab
+                      ? 'bg-[#F1CB68] text-black'
+                      : isDarkMode
+                      ? 'text-gray-400 hover:text-white'
+                      : 'text-gray-600 hover:text-black'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => { setAdjustingGoal(null); setShowGoalModal(true); }}
+              className='px-4 py-2.5 rounded-full bg-[#F1CB68] text-black text-sm font-bold hover:bg-[#d4b55a] transition-colors whitespace-nowrap'
+            >
+              + New Goal
+            </button>
+          </div>
         </div>
 
         {/* Inline error message (keeps header + shell visible) */}
@@ -276,14 +351,22 @@ export default function GoalsTrackerPage() {
             ))
           ) : investmentGoals.length > 0 ? (
             investmentGoals.map((goal) => (
-              <GoalCard key={goal.id || goal.symbol} goal={goal} isDarkMode={isDarkMode} />
+              <GoalCard
+                key={goal.id || goal.symbol}
+                goal={goal}
+                isDarkMode={isDarkMode}
+                onAdjust={() => { setAdjustingGoal(goal.raw); setShowGoalModal(true); }}
+                onDelete={() => handleDeleteGoal(goal)}
+              />
             ))
           ) : (
             <div className={`col-span-full rounded-2xl p-6 border text-center ${
               isDarkMode ? 'bg-[#1C1C1E] border-[#FFFFFF14]' : 'bg-white border-gray-200'
             }`}>
               <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-                No investment goals found. Create your first goal to get started!
+                {goalsTab === 'completed'
+                  ? 'No completed goals yet — update a goal’s progress to 100% and it lands here.'
+                  : 'No investment goals found. Create your first goal to get started!'}
               </p>
             </div>
           )}
@@ -356,12 +439,21 @@ export default function GoalsTrackerPage() {
           </div>
         </div>
       </div>
+
+      {showGoalModal && (
+        <GoalModal
+          isDarkMode={isDarkMode}
+          goal={adjustingGoal}
+          onClose={() => { setShowGoalModal(false); setAdjustingGoal(null); }}
+          onSaved={handleGoalSaved}
+        />
+      )}
     </>
   );
 }
 
 // Goal Card Component
-function GoalCard({ goal, isDarkMode }) {
+function GoalCard({ goal, isDarkMode, onAdjust, onDelete }) {
   const formatCurrency = (value) => {
     if (typeof value === 'string' && value.startsWith('$')) return value;
     if (!value && value !== 0) return '$0.00';
@@ -416,7 +508,9 @@ function GoalCard({ goal, isDarkMode }) {
           {typeof goal.currentValue === 'string' ? goal.currentValue : formatCurrency(goal.currentValue)}
         </p>
         <p className='text-white/80 text-sm mb-4'>
-          {goal.quantity || '0'} {goal.symbol || ''}
+          {goal.targetAmount != null
+            ? `of ${formatCurrency(goal.targetAmount)} target`
+            : `${goal.quantity || '0'} ${goal.symbol || ''}`}
         </p>
 
         {/* Goal Completion */}
@@ -438,6 +532,27 @@ function GoalCard({ goal, isDarkMode }) {
               }}
             />
           </div>
+        </div>
+
+        {/* Actions */}
+        <div className='flex items-center gap-2 mt-4'>
+          {goal.status !== 'completed' && (
+            <button
+              onClick={onAdjust}
+              className='flex-1 py-2 rounded-lg bg-white/20 backdrop-blur-sm text-white text-xs font-semibold hover:bg-white/30 transition-colors'
+            >
+              Update progress
+            </button>
+          )}
+          <button
+            onClick={onDelete}
+            title='Delete goal'
+            className='p-2 rounded-lg bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors'
+          >
+            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+              <path d='M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14' />
+            </svg>
+          </button>
         </div>
       </div>
     </div>

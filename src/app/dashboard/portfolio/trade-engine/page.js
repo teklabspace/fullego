@@ -30,8 +30,14 @@ export default function TradeEnginePage() {
   // auto-select immediately replaces.
   const [selectedStock, setSelectedStock] = useState('');
   const [quantity, setQuantity] = useState('10');
-  const [limitPrice, setLimitPrice] = useState('185.92');
-  const [openUntil, setOpenUntil] = useState('2023-09-15');
+  const [limitPrice, setLimitPrice] = useState('');
+  const [stopPrice, setStopPrice] = useState('');
+  // Default GTD expiry: 30 days out (was a hardcoded 2023 date)
+  const [openUntil, setOpenUntil] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().split('T')[0];
+  });
   const [brokerageAccount, setBrokerageAccount] = useState('');
   const [orderDuration, setOrderDuration] = useState('day-only');
   const [notes, setNotes] = useState('');
@@ -160,6 +166,25 @@ export default function TradeEnginePage() {
 
   // Handlers
   const handlePlaceOrder = async () => {
+    // Client-side validation per order mode
+    if (!selectedStock) {
+      toast.error('Select an instrument first.');
+      return;
+    }
+    if (!(parseFloat(quantity) > 0)) {
+      toast.error('Quantity must be greater than zero.');
+      return;
+    }
+    const needsLimit = orderMode === 'limit' || orderMode === 'stop-limit';
+    if (needsLimit && !(parseFloat(limitPrice) > 0)) {
+      toast.error('Enter a limit price.');
+      return;
+    }
+    if (orderMode === 'stop-limit' && !(parseFloat(stopPrice) > 0)) {
+      toast.error('Enter a stop price.');
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -170,7 +195,8 @@ export default function TradeEnginePage() {
         orderType: orderType,
         orderMode: orderMode,
         quantity: parseFloat(quantity),
-        limitPrice: orderMode === 'limit' ? parseFloat(limitPrice) : undefined,
+        limitPrice: needsLimit ? parseFloat(limitPrice) : undefined,
+        stopPrice: orderMode === 'stop-limit' ? parseFloat(stopPrice) : undefined,
         brokerageAccountId: brokerageAccount,
         orderDuration: orderDuration,
         notes: notes,
@@ -200,7 +226,13 @@ export default function TradeEnginePage() {
   };
 
   const calculateTotal = () => {
-    const total = parseFloat(quantity || 0) * parseFloat(limitPrice || 0);
+    // Market orders estimate at the current price; limit/stop-limit at the
+    // user's limit price.
+    const perShare =
+      orderMode === 'market'
+        ? assetDetails?.currentPrice ?? limitPrice
+        : limitPrice;
+    const total = parseFloat(quantity || 0) * parseFloat(perShare || 0);
     return total.toFixed(2);
   };
 
@@ -333,6 +365,8 @@ export default function TradeEnginePage() {
             setQuantity={setQuantity}
             limitPrice={limitPrice}
             setLimitPrice={setLimitPrice}
+            stopPrice={stopPrice}
+            setStopPrice={setStopPrice}
             openUntil={openUntil}
             setOpenUntil={setOpenUntil}
             brokerageAccount={brokerageAccount}
@@ -398,6 +432,8 @@ export default function TradeEnginePage() {
             <OrderSummary
               quantity={quantity}
               limitPrice={limitPrice}
+              orderMode={orderMode}
+              orderType={orderType}
               calculateTotal={calculateTotal}
               symbol={selectedStock}
               assetDetails={assetDetails}

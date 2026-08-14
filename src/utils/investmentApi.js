@@ -181,12 +181,9 @@ export const createInvestmentGoal = async (goalData) => {
   const transformedData = transformToSnake(goalData);
   const endpoint = API_ENDPOINTS.INVESTMENT.CREATE_GOAL;
   const response = await apiPost(endpoint, transformedData);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+
+  // New-style single wrap: payload is { goal: {...} }.
+  return transformKeys(response);
 };
 
 /**
@@ -489,17 +486,26 @@ export const getInvestmentRecommendations = async (params = {}) => {
  * @param {string} adjustmentData.notes - Optional: notes about the adjustment
  */
 export const adjustGoal = async (goalId, adjustmentData) => {
+  // Partial update — omitted (undefined) fields are dropped from the JSON
+  // body and stay untouched server-side.
   const transformedData = transformToSnake({
+    current_value: adjustmentData.currentValue,
+    current_quantity: adjustmentData.currentQuantity,
     target_amount: adjustmentData.targetAmount,
     target_date: adjustmentData.targetDate,
     monthly_contribution: adjustmentData.monthlyContribution,
     risk_tolerance: adjustmentData.riskTolerance,
     notes: adjustmentData.notes
   });
-  
+
   const endpoint = API_ENDPOINTS.INVESTMENT.ADJUST_GOAL(goalId);
   const response = await apiPost(endpoint, transformedData);
-  
+
+  if (response.goal) {
+    // New-style single wrap: { goal: <updated goal> } — status may have
+    // flipped to "completed" server-side; callers react to it.
+    return transformKeys(response);
+  }
   if (response.data) {
     response.data = transformKeys(response.data);
   }

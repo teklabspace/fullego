@@ -107,6 +107,9 @@ export default function MarketplacePage() {
   // Filter states
   const [sortBy, setSortBy] = useState('price-low-high');
   const [priceRange, setPriceRange] = useState([100, 10000]);
+  // Free-text marketplace search -> `q` (matches listing title + description).
+  // The fetch effect is already debounced, so this feeds it directly.
+  const [marketQuery, setMarketQuery] = useState('');
 
   // API data states
   const [listings, setListings] = useState([]);
@@ -154,6 +157,8 @@ export default function MarketplacePage() {
           sortBy: 'price',
           sortOrder: sortBy === 'price-high-low' ? 'desc' : 'asc',
         };
+        const trimmedQuery = marketQuery.trim();
+        if (trimmedQuery) searchParams.q = trimmedQuery;
         if (activeCategory !== 'All') {
           searchParams.category = activeCategory;
         } else if (activeGroup !== 'All') {
@@ -215,7 +220,7 @@ export default function MarketplacePage() {
 
     const timer = setTimeout(fetchListings, 350);
     return () => clearTimeout(timer);
-  }, [activeTab, activeGroup, activeCategory, priceRange, sortBy]);
+  }, [activeTab, activeGroup, activeCategory, priceRange, sortBy, marketQuery]);
 
   // Watchlist (auth) — its own callback so the card heart toggles can refresh it.
   const refreshWatchlist = useCallback(async () => {
@@ -698,7 +703,50 @@ export default function MarketplacePage() {
                           {group}
                         </button>
                       ))}
-                      <div className='ml-auto relative'>
+                      {/* Free-text search -> `q` (title + description), server-side */}
+                      <div className='ml-auto relative shrink-0'>
+                        <input
+                          type='text'
+                          value={marketQuery}
+                          onChange={e => setMarketQuery(e.target.value)}
+                          placeholder='Search listings'
+                          className={`w-40 sm:w-56 pl-9 pr-8 py-2 rounded-lg text-xs border transition-all focus:outline-none focus:border-[#F1CB68] ${
+                            isDarkMode
+                              ? 'bg-white/5 border-[#FFFFFF14] text-white placeholder-gray-500'
+                              : 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-500'
+                          }`}
+                        />
+                        <svg
+                          className='absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none'
+                          fill='none'
+                          stroke='currentColor'
+                          viewBox='0 0 24 24'
+                          style={{ color: isDarkMode ? '#9CA3AF' : '#6B7280' }}
+                        >
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth={2}
+                            d='M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z'
+                          />
+                        </svg>
+                        {marketQuery && (
+                          <button
+                            onClick={() => setMarketQuery('')}
+                            aria-label='Clear search'
+                            className={`absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center ${
+                              isDarkMode
+                                ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                                : 'text-gray-500 hover:text-gray-900 hover:bg-black/5'
+                            }`}
+                          >
+                            <svg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3'>
+                              <path d='M18 6L6 18M6 6l12 12' />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      <div className='relative'>
                         <button
                           onClick={() => setIsFilterOpen(!isFilterOpen)}
                           className={`p-2 rounded-lg shrink-0 transition-all ${
