@@ -239,7 +239,7 @@ export default function MyAdvisorPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="rounded-lg bg-[#F1CB68] px-4 py-2 text-sm font-semibold text-[#101014] transition-colors hover:bg-[#BF9B30] disabled:opacity-50"
             >
               {submitting ? 'Sending…' : 'Send request'}
             </button>
@@ -278,7 +278,7 @@ export default function MyAdvisorPage() {
                       type="button"
                       disabled={busyId === g.id}
                       onClick={() => confirmAndLock(g.id)}
-                      className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+                      className="rounded-lg bg-[#F1CB68] px-3 py-1.5 text-sm font-semibold text-[#101014] transition-colors hover:bg-[#BF9B30] disabled:opacity-50"
                     >
                       Confirm &amp; lock
                     </button>
