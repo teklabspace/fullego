@@ -98,6 +98,15 @@ export const listDelegationGrants = async (as = 'investor') => {
   return (res?.data || []).map(mapGrant);
 };
 
+/**
+ * POST /delegation-grants/{id}/lock — investor confirms the asset the advisor
+ * added, ending their edit window. Only valid while the grant is `consumed`.
+ */
+export const lockDelegationGrant = async (grantId) => {
+  const res = await apiPost(API_ENDPOINTS.DELEGATION.LOCK_GRANT(grantId), {});
+  return mapGrant(res?.data ?? {});
+};
+
 /** POST /delegation-grants/{id}/revoke — investor or admin only. */
 export const revokeDelegationGrant = async (grantId) => {
   const res = await apiPost(API_ENDPOINTS.DELEGATION.REVOKE_GRANT(grantId), {});

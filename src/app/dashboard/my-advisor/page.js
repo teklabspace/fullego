@@ -11,6 +11,7 @@ import {
   getAdvisorDirectory,
   getMyAdvisorRequests,
   listDelegationGrants,
+  lockDelegationGrant,
   requestAdvisor,
   revokeDelegationGrant,
 } from '@/utils/delegationApi';
@@ -150,6 +151,20 @@ export default function MyAdvisorPage() {
     }
   };
 
+  // Ends the advisor's edit window on the asset they added for you.
+  const confirmAndLock = async (id) => {
+    setBusyId(id);
+    try {
+      await lockDelegationGrant(id);
+      toast.success('Asset confirmed. Your advisor can no longer edit it.');
+      await load();
+    } catch (err) {
+      toast.error(err?.message || 'Could not confirm the asset.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className={`space-y-6 p-6 ${textMain}`}>
       <header>
@@ -251,11 +266,23 @@ export default function MyAdvisorPage() {
                   <p className={`text-xs ${textMuted}`}>
                     {g.status === 'active' && g.expiresAt
                       ? `Expires ${fmt(g.expiresAt)}`
+                      : g.status === 'consumed'
+                      ? 'Asset added — awaiting your confirmation'
                       : `Created ${fmt(g.createdAt)}`}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <Badge status={g.status} />
+                  {g.status === 'consumed' && (
+                    <button
+                      type="button"
+                      disabled={busyId === g.id}
+                      onClick={() => confirmAndLock(g.id)}
+                      className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      Confirm &amp; lock
+                    </button>
+                  )}
                   {g.status === 'active' && (
                     <button
                       type="button"

@@ -160,6 +160,7 @@ export default function Sidebar({ isOpen, onClose }) {
           { id: 'admin-verifications', label: 'Verifications', icon: 'Shield', href: '/dashboard/admin/verifications', roles: ['admin'] },
           { id: 'admin-disputes', label: 'Escrow Disputes', icon: 'Shield', href: '/dashboard/admin/disputes', roles: ['admin'] },
           { id: 'admin-advisor-requests', label: 'Advisor Requests', icon: 'Grid', href: '/dashboard/admin/advisor-requests', roles: ['admin'] },
+          { id: 'admin-advisor-clients', label: 'Advisor Relationships', icon: 'Grid', href: '/dashboard/admin/advisor-clients', roles: ['admin'] },
           crmDashboardItem,
         ],
       },

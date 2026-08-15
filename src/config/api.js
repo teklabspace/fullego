@@ -606,6 +606,10 @@ export const API_ENDPOINTS = {
     SUPPORT_CONVERSATIONS: '/admin/support/conversations',
     SUPPORT_CONVERSATION_MESSAGES: (id) => `/admin/support/conversations/${id}/messages`,
     SUPPORT_ANALYTICS: '/admin/support/analytics',
+    // Advisor <-> investor relationship oversight (admin's "My Clients").
+    // Single-wrapped {success, data} — payload is res.data, not res.data.data.
+    ADVISOR_CLIENTS_ROSTER: '/admin/advisor-clients',
+    UNASSIGNED_INVESTORS: '/admin/advisor-clients/unassigned',
     // Delegated asset creation queue (Milestone 1)
     ADVISOR_REQUESTS: '/admin/advisor-requests',
     APPROVE_ADVISOR_REQUEST: (id) => `/admin/advisor-requests/${id}/approve`,
@@ -636,6 +640,8 @@ export const API_ENDPOINTS = {
     ADVISOR_DIRECTORY: '/advisor-requests/directory',
     GRANTS: '/delegation-grants',
     REVOKE_GRANT: (id) => `/delegation-grants/${id}/revoke`,
+    // "Confirm & lock": ends the advisor's edit window on the asset they added.
+    LOCK_GRANT: (id) => `/delegation-grants/${id}/lock`,
   },
   // Notifications endpoints
   NOTIFICATIONS: {

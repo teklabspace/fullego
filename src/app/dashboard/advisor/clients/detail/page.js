@@ -14,6 +14,8 @@ import {
   getClientGoals,
   getClientRequests,
 } from '@/utils/advisorApi';
+import { getAdminConversationMessages } from '@/utils/supportAdminApi';
+import { listDelegationGrants } from '@/utils/delegationApi';
 
 // Query-param route, not /[id]. This app is a static export, so a dynamic
 // segment 404s in production unless whitelisted in generateStaticParams —
@@ -26,6 +28,10 @@ const TABS = [
   { key: 'goals', label: 'Goals' },
   { key: 'requests', label: 'Requests' },
   { key: 'activity', label: 'Activity' },
+  // Admin-only: the read-only advisor↔investor transcript. Advisors already
+  // have the live chat via "Open chat", and the endpoint behind this is
+  // admin-gated anyway, so showing it to an advisor would only ever 403.
+  { key: 'chat', label: 'Chat', adminOnly: true },
 ];
 
 const money = (v) =>
@@ -90,9 +96,42 @@ function ClientDetailInner() {
     if (mounted && isStaff) loadDetail();
   }, [loadDetail, mounted, isStaff]);
 
+  // An advisor may add ONE asset for this client, and only while they hold an
+  // ACTIVE grant. The server enforces it; this just decides whether to offer it.
+  const [creationGrant, setCreationGrant] = useState(null);
+  useEffect(() => {
+    if (!(mounted && isAdvisor && clientId)) return;
+    listDelegationGrants('advisor')
+      .then((gs) =>
+        setCreationGrant(
+          gs.find((g) => g.investorId === clientId && g.status === 'active' && g.isUsable) || null
+        )
+      )
+      .catch(() => setCreationGrant(null));
+  }, [mounted, isAdvisor, clientId]);
+
   const openTab = useCallback(async (key) => {
     setTab(key);
     if (key === 'overview' || tabData[key]) return;
+
+    if (key === 'chat') {
+      const conversationId = detail?.conversationId;
+      if (!conversationId) {
+        setTabData((prev) => ({ ...prev, chat: [] }));
+        return;
+      }
+      try {
+        setTabLoading(true);
+        const res = await getAdminConversationMessages(conversationId, 200);
+        setTabData((prev) => ({ ...prev, chat: res?.data || [] }));
+      } catch (err) {
+        toast.error(err?.message || 'Could not load the conversation.');
+      } finally {
+        setTabLoading(false);
+      }
+      return;
+    }
+
     const loaders = {
       assets: getClientAssets,
       documents: getClientDocuments,
@@ -109,7 +148,7 @@ function ClientDetailInner() {
     } finally {
       setTabLoading(false);
     }
-  }, [clientId, tabData]);
+  }, [clientId, tabData, detail]);
 
   if (!mounted || !isStaff) return null;
 
@@ -166,6 +205,28 @@ function ClientDetailInner() {
         )}
       </header>
 
+      {creationGrant && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 ${
+            isDarkMode ? 'border-amber-500/30 bg-amber-500/5' : 'border-amber-300 bg-amber-50'
+          }`}
+        >
+          <p className="text-sm">
+            You&apos;re authorised to add <strong>one</strong> asset for this client.
+            {creationGrant.expiresAt
+              ? ` Expires ${fmt(creationGrant.expiresAt)}.`
+              : ''}
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push(`/dashboard/assets/add?forClient=${clientId}`)}
+            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-black transition-opacity hover:opacity-90"
+          >
+            Add asset for this client
+          </button>
+        </div>
+      )}
+
       {!loadingDetail && detail && (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {[
@@ -183,7 +244,7 @@ function ClientDetailInner() {
       )}
 
       <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
+        {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
           <button
             key={t.key}
             type="button"
@@ -223,6 +284,33 @@ function ClientDetailInner() {
           <div className="p-6 space-y-3">
             {[0, 1, 2].map((i) => <div key={i} className={`h-6 animate-pulse rounded ${skel}`} />)}
           </div>
+        ) : tab === 'chat' ? (
+          !detail?.conversationId ? (
+            <p className={`p-6 text-center text-sm ${textMuted}`}>
+              No advisor chat exists for this investor yet.
+            </p>
+          ) : rows.length === 0 ? (
+            <p className={`p-6 text-center text-sm ${textMuted}`}>
+              The advisor and investor haven&apos;t exchanged any messages yet.
+            </p>
+          ) : (
+            <ul className={`divide-y ${divide}`}>
+              {rows.map((m) => (
+                <li key={m.id} className="p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="text-sm font-medium">
+                      {m.sender_name || 'Unknown'}
+                      <span className={`ml-2 text-xs font-normal ${textMuted}`}>
+                        {titleCase(m.sender_role)}
+                      </span>
+                    </p>
+                    <span className={`text-xs ${textMuted}`}>{fmtTime(m.timestamp)}</span>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm">{m.content}</p>
+                </li>
+              ))}
+            </ul>
+          )
         ) : rows.length === 0 ? (
           <Empty what={tab} />
         ) : (
