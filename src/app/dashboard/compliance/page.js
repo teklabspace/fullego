@@ -12,6 +12,11 @@ import {
   reassignComplianceTask,
 } from '@/utils/complianceApi';
 
+// Task statuses arrive as backend enum slugs — "not_started" would otherwise
+// render literally. Local copy by repo convention.
+const titleCase = (s) =>
+  s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—';
+
 export default function CompliancePage() {
   const { isDarkMode } = useTheme();
   const [dateRange, setDateRange] = useState('5th Jan - 30th Jan');
@@ -466,7 +471,7 @@ export default function CompliancePage() {
                       <span
                         className={`text-sm md:text-base font-medium ${task.statusColor}`}
                       >
-                        {task.status}
+                        {titleCase(task.status)}
                       </span>
                     </td>
                     <td className='px-4 md:px-6 py-4'>
@@ -615,7 +620,7 @@ export default function CompliancePage() {
                       <p
                         className={`text-base md:text-lg font-medium ${selectedTask.statusColor}`}
                       >
-                        {selectedTask.status}
+                        {titleCase(selectedTask.status)}
                       </p>
                     </div>
                   </div>

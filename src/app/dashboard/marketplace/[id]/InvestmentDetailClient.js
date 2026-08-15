@@ -33,6 +33,11 @@ import {
   YAxis,
 } from 'recharts';
 
+// Listing statuses arrive as backend enum slugs — "pending_approval" would
+// otherwise render literally. Local copy by repo convention.
+const titleCase = (s) =>
+  s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—';
+
 export default function InvestmentDetailClient() {
   const { isDarkMode } = useTheme();
   // Buying is investor-only — the backend rejects staff offers with
@@ -567,7 +572,7 @@ export default function InvestmentDetailClient() {
                         : 'text-green-500'
                   }`}
                 >
-                  {investment.status}
+                  {titleCase(investment.status)}
                 </span>
               </div>
 

@@ -19,6 +19,11 @@ import {
 } from '@/utils/entityApi';
 import { toast } from 'react-toastify';
 
+// Audit-trail actions arrive as backend enum slugs ("document_uploaded",
+// "status_updated"). Never render them raw — local copy by repo convention.
+const titleCase = (s) =>
+  s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '';
+
 export default function EntityStructurePage() {
   const { isDarkMode } = useTheme();
   const [selectedEntityId, setSelectedEntityId] = useState(null);
@@ -943,7 +948,7 @@ export default function EntityStructurePage() {
                               isDarkMode ? 'text-white' : 'text-gray-900'
                             }`}
                           >
-                            {entry.action}:
+                            {titleCase(entry.action)}:
                           </span>
                           <span
                             className={`text-sm md:text-base ${
@@ -955,7 +960,7 @@ export default function EntityStructurePage() {
                           <span
                             className={`text-xs md:text-sm font-medium ${entry.statusColor}`}
                           >
-                            ({entry.status})
+                            ({titleCase(entry.status)})
                           </span>
                         </div>
                         <p
