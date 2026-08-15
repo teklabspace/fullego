@@ -148,7 +148,7 @@ export default function AdminAdvisorRequestsPage() {
             onClick={() => setTab(t.key)}
             className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
               tab === t.key
-                ? 'bg-amber-500 text-black'
+                ? 'bg-[#F1CB68] text-[#101014]'
                 : isDarkMode
                 ? 'border border-[#FFFFFF14] text-gray-200 hover:bg-white/5'
                 : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -210,7 +210,7 @@ export default function AdminAdvisorRequestsPage() {
                     type="button"
                     disabled={busyId === r.id}
                     onClick={() => approve(r)}
-                    className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+                    className="rounded-lg bg-[#F1CB68] px-3 py-2 text-sm font-semibold text-[#101014] transition-colors hover:bg-[#BF9B30] disabled:opacity-50"
                   >
                     Approve
                   </button>
@@ -224,10 +224,28 @@ export default function AdminAdvisorRequestsPage() {
                   </button>
                 </div>
               ) : (
-                <span className={`text-xs capitalize ${textMuted}`}>
-                  {r.status}
-                  {r.decisionReason ? ` — ${r.decisionReason}` : ''}
-                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className={`text-xs capitalize ${textMuted}`}>
+                    {r.status}
+                    {r.decisionReason ? ` — ${r.decisionReason}` : ''}
+                  </span>
+                  {/* Jump straight to the investor this request was about. Only
+                      offered once decided — a pending request has no client
+                      relationship to open yet. */}
+                  {(r.investor?.id || r.investorId) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        router.push(
+                          `/dashboard/advisor/clients/detail?id=${r.investor?.id || r.investorId}`
+                        )
+                      }
+                      className={ghostBtn}
+                    >
+                      View
+                    </button>
+                  )}
+                </div>
               )}
             </li>
           ))}

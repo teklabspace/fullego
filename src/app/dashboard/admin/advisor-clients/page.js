@@ -108,7 +108,7 @@ export default function AdminAdvisorClientsPage() {
               onClick={() => setTab(t.key)}
               className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
                 tab === t.key
-                  ? 'bg-amber-500 text-black'
+                  ? 'bg-[#F1CB68] text-[#101014]'
                   : isDarkMode
                   ? 'border border-[#FFFFFF14] text-gray-200 hover:bg-white/5'
                   : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
