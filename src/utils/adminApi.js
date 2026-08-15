@@ -106,6 +106,44 @@ export const listAdvisorClients = (advisorId) =>
 export const unassignAdvisorClient = (advisorId, investorId) =>
   apiDelete(API_ENDPOINTS.ADMIN.UNASSIGN_ADVISOR_CLIENT(advisorId, investorId));
 
+// ── Relationship oversight (admin's view of every advisor↔investor pairing) ──
+// These two return {success, data} with no `status_code`, so client.js leaves
+// the envelope intact and the payload is `res.data` — unlike the legacy admin
+// endpoints above, which are unwrapped once and land at `res.data` as well.
+
+/** GET /admin/advisor-clients — every pairing with chat activity. */
+export const listAdvisorClientRoster = async ({ search, page = 1, pageSize = 50 } = {}) => {
+  const res = await apiGet(
+    `${API_ENDPOINTS.ADMIN.ADVISOR_CLIENTS_ROSTER}${buildQuery({ search, page, page_size: pageSize })}`
+  );
+  return {
+    pairings: (res?.data || []).map((r) => ({
+      id: r.id,
+      advisor: r.advisor,
+      investor: r.investor,
+      conversationId: r.conversation_id,
+      messageCount: r.message_count ?? 0,
+      lastMessageAt: r.last_message_at,
+      assignedAt: r.assigned_at,
+    })),
+    total: res?.total ?? 0,
+  };
+};
+
+/** GET /admin/advisor-clients/unassigned — investors still waiting for an advisor. */
+export const listUnassignedInvestors = async ({ search } = {}) => {
+  const res = await apiGet(
+    `${API_ENDPOINTS.ADMIN.UNASSIGNED_INVESTORS}${buildQuery({ search })}`
+  );
+  return (res?.data || []).map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    isActive: u.is_active,
+    createdAt: u.created_at,
+  }));
+};
+
 export const deactivateUser = (userId) =>
   apiPatch(API_ENDPOINTS.ADMIN.DEACTIVATE_USER(userId), {});
 

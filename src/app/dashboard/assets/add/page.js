@@ -277,13 +277,21 @@ export default function AddAssetPage() {
   const { isDarkMode } = useTheme();
   // Only investors create or edit assets — advisors and admins reaching this
   // URL directly are sent back to the (read-only for them) assets list.
-  const { isInvestor, mounted: authMounted } = useAuth();
+  //
+  // The one exception: `?forClient=<investorId>` puts an advisor into delegated
+  // mode, where they add ONE asset for a client under a grant issued by an
+  // admin. The server re-checks that grant, so this is a UX gate only.
+  const { isInvestor, isAdvisor, mounted: authMounted } = useAuth();
+  const onBehalfOf = searchParams.get('forClient');
+  const isDelegatedMode = Boolean(onBehalfOf) && isAdvisor;
+  const canUseWizard = isInvestor || isDelegatedMode;
+
   useEffect(() => {
-    if (authMounted && !isInvestor) {
+    if (authMounted && !canUseWizard) {
       toast.error('Only investor accounts can add or edit assets.');
       router.replace('/dashboard/assets');
     }
-  }, [authMounted, isInvestor, router]);
+  }, [authMounted, canUseWizard, router]);
   const [currentStep, setCurrentStep] = useState(1);
   // All three steps show in both modes; in edit mode step 2 manages the
   // asset's EXISTING photos/documents via the asset-scoped media endpoints.
@@ -1178,9 +1186,13 @@ export default function AddAssetPage() {
           specificationsKeys: Object.keys(assetData.specifications || {}),
         });
 
-        // Create the asset
+        // Create the asset. In delegated mode the owner is the client, not the
+        // caller — the backend requires an ACTIVE grant for this investor and
+        // charges the asset against THEIR plan, not the advisor's.
         console.log('🔄 Creating asset...');
-        const response = await createAsset(assetData);
+        const response = await createAsset(
+          isDelegatedMode ? { ...assetData, onBehalfOf } : assetData
+        );
         
         console.log('✅ Asset created successfully:', {
           assetId: response.data?.id,
@@ -1878,7 +1890,7 @@ export default function AddAssetPage() {
 
   // Non-investors are redirected by the guard effect above — render nothing
   // in the meantime so the form never flashes for them.
-  if (authMounted && !isInvestor) {
+  if (authMounted && !canUseWizard) {
     return null;
   }
 

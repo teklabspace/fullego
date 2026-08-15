@@ -31,3 +31,39 @@ export const getAdvisorBook = async () => {
   const response = await apiGet(API_ENDPOINTS.ADVISOR.BOOK);
   return transformKeys(response?.data ?? response ?? {});
 };
+
+// ── Client-scoped reads ──────────────────────────────────────────────────────
+// Backend gates these on `advisor_clients`; a non-client returns 403 with
+// code NOT_YOUR_CLIENT. Every call is recorded in the client's activity log.
+// These endpoints emit {success, data} without `status_code`, so client.js
+// leaves the envelope intact and the payload is `res.data` (same rule as
+// delegationApi.js — see the envelope note there).
+
+const clientPayload = async (endpoint) => {
+  const res = await apiGet(endpoint);
+  return transformKeys(res?.data ?? {});
+};
+
+/** GET /advisor/clients/{id} → { client, kycStatus, plan, netWorth, assetCount, allocation } */
+export const getClientDetail = (clientId) =>
+  clientPayload(API_ENDPOINTS.ADVISOR.CLIENT_DETAIL(clientId));
+
+/** GET /advisor/clients/{id}/assets */
+export const getClientAssets = async (clientId) =>
+  (await clientPayload(API_ENDPOINTS.ADVISOR.CLIENT_ASSETS(clientId))) || [];
+
+/** GET /advisor/clients/{id}/documents — metadata only, no storage paths. */
+export const getClientDocuments = async (clientId) =>
+  (await clientPayload(API_ENDPOINTS.ADVISOR.CLIENT_DOCUMENTS(clientId))) || [];
+
+/** GET /advisor/clients/{id}/goals — includes progressPct. */
+export const getClientGoals = async (clientId) =>
+  (await clientPayload(API_ENDPOINTS.ADVISOR.CLIENT_GOALS(clientId))) || [];
+
+/** GET /advisor/clients/{id}/requests — appraisals + sale requests, newest first. */
+export const getClientRequests = async (clientId) =>
+  (await clientPayload(API_ENDPOINTS.ADVISOR.CLIENT_REQUESTS(clientId))) || [];
+
+/** GET /advisor/clients/{id}/activity — who did what to this client, when. */
+export const getClientActivity = async (clientId) =>
+  (await clientPayload(API_ENDPOINTS.ADVISOR.CLIENT_ACTIVITY(clientId))) || [];

@@ -91,13 +91,25 @@ export default function AdvisorClientsPage() {
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => router.push('/dashboard/support-dashboard')}
-                className="mt-auto w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-[#0B0D12]"
-                style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)' }}
-              >
-                Open chat
-              </button>
+              <div className="mt-auto flex gap-2">
+                <button
+                  onClick={() => router.push(`/dashboard/advisor/clients/detail?id=${c.client_id}`)}
+                  className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold ${
+                    isDarkMode
+                      ? 'border-[#FFFFFF14] text-gray-200 hover:bg-white/5'
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  View client
+                </button>
+                <button
+                  onClick={() => router.push('/dashboard/support-dashboard')}
+                  className="flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#0B0D12]"
+                  style={{ background: 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)' }}
+                >
+                  Open chat
+                </button>
+              </div>
             </div>
           ))}
         </div>

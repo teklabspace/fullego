@@ -138,6 +138,7 @@ export default function Sidebar({ isOpen, onClose }) {
           { id: 'documents', label: 'Documents', icon: 'FileText', href: '/dashboard/documents', roles: ['investor'] },
           { id: 'support', label: 'Support Ticket', icon: 'HelpCircle', href: '/dashboard/support', roles: ['investor'] },
           { id: 'concierge', label: 'Concierge Service', icon: 'Shield', href: '/dashboard/concierge', roles: ['investor'] },
+          { id: 'my-advisor', label: 'My Advisor', icon: 'Grid', href: '/dashboard/my-advisor', roles: ['investor'] },
         ],
       },
       {
@@ -158,6 +159,8 @@ export default function Sidebar({ isOpen, onClose }) {
           { id: 'admin-subscriptions', label: 'Subscriptions', icon: 'BarChart', href: '/dashboard/admin/subscriptions', roles: ['admin'] },
           { id: 'admin-verifications', label: 'Verifications', icon: 'Shield', href: '/dashboard/admin/verifications', roles: ['admin'] },
           { id: 'admin-disputes', label: 'Escrow Disputes', icon: 'Shield', href: '/dashboard/admin/disputes', roles: ['admin'] },
+          { id: 'admin-advisor-requests', label: 'Advisor Requests', icon: 'Grid', href: '/dashboard/admin/advisor-requests', roles: ['admin'] },
+          { id: 'admin-advisor-clients', label: 'Advisor Relationships', icon: 'Grid', href: '/dashboard/admin/advisor-clients', roles: ['admin'] },
           crmDashboardItem,
         ],
       },
