@@ -1006,7 +1006,7 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
                   auto-suspends), but asset.status itself still comes back
                   unchanged — hiding it here remains a frontend rule. */}
               {!loadingHistory && !openHumanAppraisal && (
-                <span className='px-3 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full'>
+                <span className='px-3 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full capitalize'>
                   {asset.status}
                 </span>
               )}

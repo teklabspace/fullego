@@ -9,6 +9,11 @@ import { listTickets, assignTicket, uploadTicketDocuments } from '@/utils/suppor
 import { getReportStatistics } from '@/utils/reportsApi';
 import { toast } from 'react-toastify';
 
+// Ticket/task status and type arrive as backend enum slugs (e.g. "in_progress",
+// "not_started"). Never render them raw. Local copy by repo convention.
+const titleCase = (s) =>
+  s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—';
+
 export default function CRMDashboardPage() {
   const { isDarkMode } = useTheme();
   const [activeTab, setActiveTab] = useState('overview');
@@ -679,7 +684,7 @@ export default function CRMDashboardPage() {
                                 task.status
                               )}`}
                             >
-                              {task.status}
+                              {titleCase(task.status)}
                             </span>
                           </td>
                           <td className='px-6 py-4'>
@@ -710,7 +715,7 @@ export default function CRMDashboardPage() {
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}
                           >
-                            {task.type}
+                            {titleCase(task.type)}
                           </td>
                           <td
                             className={`px-6 py-4 text-sm ${
@@ -968,7 +973,7 @@ export default function CRMDashboardPage() {
                                 task.status
                               )}`}
                             >
-                              {task.status}
+                              {titleCase(task.status)}
                             </span>
                           </td>
                           <td className='px-6 py-4'>

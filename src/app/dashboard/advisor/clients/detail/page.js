@@ -55,6 +55,34 @@ const fmtTime = (d) => {
 
 const titleCase = (s) => (s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—');
 
+// Activity-log actions are machine slugs (e.g. "client.requests.viewed"). Never
+// render them raw — this maps the known ones and humanises anything new, so a
+// future action added server-side degrades to "Viewed something" rather than
+// leaking a dotted identifier into the client's audit history.
+const ACTION_LABELS = {
+  'client.viewed': 'Viewed client overview',
+  'client.assets.viewed': 'Viewed assets',
+  'client.documents.viewed': 'Viewed documents',
+  'client.goals.viewed': 'Viewed goals',
+  'client.requests.viewed': 'Viewed requests',
+  'client.activity.viewed': 'Viewed activity',
+  'asset.created_on_behalf': 'Created an asset on behalf',
+  'asset.confirmed_locked': 'Asset confirmed and locked',
+};
+
+const actionLabel = (action) => {
+  if (!action) return 'Activity';
+  if (ACTION_LABELS[action]) return ACTION_LABELS[action];
+  // Fallback: "client.requests.viewed" -> "Viewed requests";
+  //           "asset.some_new_thing"   -> "Some new thing".
+  const parts = String(action).split('.').filter(Boolean);
+  const verb = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  const subject = parts.length > 2 ? parts[parts.length - 2] : '';
+  const words = (v) => v.replace(/_/g, ' ').trim();
+  const phrase = subject ? `${words(verb)} ${words(subject)}` : words(verb);
+  return phrase.charAt(0).toUpperCase() + phrase.slice(1);
+};
+
 function ClientDetailInner() {
   const { isDarkMode } = useTheme();
   const { isAdvisor, isAdmin, mounted } = useAuth();
@@ -369,9 +397,9 @@ function ClientDetailInner() {
                 {tab === 'activity' && (
                   <>
                     <div>
-                      <p className="text-sm">{r.summary || r.action}</p>
+                      <p className="text-sm">{r.summary || actionLabel(r.action)}</p>
                       <p className={`text-xs ${textMuted}`}>
-                        {r.actor?.name || 'System'} · {r.action}
+                        {r.actor?.name || 'System'} · {actionLabel(r.action)}
                       </p>
                     </div>
                     <span className={`text-xs ${textMuted}`}>{fmtTime(r.createdAt)}</span>
