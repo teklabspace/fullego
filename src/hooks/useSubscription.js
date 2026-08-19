@@ -12,6 +12,9 @@ import {
   cancelSubscription,
   renewSubscription,
   waitForActiveSubscription,
+  extractClientSecret,
+  needsCardConfirmation,
+  isPaymentIntentSettled,
 } from '@/utils/subscriptionsApi';
 import { clearSubscriptionCache } from '@/utils/onboarding';
 import { getPaymentMethods } from '@/utils/paymentsApi';
@@ -99,20 +102,19 @@ export function useSubscription() {
   const runMutation = async (fn, successMsg, failMsg) => {
     try {
       const res = await fn();
-      // `requires_action` + `client_secret` are returned at the top level for 3DS
-      // (and may also appear nested under `data`). Cover both shapes.
-      const payload = (res && (res.data ?? res)) || {};
-      const top = res || {};
-      const needsAction =
-        top.requiresAction || top.requires_action ||
-        payload.requiresAction || payload.requires_action;
-      const clientSecret =
-        top.clientSecret || top.client_secret ||
-        payload.clientSecret || payload.client_secret;
+      // A client_secret is not a mandate to confirm. `always_invoice` upgrades come
+      // back already charged against the saved card (`succeeded`), secret included;
+      // confirming those is refused by Stripe and the refusal reads as a decline for
+      // money already taken. Gate on the intent's status instead.
+      const clientSecret = extractClientSecret(res);
+      const mustConfirm = needsCardConfirmation(res);
+      const alreadyPaid = isPaymentIntentSettled(res);
 
-      if (needsAction || clientSecret) {
-        const stripe = await getStripe();
-        if (stripe && clientSecret) {
+      if (mustConfirm && !(await getStripe())) {
+        toast.info('Additional authentication is required to complete payment.');
+      } else if (mustConfirm || alreadyPaid) {
+        if (mustConfirm) {
+          const stripe = await getStripe();
           // Confirm with the user's saved card. The PaymentIntent arrives with
           // no payment method attached, so omitting one fails with Stripe's
           // "a payment method of type card was expected" error.
@@ -132,20 +134,19 @@ export function useSubscription() {
             await load();
             return false;
           }
-          // A cleared card is not an active plan. Purchase, renewal and upgrade
-          // all stay `incomplete` until Stripe's webhook reaches our backend, so
-          // announcing success here would be a lie the UI immediately contradicts.
-          const settled = await waitForActiveSubscription();
-          await load();
-          if (!settled) {
-            toast.info('Payment received — we’re still activating your plan. Refresh in a moment.');
-            return true;
-          }
-          toast.success(successMsg);
-          clearSubscriptionCache();
+        }
+        // A cleared card is not an active plan. Purchase, renewal and upgrade
+        // all stay `incomplete` until Stripe's webhook reaches our backend, so
+        // announcing success here would be a lie the UI immediately contradicts.
+        const settled = await waitForActiveSubscription();
+        await load();
+        if (!settled) {
+          toast.info('Payment received — we’re still activating your plan. Refresh in a moment.');
           return true;
         }
-        toast.info('Additional authentication is required to complete payment.');
+        toast.success(successMsg);
+        clearSubscriptionCache();
+        return true;
       } else {
         toast.success(successMsg);
       }

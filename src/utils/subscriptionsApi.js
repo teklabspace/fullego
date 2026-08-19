@@ -82,18 +82,71 @@ const unwrapSubscription = (res) =>
  * nested it under `data` or `payment_intent`, so check all three. Both casings,
  * because only `data` and `subscription` go through transformKeys.
  */
+const pickPaymentIntent = (res) => {
+  const top = res || {};
+  const data = top.data || {};
+  return (
+    top.payment_intent || top.paymentIntent ||
+    data.payment_intent || data.paymentIntent || {}
+  );
+};
+
 export const extractClientSecret = (res) => {
   const top = res || {};
   const data = top.data || {};
-  const pi =
-    top.payment_intent || top.paymentIntent ||
-    data.payment_intent || data.paymentIntent || {};
+  const pi = pickPaymentIntent(res);
   return (
     top.client_secret || top.clientSecret ||
     data.client_secret || data.clientSecret ||
     pi.client_secret || pi.clientSecret ||
     null
   );
+};
+
+/**
+ * PaymentIntent statuses that mean the money has already moved. Confirming an
+ * intent in one of these states is not a payment attempt — Stripe rejects the
+ * call outright.
+ */
+export const SETTLED_PAYMENT_INTENT_STATUSES = ['succeeded', 'processing'];
+
+/** Lowercased status of the returned PaymentIntent, or null when there is none. */
+export const extractPaymentIntentStatus = (res) => {
+  const status = pickPaymentIntent(res).status;
+  return status ? String(status).toLowerCase() : null;
+};
+
+/** True when the returned intent has already settled server-side. */
+export const isPaymentIntentSettled = (res) =>
+  SETTLED_PAYMENT_INTENT_STATUSES.includes(extractPaymentIntentStatus(res) || '');
+
+/**
+ * Whether Stripe.js still has to confirm a card for this response.
+ *
+ * The presence of a client_secret does NOT mean "confirm me". `PUT /subscriptions/upgrade`
+ * bills the proration with Stripe's `always_invoice`, so Stripe finalizes the invoice and
+ * charges the customer's saved default card server-side before we ever get a reply. The
+ * intent comes back already `succeeded` — with its client_secret still populated, and
+ * `requires_action: false`. Confirming it anyway is rejected by Stripe, and that rejection
+ * ('A processing error occurred.') used to render as a payment failure above a live Pay
+ * button, for money that had already left the customer's account.
+ *
+ * So: read the intent's status, not whether a secret happens to be present.
+ */
+export const needsCardConfirmation = (res) => {
+  if (!extractClientSecret(res)) return false;
+
+  const status = extractPaymentIntentStatus(res);
+  if (status) return !SETTLED_PAYMENT_INTENT_STATUSES.includes(status);
+
+  // No status on the intent (older/edge response shapes): fall back to the explicit
+  // flag, and only assume confirmation is needed when that is absent too.
+  const top = res || {};
+  const data = top.data || {};
+  const flag =
+    top.requiresAction ?? top.requires_action ??
+    data.requiresAction ?? data.requires_action;
+  return flag === undefined || flag === null ? true : Boolean(flag);
 };
 
 /**
@@ -121,7 +174,10 @@ export const waitForActiveSubscription = async ({
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     try {
-      const sub = unwrapSubscription(await getCurrentSubscription());
+      // Ask the backend to reconcile against Stripe on each poll. Without it this loop
+      // can only ever observe what the webhook has already written, and an upgrade whose
+      // webhook never arrives spins until the deadline every single time.
+      const sub = unwrapSubscription(await getCurrentSubscription({ sync: true }));
       if (sub && isSettled(sub)) return sub;
     } catch {
       // A transient read failure mid-poll is not a payment failure. Keep trying
@@ -154,8 +210,13 @@ export const getAvailablePlans = async () => {
  * Get Current Subscription
  * GET /api/v1/subscriptions
  */
-export const getCurrentSubscription = async () => {
-  const endpoint = API_ENDPOINTS.SUBSCRIPTIONS.GET_CURRENT;
+export const getCurrentSubscription = async ({ sync = false } = {}) => {
+  // `sync` asks the backend to re-read Stripe before answering. Only the post-payment
+  // poll sets it: an upgrade sits ACTIVE on the old plan until its webhook lands, so
+  // that poll needs the round-trip, while routine dashboard reads must not pay for one.
+  const endpoint = sync
+    ? `${API_ENDPOINTS.SUBSCRIPTIONS.GET_CURRENT}?sync=true`
+    : API_ENDPOINTS.SUBSCRIPTIONS.GET_CURRENT;
   const response = await apiGet(endpoint);
 
   // The client unwraps the envelope, so `response` is the capability wrapper:
