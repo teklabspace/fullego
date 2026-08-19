@@ -13,6 +13,8 @@ import {
   updateSubscriptionPlan,
   waitForActiveSubscription,
   extractClientSecret,
+  needsCardConfirmation,
+  SETTLED_PAYMENT_INTENT_STATUSES,
   SUBSCRIPTION_STATUS,
 } from '@/utils/subscriptionsApi';
 import { clearSubscriptionCache, hasActiveSubscription } from '@/utils/onboarding';
@@ -45,6 +47,21 @@ const cardStyle = {
   },
 };
 
+// Ask Stripe what really happened to an intent whose confirmation it just refused.
+// Refusals are not all card failures: confirming an intent that already succeeded is
+// also refused, and reporting that as a decline would push the user to pay twice.
+const paymentIntentAlreadySettled = async (stripe, clientSecret) => {
+  try {
+    const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecret);
+    return SETTLED_PAYMENT_INTENT_STATUSES.includes(
+      String(paymentIntent?.status || '').toLowerCase()
+    );
+  } catch {
+    // Can't verify → fall back to trusting the original error.
+    return false;
+  }
+};
+
 function CheckoutForm({ mode = 'subscribe', billingCycle, price, planId, planReady, onDone, onAlreadySubscribed }) {
   const router = useRouter();
   const stripe = useStripe();
@@ -62,9 +79,16 @@ function CheckoutForm({ mode = 'subscribe', billingCycle, price, planId, planRea
   // for plan_id to actually flip to the plan we asked for.
   const settleAndFinish = async () => {
     setConfirming(true);
+    const eq = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
     const settled = await waitForActiveSubscription(
       isUpgrade
-        ? { isSettled: (sub) => String(sub?.planId || '').toLowerCase() === String(planId).toLowerCase() }
+        ? {
+            // Match the billing cycle too, not just the plan. Switching monthly<->annual
+            // on the SAME plan leaves planId unchanged, so a plan-only test called it
+            // settled the instant it was asked — reporting success for a change that had
+            // not landed yet.
+            isSettled: (sub) => eq(sub?.planId, planId) && eq(sub?.billingCycle, billingCycle),
+          }
         : {}
     );
     setConfirming(false);
@@ -101,20 +125,34 @@ function CheckoutForm({ mode = 'subscribe', billingCycle, price, planId, planRea
         : await createSubscription({ planId, billingCycle });
       const clientSecret = extractClientSecret(res);
 
-      // 2) Confirm the PaymentIntent with the card entered here; this also
-      // resolves any 3DS challenge. Clearing the card proves the money moved —
-      // it does NOT mean our backend knows yet. Stripe tells it via webhook.
-      if (clientSecret) {
+      // 2) Confirm the PaymentIntent with the card entered here — but ONLY when the
+      // intent is actually waiting on one. An upgrade's proration invoice is billed
+      // with Stripe's `always_invoice`, so Stripe charges the saved default card
+      // server-side and hands the intent back already `succeeded`, client_secret and
+      // all. Confirming that is refused by Stripe, and the refusal surfaced here as
+      // 'A processing error occurred.' above a live Pay button — a payment failure
+      // reported for money that had already been taken. A secret is not a mandate to
+      // confirm; the intent's status is.
+      //
+      // Clearing the card proves the money moved — it does NOT mean our backend knows
+      // yet. Stripe tells it via webhook.
+      if (needsCardConfirmation(res)) {
         const card = elements.getElement(CardElement);
         const { error } = await stripe.confirmCardPayment(clientSecret, {
           payment_method: { card },
         });
         if (error) {
-          setCardError(error.message || 'Payment failed. Please try another card.');
-          setBusy(false);
-          return;
+          // The intent may have settled between our read and this confirm (a
+          // concurrent tab, a webhook landing mid-flight). Never call a settled
+          // payment a failure.
+          const settledAnyway = await paymentIntentAlreadySettled(stripe, clientSecret);
+          if (!settledAnyway) {
+            setCardError(error.message || 'Payment failed. Please try another card.');
+            setBusy(false);
+            return;
+          }
         }
-      } else if (String(res?.subscription?.status || '').toLowerCase() === SUBSCRIPTION_STATUS.INCOMPLETE) {
+      } else if (!clientSecret && String(res?.subscription?.status || '').toLowerCase() === SUBSCRIPTION_STATUS.INCOMPLETE) {
         // Incomplete with nothing to confirm means we can't finish the payment
         // and must not pretend we did.
         setCardError('We couldn’t start the payment. Please try again or contact support.');
