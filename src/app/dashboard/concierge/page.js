@@ -396,7 +396,14 @@ export default function ConciergeServicePage() {
     }
   };
 
-  const handleValuationFinalized = async ({ appraisedValue, valuationDate }) => {
+  const handleValuationFinalized = async ({
+    appraisedValue,
+    valuationDate,
+    expectedReturn,
+    duration,
+    riskLevel,
+    slotsTotal,
+  }) => {
     const target = finalizeTarget;
     if (!target) return;
     try {
@@ -404,7 +411,15 @@ export default function ConciergeServicePage() {
     } catch {
       // non-fatal — the documents list just won't refresh immediately
     }
-    const patch = { status: 'completed', appraisedValue, valuationDate };
+    const patch = {
+      status: 'completed',
+      appraisedValue,
+      valuationDate,
+      expectedReturn,
+      duration,
+      riskLevel,
+      slotsTotal,
+    };
     setAppraisals(prev => prev.map(a => (a.id === target.id ? { ...a, ...patch } : a)));
     setSelectedAppraisal(prev => (prev && prev.id === target.id ? { ...prev, ...patch } : prev));
     setFinalizeTarget(null);
@@ -1230,6 +1245,13 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
   const [file, setFile] = useState(null);
   const [appraisedValue, setAppraisedValue] = useState('');
   const [valuationDate, setValuationDate] = useState('');
+  // Required by the backend alongside appraised_value/valuation_date — these
+  // are what actually populate the marketplace listing this finalize call
+  // publishes, so a missing one is a blank "N/A" field on the listing.
+  const [expectedReturn, setExpectedReturn] = useState('');
+  const [duration, setDuration] = useState('');
+  const [riskLevel, setRiskLevel] = useState('');
+  const [slotsTotal, setSlotsTotal] = useState('');
   const [stage, setStage] = useState('form'); // 'form' | 'retry-upload'
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -1241,6 +1263,15 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
     (d.documentType || d.type || '').toString().toLowerCase().includes('valuation')
   );
 
+  const finalizedPayload = (numericValue) => ({
+    appraisedValue: numericValue,
+    valuationDate: valuationDate || null,
+    expectedReturn: expectedReturn.trim(),
+    duration: duration.trim(),
+    riskLevel,
+    slotsTotal: parseInt(String(slotsTotal).trim(), 10),
+  });
+
   const finishUpload = async (numericValue) => {
     try {
       await uploadAppraisalDocumentsWithProgress(appraisal.id, [file], {
@@ -1248,7 +1279,7 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
         isClientVisible: true,
       });
       setBusy(false);
-      onFinalized({ appraisedValue: numericValue, valuationDate: valuationDate || null });
+      onFinalized(finalizedPayload(numericValue));
     } catch (err) {
       setBusy(false);
       setStage('retry-upload');
@@ -1271,11 +1302,33 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
       setError('Please enter a valid appraised value.');
       return;
     }
+    if (!expectedReturn.trim()) {
+      setError('Please enter an expected return.');
+      return;
+    }
+    if (!duration.trim()) {
+      setError('Please enter a duration.');
+      return;
+    }
+    if (!riskLevel) {
+      setError('Please select a risk level.');
+      return;
+    }
+    const slots = parseInt(String(slotsTotal).trim(), 10);
+    if (isNaN(slots) || slots < 0) {
+      setError('Please enter total slots (0 or more).');
+      return;
+    }
     setBusy(true);
     try {
       await updateAppraisalValuation(appraisal.id, {
         appraisedValue: numericValue,
         ...(valuationDate ? { valuationDate } : {}),
+        currency: 'USD',
+        expectedReturn: expectedReturn.trim(),
+        duration: duration.trim(),
+        riskLevel,
+        slotsTotal: slots,
       });
     } catch (err) {
       setBusy(false);
@@ -1287,7 +1340,7 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
     } else {
       // Report already on file — saving the amount is all that was missing.
       setBusy(false);
-      onFinalized({ appraisedValue: numericValue, valuationDate: valuationDate || null });
+      onFinalized(finalizedPayload(numericValue));
     }
   };
 
@@ -1355,10 +1408,81 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
                 type='date'
                 value={valuationDate}
                 onChange={e => setValuationDate(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg text-sm border mb-6 focus:outline-none focus:border-[#F1CB68] ${
+                className={`w-full px-3 py-2 rounded-lg text-sm border mb-4 focus:outline-none focus:border-[#F1CB68] ${
                   isDarkMode ? 'bg-white/5 border-[#FFFFFF14] text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
                 }`}
               />
+
+              {/* These publish onto the marketplace listing this call creates
+                  — the backend now rejects the request if any is missing. */}
+              <div className='grid grid-cols-2 gap-3 mb-4'>
+                <div>
+                  <label className={`block text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Expected return
+                  </label>
+                  <input
+                    type='text'
+                    value={expectedReturn}
+                    onChange={e => setExpectedReturn(e.target.value)}
+                    placeholder='e.g. 8.5%'
+                    className={`w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:border-[#F1CB68] ${
+                      isDarkMode
+                        ? 'bg-white/5 border-[#FFFFFF14] text-white placeholder-gray-500'
+                        : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Duration
+                  </label>
+                  <input
+                    type='text'
+                    value={duration}
+                    onChange={e => setDuration(e.target.value)}
+                    placeholder='e.g. 36 months'
+                    className={`w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:border-[#F1CB68] ${
+                      isDarkMode
+                        ? 'bg-white/5 border-[#FFFFFF14] text-white placeholder-gray-500'
+                        : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Risk level
+                  </label>
+                  <select
+                    value={riskLevel}
+                    onChange={e => setRiskLevel(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:border-[#F1CB68] ${
+                      isDarkMode ? 'bg-white/5 border-[#FFFFFF14] text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
+                    }`}
+                  >
+                    <option value=''>Select</option>
+                    <option value='low'>Low</option>
+                    <option value='medium'>Medium</option>
+                    <option value='high'>High</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Total slots
+                  </label>
+                  <input
+                    type='text'
+                    inputMode='numeric'
+                    value={slotsTotal}
+                    onChange={e => setSlotsTotal(e.target.value)}
+                    placeholder='e.g. 40'
+                    className={`w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:border-[#F1CB68] ${
+                      isDarkMode
+                        ? 'bg-white/5 border-[#FFFFFF14] text-white placeholder-gray-500'
+                        : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
+                    }`}
+                  />
+                </div>
+              </div>
             </>
           )}
           <div className='flex gap-3'>

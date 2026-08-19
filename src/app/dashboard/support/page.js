@@ -2,11 +2,12 @@
 import NewTicketModal from '@/components/dashboard/NewTicketModal';
 import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import DocumentUploadModal from '@/components/dashboard/DocumentUploadModal';
 import TicketRatingModal from '@/components/support/TicketRatingModal';
 import {
-  listTickets,
+  listTicketsPage,
   createTicket,
   updateTicket,
   uploadTicketDocuments,
@@ -18,8 +19,22 @@ import {
 import { toast } from 'react-toastify';
 import { useAuth } from '@/hooks/useAuth';
 
+// The list payload carries created_at / updated_at (camelised to createdAt /
+// updatedAt by the util). Reading `ticket.created` / `ticket.updated` — keys
+// the backend has never sent — is what left both columns blank.
+// updated_at stays NULL until a ticket is first touched, so fall back to created.
+const formatTicketDate = value =>
+  value
+    ? new Date(value).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : '';
+
 export default function SupportPage() {
   const { isDarkMode } = useTheme();
+  const router = useRouter();
   // Every ticket on this page belongs to the logged-in user, so when the
   // backend doesn't send an issuer name, theirs is the correct one to show.
   const { user } = useAuth();
@@ -29,38 +44,52 @@ export default function SupportPage() {
     user?.email?.split('@')[0] ||
     '';
   const [ticketFilter, setTicketFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('');
   const [isNewTicketModalOpen, setIsNewTicketModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [ratingTicket, setRatingTicket] = useState(null);
   const [tickets, setTickets] = useState([]);
+  const [totalTickets, setTotalTickets] = useState(0);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch tickets on mount and when filter changes
+  const mapTicket = ticket => ({
+    id: ticket.id || ticket.ticketId,
+    ticketNumber: ticket.ticketNumber,
+    subject: ticket.subject,
+    description: ticket.description,
+    status: ticket.status,
+    priority: ticket.priority,
+    category: ticket.category,
+    created: formatTicketDate(ticket.createdAt),
+    updated: formatTicketDate(ticket.updatedAt || ticket.createdAt),
+    resolvedAt: ticket.resolvedAt,
+    issuer: ticket.requester?.name || ticket.issuer || ticket.userName || '',
+    assignee: ticket.assignee?.name || null,
+    satisfactionRating: ticket.satisfactionRating ?? null,
+    documentsCount: ticket.documentsCount ?? (ticket.documents || []).length,
+    documents: ticket.documents || [],
+  });
+
+  // Fetch tickets on mount and whenever a filter or the page changes
   useEffect(() => {
     const fetchTickets = async () => {
       try {
         setLoading(true);
         const params = {
           status: ticketFilter === 'all' ? undefined : ticketFilter,
+          priority: priorityFilter || undefined,
           search: searchQuery || undefined,
-          limit: 100,
+          page,
+          limit: PAGE_SIZE,
         };
-        const response = await listTickets(params);
-        const ticketsData = response.data || response || [];
-        setTickets(ticketsData.map(ticket => ({
-          id: ticket.id || ticket.ticketId,
-          ticketNumber: ticket.ticketNumber,
-          subject: ticket.subject,
-          description: ticket.description,
-          status: ticket.status,
-          created: ticket.created ? new Date(ticket.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
-          updated: ticket.updated ? new Date(ticket.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
-          issuer: ticket.issuer || ticket.userName || ticket.createdByName || '',
-          documents: ticket.documents || [],
-        })));
+        const { tickets: ticketsData, total } = await listTicketsPage(params);
+        setTickets(ticketsData.map(mapTicket));
+        setTotalTickets(total);
       } catch (error) {
         console.error('Failed to fetch tickets:', error);
         toast.error('Failed to load tickets. Please refresh the page.');
@@ -72,7 +101,22 @@ export default function SupportPage() {
     if (mounted) {
       fetchTickets();
     }
-  }, [mounted, ticketFilter, searchQuery]);
+  }, [mounted, ticketFilter, priorityFilter, searchQuery, page]);
+
+  // Changing a filter invalidates the current page — reset to page 1 in the
+  // same tick so a filter change doesn't fetch a stale page first.
+  const changeStatusFilter = id => {
+    setPage(1);
+    setTicketFilter(id);
+  };
+  const changePriorityFilter = value => {
+    setPage(1);
+    setPriorityFilter(value);
+  };
+  const changeSearchQuery = value => {
+    setPage(1);
+    setSearchQuery(value);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -115,15 +159,23 @@ export default function SupportPage() {
     }
   };
 
-  const filteredTickets =
-    ticketFilter === 'all'
-      ? tickets
-      : tickets.filter(t => t.status === ticketFilter);
+  // Status/priority/search filtering now happens server-side via listTicketsPage
+  // params, so `tickets` already reflects the active filters — no client-side
+  // re-filter needed (and re-filtering client-side would be wrong once the
+  // list is paginated, since a page only ever holds a slice of the full set).
+  const filteredTickets = tickets;
+
+  const pageStart = totalTickets === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * PAGE_SIZE, totalTickets);
+  const hasPrevPage = page > 1;
+  const hasNextPage = page * PAGE_SIZE < totalTickets;
+  const goPrevPage = () => hasPrevPage && setPage(p => p - 1);
+  const goNextPage = () => hasNextPage && setPage(p => p + 1);
 
   const getStatusBadge = status => {
     const statusConfig = {
       open: { bg: 'rgba(241, 203, 104, 0.2)', color: '#F1CB68', text: 'Open' },
-      inprogress: {
+      in_progress: {
         bg: 'rgba(59, 130, 246, 0.2)',
         color: '#3B82F6',
         text: 'In Progress',
@@ -208,7 +260,7 @@ export default function SupportPage() {
                   type='text'
                   placeholder='Search by keyword or ticket ID'
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => changeSearchQuery(e.target.value)}
                   className={`w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 rounded-lg text-sm border transition-colors ${
                     isDarkMode
                       ? 'bg-transparent border-white/10 text-white placeholder-gray-500 focus:border-[#F1CB68]'
@@ -217,41 +269,59 @@ export default function SupportPage() {
                 />
               </div>
 
-              {/* Filter Tabs */}
-              <div className='flex items-center gap-2 md:gap-3 overflow-x-auto pb-2 scrollbar-hide'>
-                {[
-                  { id: 'all', label: 'All Tickets' },
-                  { id: 'open', label: 'Open' },
-                  { id: 'inprogress', label: 'In Progress' },
-                  { id: 'resolved', label: 'Resolved' },
-                  { id: 'closed', label: 'Closed' },
-                ].map(filter => (
-                  <button
-                    key={filter.id}
-                    onClick={() => setTicketFilter(filter.id)}
-                    className={`px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                      ticketFilter === filter.id
-                        ? 'text-black'
-                        : isDarkMode
-                        ? 'text-gray-400'
-                        : 'text-gray-600'
-                    }`}
-                    style={{
-                      background:
+              {/* Filter Tabs + Priority */}
+              <div className='flex flex-col md:flex-row md:items-center gap-3'>
+                <div className='flex items-center gap-2 md:gap-3 overflow-x-auto pb-2 scrollbar-hide'>
+                  {[
+                    { id: 'all', label: 'All Tickets' },
+                    { id: 'open', label: 'Open' },
+                    { id: 'in_progress', label: 'In Progress' },
+                    { id: 'resolved', label: 'Resolved' },
+                    { id: 'closed', label: 'Closed' },
+                  ].map(filter => (
+                    <button
+                      key={filter.id}
+                      onClick={() => changeStatusFilter(filter.id)}
+                      className={`px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         ticketFilter === filter.id
-                          ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
-                          : 'transparent',
-                      border:
-                        ticketFilter === filter.id
-                          ? 'none'
+                          ? 'text-black'
                           : isDarkMode
-                          ? '1px solid rgba(255, 255, 255, 0.1)'
-                          : '1px solid rgba(0, 0, 0, 0.1)',
-                    }}
-                  >
-                    {filter.label}
-                  </button>
-                ))}
+                          ? 'text-gray-400'
+                          : 'text-gray-600'
+                      }`}
+                      style={{
+                        background:
+                          ticketFilter === filter.id
+                            ? 'linear-gradient(90deg, #FFFFFF 0%, #F1CB68 100%)'
+                            : 'transparent',
+                        border:
+                          ticketFilter === filter.id
+                            ? 'none'
+                            : isDarkMode
+                            ? '1px solid rgba(255, 255, 255, 0.1)'
+                            : '1px solid rgba(0, 0, 0, 0.1)',
+                      }}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => changePriorityFilter(e.target.value)}
+                  className={`px-3 py-2 rounded-full text-xs md:text-sm font-medium shrink-0 focus:outline-none ${
+                    isDarkMode
+                      ? 'bg-transparent border border-white/10 text-gray-300'
+                      : 'bg-white border border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <option value=''>All Priorities</option>
+                  <option value='low'>Low</option>
+                  <option value='medium'>Medium</option>
+                  <option value='high'>High</option>
+                  <option value='urgent'>Urgent</option>
+                </select>
               </div>
             </div>
 
@@ -384,7 +454,21 @@ export default function SupportPage() {
                           {ticket.ticketNumber || ticket.id}
                         </td>
                         <td className='px-6 py-4'>
-                          {(ticket.status === 'resolved' || ticket.status === 'closed') && (
+                          <button
+                            onClick={() => router.push(`/dashboard/support-dashboard?ticketId=${ticket.id}`)}
+                            className={`p-2 rounded-lg transition-all ${
+                              isDarkMode
+                                ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                            }`}
+                            title='View ticket'
+                          >
+                            <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                              <path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' />
+                              <circle cx='12' cy='12' r='3' />
+                            </svg>
+                          </button>
+                          {(ticket.status === 'resolved' || ticket.status === 'closed') && !ticket.satisfactionRating && (
                             <button
                               onClick={() => setRatingTicket(ticket)}
                               className='p-2 rounded-lg text-[#F1CB68] hover:bg-[#F1CB68]/10 transition-all'
@@ -440,11 +524,15 @@ export default function SupportPage() {
                     isDarkMode ? 'text-gray-400' : 'text-gray-600'
                   }`}
                 >
-                  Showing 1-6 of 24 tickets
+                  {totalTickets === 0
+                    ? 'No tickets'
+                    : `Showing ${pageStart}-${pageEnd} of ${totalTickets} tickets`}
                 </p>
                 <div className='flex items-center gap-2'>
                   <button
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    onClick={goPrevPage}
+                    disabled={!hasPrevPage}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                       isDarkMode
                         ? 'text-gray-400 hover:text-white'
                         : 'text-gray-600 hover:text-gray-900'
@@ -453,7 +541,9 @@ export default function SupportPage() {
                     Previous
                   </button>
                   <button
-                    className='px-4 py-2 rounded-lg text-sm font-medium transition-all'
+                    onClick={goNextPage}
+                    disabled={!hasNextPage}
+                    className='px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed'
                     style={{
                       background: 'rgba(241, 203, 104, 0.2)',
                       color: '#F1CB68',
@@ -535,7 +625,21 @@ export default function SupportPage() {
                         </span>
                       </span>
                     </div>
-                    {(ticket.status === 'resolved' || ticket.status === 'closed') && (
+                    <button
+                      onClick={() => router.push(`/dashboard/support-dashboard?ticketId=${ticket.id}`)}
+                      className={`p-2 rounded-lg transition-all ${
+                        isDarkMode
+                          ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`}
+                      title='View ticket'
+                    >
+                      <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                        <path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' />
+                        <circle cx='12' cy='12' r='3' />
+                      </svg>
+                    </button>
+                    {(ticket.status === 'resolved' || ticket.status === 'closed') && !ticket.satisfactionRating && (
                       <button
                         onClick={() => setRatingTicket(ticket)}
                         className='p-2 rounded-lg text-[#F1CB68] hover:bg-[#F1CB68]/10 transition-all'
@@ -584,11 +688,13 @@ export default function SupportPage() {
                     isDarkMode ? 'text-gray-400' : 'text-gray-600'
                   }`}
                 >
-                  Showing 1-6 of 24
+                  {totalTickets === 0 ? 'No tickets' : `Showing ${pageStart}-${pageEnd} of ${totalTickets}`}
                 </p>
                 <div className='flex items-center gap-2'>
                   <button
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    onClick={goPrevPage}
+                    disabled={!hasPrevPage}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                       isDarkMode
                         ? 'text-gray-400 hover:text-white'
                         : 'text-gray-600 hover:text-gray-900'
@@ -597,7 +703,9 @@ export default function SupportPage() {
                     Previous
                   </button>
                   <button
-                    className='px-3 py-1.5 rounded-lg text-xs font-medium transition-all'
+                    onClick={goNextPage}
+                    disabled={!hasNextPage}
+                    className='px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed'
                     style={{
                       background: 'rgba(241, 203, 104, 0.2)',
                       color: '#F1CB68',
@@ -614,26 +722,21 @@ export default function SupportPage() {
         isOpen={isNewTicketModalOpen}
         setIsOpen={setIsNewTicketModalOpen}
         onTicketCreated={() => {
-          // Refresh tickets list
+          // Refresh tickets list — a brand-new ticket belongs on page 1, so
+          // jump back there rather than refetching whatever page was showing.
+          setPage(1);
           const fetchTickets = async () => {
             try {
               const params = {
                 status: ticketFilter === 'all' ? undefined : ticketFilter,
+                priority: priorityFilter || undefined,
                 search: searchQuery || undefined,
-                limit: 100,
+                page: 1,
+                limit: PAGE_SIZE,
               };
-              const response = await listTickets(params);
-              const ticketsData = response.data || response || [];
-              setTickets(ticketsData.map(ticket => ({
-                id: ticket.id || ticket.ticketId,
-                subject: ticket.subject,
-                description: ticket.description,
-                status: ticket.status,
-                created: ticket.created ? new Date(ticket.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
-                updated: ticket.updated ? new Date(ticket.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
-                issuer: ticket.issuer || ticket.userName || ticket.createdByName || '',
-                documents: ticket.documents || [],
-              })));
+              const { tickets: ticketsData, total } = await listTicketsPage(params);
+              setTickets(ticketsData.map(mapTicket));
+              setTotalTickets(total);
             } catch (error) {
               console.error('Failed to refresh tickets:', error);
             }

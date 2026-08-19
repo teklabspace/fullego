@@ -25,10 +25,8 @@ import {
   releaseEscrow,
   disputeEscrow,
   refundEscrow,
-  createListing,
   getMarketplaceCategories,
 } from '@/utils/marketplaceApi';
-import { getAssets, getAssetDocuments } from '@/utils/assetsApi';
 import { formatCurrency, formatCurrencyCompact } from '@/utils/formatters';
 import {
   categoryGroupConfig,
@@ -102,7 +100,6 @@ export default function MarketplacePage() {
     }
   }, [isInvestor, router]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isListModalOpen, setIsListModalOpen] = useState(false);
 
   // Filter states
   const [sortBy, setSortBy] = useState('price-low-high');
@@ -187,9 +184,12 @@ export default function MarketplacePage() {
             imageUrl: listing.imageUrl || null,
             minimum: formatCurrency(listing.askingPrice),
             minimumValue: listing.askingPrice || 0,
-            targetIRR: listing.expectedReturn || '0%',
+            // The list payload (ListingResponse) carries neither field, so the
+            // old '0%' / 'Medium' defaults were invented numbers on every card.
+            // Null renders as a dash until the backend adds them to the list.
+            targetIRR: listing.expectedReturn || null,
             returnValue: parseFloat(listing.expectedReturn?.replace('%', '')) || 0,
-            riskLevel: listing.riskLevel || 'Medium',
+            riskLevel: listing.riskLevel || null,
             type: listing.type || '#Service',
             subType: listing.subType || '#Commercial',
             status: listing.status || 'active',
@@ -651,17 +651,11 @@ export default function MarketplacePage() {
                     )}
                   </button>
                   )}
-                  {/* BUG-22: the create-listing modal previously had no
-                      trigger anywhere in the app. Advisors can't create
-                      listings (backend permission matrix), so hide for them. */}
-                  {!isAdvisor && (
-                    <button
-                      onClick={() => setIsListModalOpen(true)}
-                      className='ml-auto self-center mb-2 px-5 py-2 rounded-full text-sm font-semibold bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] transition-colors'
-                    >
-                      List an Asset
-                    </button>
-                  )}
+                  {/* Manual listing was removed: an asset reaches the
+                      marketplace by completing a concierge appraisal, which
+                      auto-publishes it. Investors no longer self-list, so the
+                      listing's investment details are set by staff during the
+                      appraisal instead of by the seller. */}
                 </div>
               </div>
 
@@ -1026,19 +1020,6 @@ export default function MarketplacePage() {
         </div>
       </div>
 
-      {/* List an Asset Modal */}
-      <CreateListingModal
-        isOpen={isListModalOpen}
-        onClose={() => setIsListModalOpen(false)}
-        isDarkMode={isDarkMode}
-        onCreated={() => {
-          setIsListModalOpen(false);
-          // Refresh browse listings (public set = APPROVED + ACTIVE by default)
-          if (activeTab === 'browse') {
-            listListings().catch(() => {});
-          }
-        }}
-      />
 
       <style jsx global>{`
         .scrollbar-hide {
@@ -2690,220 +2671,6 @@ function Row({ label, value, mono, textMain, textMuted }) {
   );
 }
 
-// ============================================================================
-// Create Listing Modal — POST /marketplace/listings (+ optional pay-fee / activate)
-// ============================================================================
-function CreateListingModal({ isOpen, onClose, isDarkMode, onCreated }) {
-  const [assets, setAssets] = useState([]);
-  const [assetId, setAssetId] = useState('');
-  const [title, setTitle] = useState('');
-  const [askingPrice, setAskingPrice] = useState('');
-  const [description, setDescription] = useState('');
-  // Investment details — surfaced on the public detail page (BUG: these were
-  // never collected, so every listing showed N/A for returns/duration/risk/slots).
-  const [expectedReturn, setExpectedReturn] = useState('');
-  const [duration, setDuration] = useState('');
-  const [riskLevel, setRiskLevel] = useState('');
-  const [slotsTotal, setSlotsTotal] = useState('');
-  // Documents of the selected asset the seller opts into sharing publicly.
-  const [assetDocs, setAssetDocs] = useState([]);
-  const [selectedDocIds, setSelectedDocIds] = useState([]);
-  const [loadingDocs, setLoadingDocs] = useState(false);
-  const [loadingAssets, setLoadingAssets] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    (async () => {
-      try {
-        setLoadingAssets(true);
-        const res = await getAssets({ limit: 100 });
-        setAssets(Array.isArray(res?.data) ? res.data : []);
-      } catch {
-        setAssets([]);
-      } finally {
-        setLoadingAssets(false);
-      }
-    })();
-  }, [isOpen]);
-
-  // Load the selected asset's documents so the seller can pick which ones
-  // become visible on the listing's public Documents tab.
-  useEffect(() => {
-    setAssetDocs([]);
-    setSelectedDocIds([]);
-    if (!assetId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        setLoadingDocs(true);
-        const res = await getAssetDocuments(assetId);
-        const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-        if (!cancelled) setAssetDocs(list);
-      } catch {
-        if (!cancelled) setAssetDocs([]);
-      } finally {
-        if (!cancelled) setLoadingDocs(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [assetId]);
-
-  if (!isOpen) return null;
-
-  const toggleDoc = (docId) =>
-    setSelectedDocIds((prev) =>
-      prev.includes(docId) ? prev.filter((d) => d !== docId) : [...prev, docId]
-    );
-
-  const handleSubmit = async () => {
-    const price = parseFloat(String(askingPrice).replace(/,/g, ''));
-    if (!title.trim()) { toast.error('Please enter a title'); return; }
-    if (isNaN(price) || price <= 0) { toast.error('Please enter a valid asking price'); return; }
-    const slots = slotsTotal !== '' ? parseInt(slotsTotal, 10) : null;
-    if (slotsTotal !== '' && (isNaN(slots) || slots <= 0)) {
-      toast.error('Slots must be a positive number');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await createListing({
-        ...(assetId ? { assetId } : {}),
-        title: title.trim(),
-        askingPrice: price,
-        currency: 'USD',
-        description: description.trim() || undefined,
-        ...(expectedReturn.trim() ? { expectedReturn: expectedReturn.trim() } : {}),
-        ...(duration.trim() ? { duration: duration.trim() } : {}),
-        ...(riskLevel ? { riskLevel } : {}),
-        ...(slots != null ? { slotsTotal: slots } : {}),
-        ...(selectedDocIds.length ? { documentIds: selectedDocIds } : {}),
-      });
-      toast.success('Listing submitted for approval');
-      onCreated?.();
-      // reset
-      setAssetId(''); setTitle(''); setAskingPrice(''); setDescription('');
-      setExpectedReturn(''); setDuration(''); setRiskLevel(''); setSlotsTotal('');
-      setAssetDocs([]); setSelectedDocIds([]);
-    } catch (err) {
-      toast.error(err?.data?.detail || err?.message || 'Failed to create listing');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const panel = isDarkMode ? 'bg-[#1C1C1E]' : 'bg-white';
-  const textMain = isDarkMode ? 'text-white' : 'text-gray-900';
-  const textMuted = isDarkMode ? 'text-gray-400' : 'text-gray-600';
-  const inputCls = `w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:border-[#F1CB68] ${
-    isDarkMode ? 'bg-[#2C2C2E] border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-  }`;
-
-  return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70' onClick={onClose}>
-      <div className={`w-full max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto ${panel}`} onClick={(e) => e.stopPropagation()}>
-        <h3 className={`text-lg font-bold mb-1 ${textMain}`}>List an Asset</h3>
-        <p className={`text-sm mb-4 ${textMuted}`}>Create a marketplace listing. It will be submitted for admin approval.</p>
-
-        {/* BUG-22: consistent 2-column grid — every field block owns its
-            label+control, so labels and inputs align across rows. */}
-        <div className='grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mb-6'>
-          <div className='sm:col-span-2'>
-            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Asset (optional)</label>
-            <select value={assetId} onChange={(e) => {
-              setAssetId(e.target.value);
-              const a = assets.find(x => x.id === e.target.value);
-              if (a && !title) setTitle(a.name || a.title || '');
-            }} className={inputCls}>
-              <option value=''>{loadingAssets ? 'Loading assets…' : 'Select one of your assets'}</option>
-              {assets.map(a => (
-                <option key={a.id} value={a.id}>{a.name || a.title || a.id}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Title *</label>
-            <input type='text' value={title} onChange={(e) => setTitle(e.target.value)} placeholder='e.g. Downtown Office Suite' className={inputCls} />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Asking Price (USD) *</label>
-            <input type='text' inputMode='decimal' value={askingPrice} onChange={(e) => setAskingPrice(e.target.value)} placeholder='100000' className={inputCls} />
-          </div>
-
-          <div className='sm:col-span-2'>
-            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Description</label>
-            <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder='Describe the asset…' className={`${inputCls} resize-none`} />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Expected Return</label>
-            <input type='text' value={expectedReturn} onChange={(e) => setExpectedReturn(e.target.value)} placeholder='e.g. 7.2%' className={inputCls} />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Duration</label>
-            <input type='text' value={duration} onChange={(e) => setDuration(e.target.value)} placeholder='e.g. 24 months' className={inputCls} />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Risk Level</label>
-            <select value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)} className={inputCls}>
-              <option value=''>Not specified</option>
-              <option value='low'>Low</option>
-              <option value='medium'>Medium</option>
-              <option value='high'>High</option>
-            </select>
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${textMain}`}>Total Slots</label>
-            <input type='text' inputMode='numeric' value={slotsTotal} onChange={(e) => setSlotsTotal(e.target.value)} placeholder='e.g. 50' className={inputCls} />
-          </div>
-
-          {assetId && (
-            <div className='sm:col-span-2'>
-              <label className={`block text-sm font-medium mb-2 ${textMain}`}>
-                Share documents with buyers
-              </label>
-              <p className={`text-xs mb-2 ${textMuted}`}>
-                Selected documents appear on the listing&apos;s public Documents tab. Unselected ones stay private.
-              </p>
-              {loadingDocs ? (
-                <p className={`text-sm ${textMuted}`}>Loading documents…</p>
-              ) : assetDocs.length === 0 ? (
-                <p className={`text-sm ${textMuted}`}>This asset has no documents uploaded.</p>
-              ) : (
-                <div className={`rounded-lg border max-h-36 overflow-y-auto ${isDarkMode ? 'border-gray-700' : 'border-gray-300'}`}>
-                  {assetDocs.map((doc) => (
-                    <label key={doc.id} className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer ${isDarkMode ? 'hover:bg-white/5 text-white' : 'hover:bg-gray-50 text-gray-900'}`}>
-                      <input
-                        type='checkbox'
-                        checked={selectedDocIds.includes(doc.id)}
-                        onChange={() => toggleDoc(doc.id)}
-                        className='accent-[#F1CB68]'
-                      />
-                      <span className='truncate'>{doc.fileName || doc.file_name || doc.name || 'Document'}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className='flex gap-3'>
-          <button onClick={onClose} className={`flex-1 py-2.5 rounded-lg font-semibold text-sm border ${isDarkMode ? 'border-[#FFFFFF14] text-white hover:bg-white/10' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>Cancel</button>
-          <button onClick={handleSubmit} disabled={submitting} className='flex-1 py-2.5 rounded-lg font-semibold text-sm bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] disabled:opacity-60'>
-            {submitting ? 'Submitting…' : 'Create Listing'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Hero Section Component
 function HeroSection({ isDarkMode }) {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -3242,7 +3009,7 @@ function InvestmentCard({ fund, isDarkMode, isWatched = false, onToggleWatchlist
             Target IRR
           </p>
           <p className='text-xs font-semibold text-[#F1CB68]'>
-            {fund.targetIRR}
+            {fund.targetIRR || '—'}
           </p>
         </div>
       </div>
@@ -3266,7 +3033,7 @@ function InvestmentCard({ fund, isDarkMode, isWatched = false, onToggleWatchlist
                 : 'text-[#F1CB68]'
             }`}
           >
-            {fund.riskLevel}
+            {fund.riskLevel || '—'}
           </p>
         </div>
         <div className='flex gap-1.5 text-right'>

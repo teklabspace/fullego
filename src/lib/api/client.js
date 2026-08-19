@@ -133,6 +133,25 @@ const refreshAccessToken = () => {
 const isEnvelope = (b) =>
   b && typeof b === 'object' && typeof b.success === 'boolean' && 'status_code' in b;
 
+// Pull the filename out of a Content-Disposition header, preferring the RFC 5987
+// `filename*=UTF-8''…` form over the plain `filename="…"` one. Returns null when
+// the header is absent — note that on a cross-origin download the browser hides
+// it unless the backend sends `Access-Control-Expose-Headers: Content-Disposition`,
+// so callers must always be able to fall back to a locally-generated name.
+const parseContentDispositionFilename = (header) => {
+  if (!header) return null;
+  const extended = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (extended) {
+    try {
+      return decodeURIComponent(extended[1].trim());
+    } catch {
+      return extended[1].trim();
+    }
+  }
+  const basic = header.match(/filename="?([^";]+)"?/i);
+  return basic ? basic[1].trim() : null;
+};
+
 // Flatten a legacy FastAPI `detail` (string or [{loc,msg,type}]) to a message.
 const flattenLegacyDetail = (detail) => {
   if (Array.isArray(detail)) {
@@ -206,8 +225,30 @@ export const apiRequest = async (endpoint, options = {}) => {
       method,
       headers,
       body: body || options.body,
-      ...(options.responseType ? { responseType: options.responseType } : {}),
     });
+
+    // Binary downloads (report/document/compliance exports) must bypass envelope
+    // parsing entirely. `responseType: 'blob'` used to be forwarded into fetch(),
+    // which silently ignores it — the body then fell through to the content-type
+    // branch below and non-JSON was read via response.text(), corrupting every
+    // xlsx/pdf. Read the bytes here instead, and surface the server-supplied
+    // filename by returning a File (a Blob subclass, so existing callers that
+    // hand it to URL.createObjectURL keep working).
+    if (options.responseType === 'blob' && response.ok) {
+      const blob = await response.blob();
+      const filename = parseContentDispositionFilename(
+        response.headers.get('content-disposition')
+      );
+      console.log('[API RESPONSE]', method, endpoint, response.status, {
+        blob: true,
+        type: blob.type,
+        size: blob.size,
+        filename,
+      });
+      return filename
+        ? new File([blob], filename, { type: blob.type })
+        : blob;
+    }
 
     let responseData;
 
@@ -347,6 +388,12 @@ export const apiRequest = async (endpoint, options = {}) => {
 
     // Unwrap the success envelope so callers receive the payload directly. Non-
     // enveloped bodies (binary downloads, /health, plain text) pass through.
+    // `options.returnHeaders` opts a caller into `{ data, headers }` instead —
+    // needed for endpoints that return pagination totals in a response header
+    // (e.g. X-Total-Count) rather than in the body.
+    const withHeaders = (data) =>
+      options.returnHeaders ? { data, headers: response.headers } : data;
+
     if (isEnvelope(responseData)) {
       if (responseData.success === false) {
         // Defensive: success:false arriving with a 2xx — still an error.
@@ -358,10 +405,10 @@ export const apiRequest = async (endpoint, options = {}) => {
         if (responseData.error?.details) error.details = responseData.error.details;
         throw error;
       }
-      return 'data' in responseData ? responseData.data : responseData;
+      return withHeaders('data' in responseData ? responseData.data : responseData);
     }
 
-    return responseData;
+    return withHeaders(responseData);
   } catch (error) {
     // Network or other exception (no backend response attached)
     if (!error.data) {

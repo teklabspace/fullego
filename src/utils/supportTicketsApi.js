@@ -91,6 +91,35 @@ export const listTickets = async (params = {}) => {
 };
 
 /**
+ * List Support Tickets with pagination total.
+ * GET /api/v1/support/tickets
+ *
+ * The endpoint response body is a bare array — the total row count (across all
+ * pages, not just this page's length) comes back in the X-Total-Count response
+ * header instead. Use this over `listTickets` wherever the UI needs to render
+ * a real pager; `total` falls back to the returned page's length if the header
+ * is ever missing so callers don't have to special-case it.
+ */
+export const listTicketsPage = async (params = {}) => {
+  const queryParams = new URLSearchParams();
+  if (params.status) queryParams.append('status', params.status);
+  if (params.priority) queryParams.append('priority', params.priority);
+  if (params.issuer) queryParams.append('issuer', params.issuer);
+  if (params.search) queryParams.append('search', params.search);
+  queryParams.append('page', params.page || 1);
+  queryParams.append('limit', params.limit || 50);
+
+  const endpoint = `${API_ENDPOINTS.SUPPORT.LIST_TICKETS}?${queryParams.toString()}`;
+  const { data, headers } = await apiGet(endpoint, { returnHeaders: true });
+  const tickets = transformKeys(data) || [];
+  const totalHeader = parseInt(headers.get('X-Total-Count'), 10);
+  return {
+    tickets,
+    total: Number.isNaN(totalHeader) ? tickets.length : totalHeader,
+  };
+};
+
+/**
  * Get Ticket Details
  * GET /api/v1/support/tickets/{ticket_id}
  */
@@ -160,6 +189,48 @@ export const uploadTicketDocuments = async (ticketId, files) => {
     throw error;
   }
 };
+
+/**
+ * Upload documents with live progress.
+ * POST /api/v1/support/tickets/{ticket_id}/documents
+ *
+ * `fetch` can't report upload progress, so this uses XHR directly — same
+ * approach as conciergeApi's appraisal document upload.
+ * @param {function} onProgress - called with an integer 0–100
+ */
+export const uploadTicketDocumentsWithProgress = (ticketId, files, onProgress) =>
+  new Promise((resolve, reject) => {
+    const fileList = Array.isArray(files) ? files : [files];
+    const formData = new FormData();
+    fileList.forEach(file => formData.append('files', file));
+
+    const url = `${API_BASE_URL.replace(/\/$/, '')}/${API_BASE_PATH.replace(/^\//, '')}${API_ENDPOINTS.SUPPORT.TICKET_DOCUMENTS(ticketId)}`;
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch { /* non-JSON ok */ }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(transformKeys(data));
+      } else {
+        const err = new Error(data.detail || 'Document upload failed');
+        err.status = xhr.status;
+        err.data = data;
+        reject(err);
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.send(formData);
+  });
 
 /**
  * Get Ticket Documents
@@ -237,7 +308,7 @@ export const getOwnSupportAnalytics = async (range = '30d') => {
 
 /**
  * Get Support Ticket Statistics
- * GET /api/v1/support/statistics
+ * GET /api/v1/support/tickets/stats
  */
 export const getTicketStatistics = async (params = {}) => {
   const queryParams = new URLSearchParams();

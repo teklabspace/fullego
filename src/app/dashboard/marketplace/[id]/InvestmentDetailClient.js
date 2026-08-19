@@ -38,6 +38,14 @@ import {
 const titleCase = (s) =>
   s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—';
 
+// expected_return is free text with the formatting already included ("8.5%",
+// "8-10%", "2.5x") — only a bare number gets a % appended.
+const withPercent = (value) => {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  return /^[\d.]+(\s*[-–]\s*[\d.]+)?$/.test(text) ? `${text}%` : text;
+};
+
 export default function InvestmentDetailClient() {
   const { isDarkMode } = useTheme();
   // Buying is investor-only — the backend rejects staff offers with
@@ -321,7 +329,7 @@ export default function InvestmentDetailClient() {
           ? listing.images
           : (listing.thumbnailUrl ? [listing.thumbnailUrl] : []),
         // All nullable until the seller provides them — show N/A, not fake data.
-        expectedReturns: listing.expectedReturn || 'N/A',
+        expectedReturns: withPercent(listing.expectedReturn) || 'N/A',
         duration: listing.duration || 'N/A',
         riskLevel: listing.riskLevel
           ? listing.riskLevel.charAt(0).toUpperCase() +
@@ -482,6 +490,10 @@ export default function InvestmentDetailClient() {
                 >
                   {investment.category}
                 </span>
+                {/* Listing details (expected return, duration, risk level,
+                    slots) are supplied by the admin/advisor when they finalise
+                    the concierge appraisal — the same action that publishes the
+                    listing. There is deliberately no edit entry point here. */}
                 {isOwner ? (
                   <div className='flex flex-wrap items-center gap-2'>
                     {/* Pay Listing Fee / Activate Listing were removed for

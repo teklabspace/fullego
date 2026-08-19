@@ -82,12 +82,34 @@ export default function SupportDashboardPage() {
     fetchAssetRequests();
   }, [activeFilter, searchQuery]);
 
+  // Deep link from the ticket list (?ticketId=…) — e.g. the "View" button on
+  // /dashboard/support sends the investor here to open that exact ticket
+  // instead of leaving them to hunt for it in the list. Waits for `tickets`
+  // to actually contain the match (the list fetch is async), and only fires
+  // once so it doesn't fight a later manual selection on the next poll.
+  const [deepLinkApplied, setDeepLinkApplied] = useState(false);
+  useEffect(() => {
+    if (deepLinkApplied || tickets.length === 0) return;
+    const requestedId = new URLSearchParams(window.location.search).get('ticketId');
+    if (!requestedId) {
+      setDeepLinkApplied(true);
+      return;
+    }
+    const match = tickets.find(t => t.id === requestedId || t.ticketId === requestedId);
+    if (!match) return;
+    if (!messages[match.id]) setMessagesLoading(true);
+    setSelectedItem(match);
+    if (isMobile) setShowChatView(true);
+    setDeepLinkApplied(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickets, deepLinkApplied]);
+
   // Refetch when the tab regains focus so changes made elsewhere (another
   // session, a deleted test message, a reply from the other party) don't
   // stay stuck showing whatever was last fetched.
   useEffect(() => {
     const onFocus = () => {
-      fetchTickets();
+      fetchTickets(true);
       fetchConversations();
       fetchAssetRequests();
     };
@@ -142,7 +164,7 @@ export default function SupportDashboardPage() {
   useEffect(() => {
     const intervalId = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      fetchTickets();
+      fetchTickets(true);
       fetchConversations();
       fetchAssetRequests();
     }, 20000);
@@ -162,7 +184,7 @@ export default function SupportDashboardPage() {
       const isTicket = /ticket|support|repl/i.test(text);
       if (!isChat && !isTicket) return;
       if (isChat) fetchConversations();
-      if (isTicket) fetchTickets();
+      if (isTicket) fetchTickets(true);
       if (selectedItem) {
         if (selectedItem.type === 'chat' &&
             (!msg.conversation_id || String(msg.conversation_id) === String(selectedItem.id))) {
@@ -199,9 +221,13 @@ export default function SupportDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, analyticsRange]);
 
-  const fetchTickets = async () => {
+  // `silent` skips the loading flag for background refreshes (the 20s poll,
+  // window-focus refetch, and realtime push) — without it, every one of those
+  // flashed the whole list back to its skeleton every few seconds even though
+  // nothing had changed, which read as the list "reloading" on its own.
+  const fetchTickets = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       // The "Closed" tab maps to resolved + closed; pass a single status to the
       // status-filtered tabs, leave undefined for All/Chats/Tickets/Requests.
       const statusParam =
@@ -254,19 +280,29 @@ export default function SupportDashboardPage() {
       }));
 
       setTickets(transformedTickets);
-      
-      // Update selected item if it exists
+
+      // Update selected item if it exists — but only when something about it
+      // actually changed. `timestamp` is a relative-time string ("2m ago")
+      // that changes on every poll regardless, so it's excluded from the
+      // comparison; otherwise this replaced selectedItem's identity every
+      // 20s even when nothing real changed, which re-ran every effect keyed
+      // on [selectedItem] (message refetch, right-panel context reset) and
+      // read as the chat pane "reloading" on its own.
       if (selectedItem && selectedItem.type === 'ticket') {
         const updatedTicket = transformedTickets.find(t => t.id === selectedItem.id);
         if (updatedTicket) {
-          setSelectedItem(updatedTicket);
+          const { timestamp: _prevTs, ...prevRest } = selectedItem;
+          const { timestamp: _nextTs, ...nextRest } = updatedTicket;
+          if (JSON.stringify(prevRest) !== JSON.stringify(nextRest)) {
+            setSelectedItem(updatedTicket);
+          }
         }
       }
     } catch (error) {
       console.error('Failed to fetch tickets:', error);
       toast.error('Failed to load support tickets');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -434,8 +470,24 @@ export default function SupportDashboardPage() {
   // Only use API data - no mock data
   const allItems = [...tickets, ...assetRequests, ...conversations];
 
-  // Get messages for selected item
-  const currentMessages = selectedItem ? messages[selectedItem.id] || [] : [];
+  // Get messages for selected item. `getTicketReplies` only returns replies
+  // posted after the ticket was opened — the description the requester typed
+  // at creation time lives on the ticket itself and was never in that thread,
+  // so it never rendered anywhere. Show it as the thread's first message.
+  const currentMessages = (() => {
+    if (!selectedItem) return [];
+    const replies = messages[selectedItem.id] || [];
+    if (selectedItem.type === 'ticket' && selectedItem.description) {
+      const original = {
+        id: `${selectedItem.id}-description`,
+        sender: 'user',
+        message: selectedItem.description,
+        timestamp: selectedItem.timestamp,
+      };
+      return [original, ...replies];
+    }
+    return replies;
+  })();
   // Only show the skeleton on a cold load for this item — a background
   // refetch of an already-cached thread shouldn't flash the messages away.
   const showMessagesSkeleton = messagesLoading && !messages[selectedItem?.id];
@@ -642,12 +694,17 @@ export default function SupportDashboardPage() {
   // blank before its messages fetch kicks in (the "reload" version of the
   // click-transition bug).
   useEffect(() => {
+    // Wait for the ?ticketId= deep link to have its shot first — otherwise
+    // this and the deep-link effect both see selectedItem as null on the
+    // same tick and race to call setSelectedItem, and whichever runs last
+    // wins (auto-selecting the first item and silently losing the deep link).
+    if (!deepLinkApplied) return;
     if (filteredItems.length > 0 && !selectedItem && !isMobile) {
       const first = filteredItems[0];
       if (!messages[first.id]) setMessagesLoading(true);
       setSelectedItem(first);
     }
-  }, [filteredItems, selectedItem, isMobile]);
+  }, [filteredItems, selectedItem, isMobile, deepLinkApplied]);
 
   // Handle item selection - show chat view on mobile/tablet
   const handleItemSelect = item => {
