@@ -15,7 +15,10 @@ import {
   getTradingHistory,
   getBrokerageAccounts,
   placeOrder,
+  getTradingCash,
 } from '@/utils/portfolioApi';
+import CashBalanceCard from './components/CashBalanceCard';
+import DepositModal from './components/DepositModal';
 
 export default function TradeEnginePage() {
   const { isDarkMode } = useTheme();
@@ -54,6 +57,9 @@ export default function TradeEnginePage() {
   const [recentAAPlTrades, setRecentAAPlTrades] = useState([]);
   const [assetDetails, setAssetDetails] = useState(null);
   const [brokerageAccounts, setBrokerageAccounts] = useState([]);
+  // Per-user trading cash ledger: { cashBalance, currency, transactions }
+  const [cash, setCash] = useState(null);
+  const [showDepositModal, setShowDepositModal] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
 
   // Fetch initial data
@@ -63,10 +69,20 @@ export default function TradeEnginePage() {
         setLoading(true);
         setError(null);
 
-        const [tradesRes, accountsRes] = await Promise.all([
+        // The cash ledger is fetched alongside the rest but must not be able to
+        // fail the whole screen — a trader can still browse without it.
+        const [tradesRes, accountsRes, cashRes] = await Promise.all([
           getRecentTrades({ limit: 5 }),
           getBrokerageAccounts(),
+          getTradingCash({ limit: 20 }).catch((cashErr) => {
+            console.error('Error fetching trading cash:', cashErr);
+            return null;
+          }),
         ]);
+
+        if (cashRes) {
+          setCash(cashRes);
+        }
 
         if (tradesRes.data) {
           setRecentTrades(tradesRes.data);
@@ -208,6 +224,12 @@ export default function TradeEnginePage() {
       // number, execution price and estimated total — camelCased by the util.
       setOrderResult(response?.data || null);
 
+      // The order response now carries the post-trade cash balance, so refresh
+      // what we display from it instead of making a second call.
+      if (response?.cashBalance != null) {
+        setCash((prev) => ({ ...(prev || {}), cashBalance: response.cashBalance }));
+      }
+
       toast.success('Order placed successfully!');
       setShowConfirmation(true);
 
@@ -218,10 +240,29 @@ export default function TradeEnginePage() {
       }
     } catch (err) {
       console.error('Error placing order:', err);
-      const errorMessage = err.data?.detail || err.message || 'Failed to place order';
-      toast.error(errorMessage);
+      // Buys are funds-checked against the cash ledger now. A generic "failed to
+      // place order" leaves the user with no idea what to do, so name the cause
+      // and put the fix (deposit) one click away.
+      if (err.code === 'INSUFFICIENT_FUNDS') {
+        toast.error(
+          "You don't have enough trading cash for this order. Deposit funds and try again."
+        );
+        setShowDepositModal(true);
+      } else {
+        toast.error(err.data?.detail || err.message || 'Failed to place order');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Refresh the ledger after a deposit/withdrawal so the balance and the
+  // transaction list both reflect the movement.
+  const handleCashUpdated = async () => {
+    try {
+      setCash(await getTradingCash({ limit: 20 }));
+    } catch (err) {
+      console.error('Error refreshing trading cash:', err);
     }
   };
 
@@ -446,7 +487,29 @@ export default function TradeEnginePage() {
               isDarkMode={isDarkMode}
             />
           )}
+
+          {/* Trading cash sits under the order summary so the balance is in
+              view while the order is being filled in, not discovered on
+              submit. */}
+          {!showLoading && !showError && (
+            <div className='lg:col-span-1 mt-6'>
+              <CashBalanceCard
+                cash={cash}
+                isDarkMode={isDarkMode}
+                onDeposit={() => setShowDepositModal(true)}
+              />
+            </div>
+          )}
         </div>
+
+        {/* Deposit Modal */}
+        {showDepositModal && (
+          <DepositModal
+            isDarkMode={isDarkMode}
+            onClose={() => setShowDepositModal(false)}
+            onSuccess={handleCashUpdated}
+          />
+        )}
 
         {/* Recent Trades — at the end of the page */}
         {!showLoading && !showError && (

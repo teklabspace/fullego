@@ -20,13 +20,22 @@ import {
   getCryptoPerformance,
   getCryptoBreakdown,
   getCryptoHoldings,
+  CRYPTO_TIME_RANGES,
 } from '@/utils/portfolioApi';
+import { generateReport, downloadReport } from '@/utils/reportsApi';
+import ShareModal from './components/ShareModal';
 import CryptoPortfolioSkeleton from '@/components/skeletons/CryptoPortfolioSkeleton';
 import {
   formatNumber,
   formatPercent,
   formatCurrency as formatCurrencyShared,
 } from '@/utils/formatters';
+
+// The Export control is a single button, so it commits to one format. csv is the
+// safest default (every deployment can render it; xlsx/pdf depend on openpyxl /
+// reportlab being installed). Promote this to a user-facing picker if we want
+// the other three formats reachable from the UI.
+const EXPORT_FORMAT = 'csv';
 
 export default function CryptoPortfolioPage() {
   const { isDarkMode } = useTheme();
@@ -70,9 +79,16 @@ export default function CryptoPortfolioPage() {
   const [timeRange, setTimeRange] = useState('24h');
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedDateRange, setSelectedDateRange] =
-    useState('5th Jan - 30th Jan');
+  // Label shown on the picker button. Null custom range = the preset timeRange
+  // above is what's driving the chart.
+  const [selectedDateRange, setSelectedDateRange] = useState(null);
+  // { startDate, endDate } as ISO-8601 UTC strings, or null for "use preset".
+  // start_date/end_date override time_range server-side, so only one of the two
+  // is ever sent.
+  const [customRange, setCustomRange] = useState(null);
   const [portfolioBreakdownTab, setPortfolioBreakdownTab] = useState('value');
+  const [exporting, setExporting] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Loading and error states
   const [loading, setLoading] = useState(true);
@@ -106,7 +122,11 @@ export default function CryptoPortfolioPage() {
           holdingsRes,
         ] = await Promise.all([
           getCryptoPortfolioSummary(),
-          getCryptoPerformance(timeRange, metricMap[performanceTab] || 'value-over-time'),
+          getCryptoPerformance(
+            timeRange,
+            metricMap[performanceTab] || 'value-over-time',
+            customRange
+          ),
           getCryptoBreakdown(portfolioBreakdownTab),
           getCryptoHoldings({ sortBy: 'value', order: 'desc' }),
         ]);
@@ -132,7 +152,13 @@ export default function CryptoPortfolioPage() {
         }
       } catch (err) {
         console.error('Error fetching crypto portfolio data:', err);
-        const errorMessage = err.data?.detail || err.message || 'Failed to load crypto portfolio data';
+        // An unsupported time_range / malformed custom range now comes back as a
+        // real 400 instead of silently returning 30 days of data, so name the
+        // cause rather than showing a generic failure.
+        const errorMessage =
+          err.code === 'INVALID_TIME_RANGE'
+            ? 'That date range isn’t valid. Pick a start date before the end date, or choose a preset range.'
+            : err.data?.detail || err.message || 'Failed to load crypto portfolio data';
         setError(errorMessage);
         toast.error(errorMessage);
       } finally {
@@ -141,12 +167,82 @@ export default function CryptoPortfolioPage() {
     };
 
     fetchCryptoData();
-  }, [timeRange, performanceTab, portfolioBreakdownTab]);
+  }, [timeRange, performanceTab, portfolioBreakdownTab, customRange]);
 
   // Format currency (delegates to shared formatter)
   const formatCurrency = (value) => {
     if (!value && value !== 0) return '$0.00';
     return formatCurrencyShared(value, { minDecimals: 2, maxDecimals: 2 });
+  };
+
+  // Turn a preset dropdown value into the explicit ISO window /reports/generate
+  // expects — it takes a date_range, not a time_range shorthand.
+  const presetToRange = (preset) => {
+    const MS = { h: 3600000, d: 86400000, y: 31536000000 };
+    const match = /^(\d+)([hdy])$/.exec(preset);
+    const span = match ? Number(match[1]) * MS[match[2]] : MS.d;
+    const end = new Date();
+    return {
+      startDate: new Date(end.getTime() - span).toISOString(),
+      endDate: end.toISOString(),
+    };
+  };
+
+  // Save a blob to disk via a temporary anchor — this is what makes the browser
+  // show a download rather than navigating. Mirrors the documents page helper.
+  const saveBlob = (blob, filename) => {
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(blobUrl);
+  };
+
+  // Export = generate then download. The report is produced server-side first
+  // (POST /reports/generate returns an id), then fetched as bytes.
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const range = customRange ?? presetToRange(timeRange);
+      const report = await generateReport({
+        reportType: 'portfolio',
+        format: EXPORT_FORMAT,
+        dateRange: { startDate: range.startDate, endDate: range.endDate },
+        filters: { assetType: 'crypto' },
+      });
+
+      const reportId = report?.id;
+      if (!reportId) {
+        throw new Error('The report was generated but came back without an id.');
+      }
+
+      const file = await downloadReport(reportId);
+      if (!file || (typeof file.size === 'number' && file.size === 0)) {
+        throw new Error('The generated report was empty.');
+      }
+
+      // file.name is only populated when the backend's Content-Disposition is
+      // readable — on a cross-origin download that needs
+      // `Access-Control-Expose-Headers: Content-Disposition`. Fall back locally.
+      const fallback = `crypto-portfolio-${range.startDate.slice(0, 10)}-to-${range.endDate.slice(0, 10)}.${EXPORT_FORMAT}`;
+      saveBlob(file, file.name || fallback);
+      toast.success('Export downloaded');
+    } catch (err) {
+      console.error('Error exporting crypto portfolio:', err);
+      const message =
+        err.code === 'UNSUPPORTED_REPORT_FORMAT'
+          ? `${EXPORT_FORMAT.toUpperCase()} export isn’t available on this environment.`
+          : err.code === 'INVALID_TIME_RANGE'
+          ? 'That date range isn’t valid for an export. Pick a different range.'
+          : err.data?.detail || err.message || 'Failed to export portfolio';
+      toast.error(message);
+    } finally {
+      setExporting(false);
+    }
   };
 
   // Get chart data
@@ -201,7 +297,9 @@ export default function CryptoPortfolioPage() {
                         : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
                     }`}
                   >
-                    <span className='text-sm font-medium'>{timeRange}</span>
+                    <span className='text-sm font-medium'>
+                      {customRange ? 'Custom' : timeRange}
+                    </span>
                     <svg
                       width='12'
                       height='12'
@@ -232,15 +330,21 @@ export default function CryptoPortfolioPage() {
                             : '0 10px 40px rgba(0, 0, 0, 0.15)',
                         }}
                       >
-                        {['1h', '6h', '12h', '24h'].map(range => (
+                        {CRYPTO_TIME_RANGES.map(range => (
                           <button
                             key={range}
                             onClick={() => {
                               setTimeRange(range);
+                              // A preset and a custom range are mutually
+                              // exclusive — start_date/end_date win server-side,
+                              // so picking a preset has to drop the custom one
+                              // or the dropdown would appear to do nothing.
+                              setCustomRange(null);
+                              setSelectedDateRange(null);
                               setShowTimeDropdown(false);
                             }}
                             className={`w-full px-4 py-2.5 text-left text-sm transition-all ${
-                              timeRange === range
+                              !customRange && timeRange === range
                                 ? 'bg-[#F1CB68] text-white'
                                 : isDarkMode
                                 ? 'text-gray-300 hover:bg-[#3C3C3E]'
@@ -257,6 +361,8 @@ export default function CryptoPortfolioPage() {
 
                 {/* Link/Share Button */}
                 <button
+                  onClick={() => setShowShareModal(true)}
+                  title='Create a read-only share link'
                   className={`p-2.5 rounded-full transition-all flex-shrink-0 ${
                     isDarkMode
                       ? 'bg-[#2C2C2E] hover:bg-[#3C3C3E]'
@@ -342,7 +448,7 @@ export default function CryptoPortfolioPage() {
                       <line x1='3' y1='10' x2='21' y2='10' strokeWidth='2' />
                     </svg>
                     <span className='text-sm font-medium'>
-                      {selectedDateRange}
+                      {selectedDateRange || 'Custom range'}
                     </span>
                     <svg
                       width='12'
@@ -362,17 +468,56 @@ export default function CryptoPortfolioPage() {
                     <DatePicker
                       isDarkMode={isDarkMode}
                       onClose={() => setShowDatePicker(false)}
-                      onSelect={range => {
-                        setSelectedDateRange(range);
+                      onSelect={({ label, startDate, endDate }) => {
+                        setSelectedDateRange(label);
+                        // Send UTC ISO-8601; both bounds are required together
+                        // and start must precede end or the backend answers
+                        // 400 INVALID_TIME_RANGE.
+                        setCustomRange({
+                          startDate: startDate.toISOString(),
+                          endDate: endDate.toISOString(),
+                        });
                         setShowDatePicker(false);
                       }}
                     />
                   )}
                 </div>
 
+                {/* Clear custom range — only meaningful while one is applied */}
+                {customRange && (
+                  <button
+                    onClick={() => {
+                      setCustomRange(null);
+                      setSelectedDateRange(null);
+                    }}
+                    title={`Clear custom range and return to ${timeRange}`}
+                    className={`p-2.5 rounded-full transition-all flex-shrink-0 ${
+                      isDarkMode
+                        ? 'bg-[#2C2C2E] hover:bg-[#3C3C3E] text-gray-400'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                    }`}
+                  >
+                    <svg
+                      width='16'
+                      height='16'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                    >
+                      <path
+                        d='M18 6L6 18M6 6l12 12'
+                        strokeWidth='2'
+                        strokeLinecap='round'
+                      />
+                    </svg>
+                  </button>
+                )}
+
                 {/* Export Button */}
                 <button
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all flex-shrink-0 whitespace-nowrap ${
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all flex-shrink-0 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed ${
                     isDarkMode
                       ? 'bg-[#2C2C2E] hover:bg-[#3C3C3E] text-white'
                       : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
@@ -392,7 +537,9 @@ export default function CryptoPortfolioPage() {
                       strokeLinejoin='round'
                     />
                   </svg>
-                  <span className='text-sm font-medium'>Export</span>
+                  <span className='text-sm font-medium'>
+                    {exporting ? 'Exporting…' : 'Export'}
+                  </span>
                 </button>
               </div>
             </div>
@@ -1082,6 +1229,16 @@ export default function CryptoPortfolioPage() {
         </>
         )}
       </div>
+
+      {/* Share Portfolio Modal */}
+      {showShareModal && (
+        <ShareModal
+          isDarkMode={isDarkMode}
+          timeRange={timeRange}
+          customRange={customRange}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
     </>
   );
 }
@@ -1302,8 +1459,17 @@ function DatePicker({ isDarkMode, onClose, onSelect }) {
           day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'
         } ${month}`;
       };
-      const range = `${formatDate(startDate)} - ${formatDate(endDate)}`;
-      onSelect(range);
+      const label = `${formatDate(startDate)} - ${formatDate(endDate)}`;
+      // Emit the Date objects alongside the display label — the label alone
+      // carries no year, so it can't be turned back into the ISO start_date/
+      // end_date pair the performance endpoint needs. Anchor the range to the
+      // full local day (00:00:00 → 23:59:59.999) before converting to UTC so a
+      // single-day selection isn't sent as a zero-width window.
+      const startOfDay = new Date(startDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      onSelect({ label, startDate: startOfDay, endDate: endOfDay });
     }
   };
 

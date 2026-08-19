@@ -40,6 +40,29 @@ const formatDate = value => {
       });
 };
 
+// Seller-entered free text with the formatting already included ("8.5%",
+// "8-10%", "2.5x MOIC") — keep whatever they wrote, and only add the sign
+// when they typed a bare number.
+const formatPercent = value => {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  return /^[\d.]+(\s*[-–]\s*[\d.]+)?$/.test(text) ? `${text}%` : text;
+};
+
+// Backend enum: low | medium | high.
+const titleCaseRisk = value => {
+  const text = String(value ?? '').trim();
+  return text ? text.charAt(0).toUpperCase() + text.slice(1).toLowerCase() : null;
+};
+
+// Remaining slots out of the total, matching the dashboard detail page.
+const formatSlots = listing => {
+  const total = listing?.slotsTotal;
+  if (total == null) return null;
+  const filled = Number(listing.slotsFilled) || 0;
+  return `${Math.max(total - filled, 0)}/${total}`;
+};
+
 // Public-facing status: buyers care about one thing — can this be bought.
 const statusLabel = status => {
   const s = (status || '').toLowerCase();
@@ -192,8 +215,14 @@ export default function PublicListingDetailPage() {
         { label: 'Currency', value: listing.currency },
         {
           label: 'Expected return',
-          value: listing.expectedReturn ? `${listing.expectedReturn}%` : null,
+          // Stored as free text and sellers usually type the sign themselves
+          // ("8.5%"), so only append one when it's missing — otherwise it
+          // rendered as "8.5%%".
+          value: formatPercent(listing.expectedReturn),
         },
+        { label: 'Duration', value: listing.duration },
+        { label: 'Risk level', value: titleCaseRisk(listing.riskLevel) },
+        { label: 'Slots available', value: formatSlots(listing) },
         {
           label: 'Minimum investment',
           value: formatMoney(listing.minimumInvestment, listing.currency),

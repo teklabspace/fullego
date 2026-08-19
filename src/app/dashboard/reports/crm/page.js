@@ -14,6 +14,11 @@ import { toast } from 'react-toastify';
 const titleCase = (s) =>
   s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—';
 
+// Backend sends assignee as { id, name, avatar_url } | null (previously a bare
+// string) — never render the object directly, always pull its display name.
+const assigneeName = (assignee) =>
+  (assignee && typeof assignee === 'object' ? assignee.name : assignee) || null;
+
 export default function CRMDashboardPage() {
   const { isDarkMode } = useTheme();
   const [activeTab, setActiveTab] = useState('overview');
@@ -64,29 +69,29 @@ export default function CRMDashboardPage() {
         if (ticketsResponse.status === 'fulfilled') {
           const tickets = ticketsResponse.value.data || ticketsResponse.value || [];
           // Separate unassigned and assigned tickets
-          const unassigned = tickets.filter(t => !t.assignee || t.assignee === '-').map(ticket => ({
+          const unassigned = tickets.filter(t => !assigneeName(t.assignee)).map(ticket => ({
             id: ticket.id || ticket.ticketId,
             subject: ticket.subject,
-            requester: ticket.issuer || ticket.requester,
+            requester: ticket.requester?.name || ticket.issuer || ticket.userName || '-',
             channel: ticket.channel || 'Web form',
             type: ticket.category || '-',
-            assignee: ticket.assignee || '-',
-            date: ticket.created ? new Date(ticket.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-',
+            assignee: assigneeName(ticket.assignee) || '-',
+            date: ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-',
             status: ticket.status === 'open' ? 'New' : ticket.status,
-            assignedTo: ticket.assignee || null,
+            assignedTo: assigneeName(ticket.assignee),
             ticketHistory: ticket.history || [],
           }));
-          
-          const assigned = tickets.filter(t => t.assignee && t.assignee !== '-').map(ticket => ({
+
+          const assigned = tickets.filter(t => assigneeName(t.assignee)).map(ticket => ({
             id: ticket.id || ticket.ticketId,
             subject: ticket.subject,
-            requester: ticket.issuer || ticket.requester,
+            requester: ticket.requester?.name || ticket.issuer || ticket.userName || '-',
             channel: ticket.channel || 'Web form',
             group: ticket.group || '-',
-            assignee: ticket.assignee,
-            date: ticket.created ? new Date(ticket.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-',
+            assignee: assigneeName(ticket.assignee),
+            date: ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-',
             status: ticket.status === 'open' ? 'Open' : ticket.status,
-            assignedTo: ticket.assignee,
+            assignedTo: assigneeName(ticket.assignee),
             ticketHistory: ticket.history || [],
           }));
 

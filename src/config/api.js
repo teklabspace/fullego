@@ -247,6 +247,12 @@ export const API_ENDPOINTS = {
     CRYPTO_PERFORMANCE: '/portfolio/crypto/performance',
     CRYPTO_BREAKDOWN: '/portfolio/crypto/breakdown',
     CRYPTO_HOLDINGS: '/portfolio/crypto/holdings',
+    // Shareable read-only snapshot of the crypto portfolio.
+    CRYPTO_SHARE: '/portfolio/crypto/share',
+    CRYPTO_SHARE_LIST: '/portfolio/crypto/share',
+    CRYPTO_SHARE_REVOKE: (id) => `/portfolio/crypto/share/${id}`,
+    // Public resolve — no auth, no KYC; the access code is the credential.
+    CRYPTO_SHARED: '/portfolio/crypto/shared',
     // Cash Flow Management
     CASH_FLOW_SUMMARY: '/portfolio/cash-flow/summary',
     CASH_FLOW_TRENDS: '/portfolio/cash-flow/trends',
@@ -275,6 +281,12 @@ export const API_ENDPOINTS = {
     GET_ORDER: (id) => `/portfolio/trade-engine/orders/${id}`,
     CANCEL_ORDER: (id) => `/portfolio/trade-engine/orders/${id}`,
     QUOTES: '/portfolio/trade-engine/quotes',
+    // Per-user cash ledger. Accounts start at $0.00 and buy orders are
+    // funds-checked against this balance, so without a deposit every buy
+    // fails with 400 INSUFFICIENT_FUNDS.
+    CASH: '/portfolio/trade-engine/cash',
+    CASH_DEPOSIT: '/portfolio/trade-engine/cash/deposit',
+    CASH_WITHDRAW: '/portfolio/trade-engine/cash/withdraw',
   },
   // Marketplace APIs (from INVESTMENT_APIS.md)
   MARKETPLACE: {
@@ -447,7 +459,9 @@ export const API_ENDPOINTS = {
     // Deprecated alias kept only for backward compatibility; backend may remove it.
     TICKET_COMMENTS: (id) => `/support/tickets/${id}/comments`,
     TICKET_HISTORY: (id) => `/support/tickets/${id}/history`,
-    STATISTICS: '/support/statistics',
+    // Canonical path confirmed by backend 2026-08-18 — /support/statistics
+    // (no s on tickets) was never a real route and 405s.
+    STATISTICS: '/support/tickets/stats',
     // CSAT rating, posted by the ticket owner once it's resolved/closed.
     TICKET_RATING: (id) => `/support/tickets/${id}/rating`,
     // Role-scoped Reports tab data (admin: all, advisor: assigned, investor: own).

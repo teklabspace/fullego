@@ -1,20 +1,53 @@
 'use client';
 import Image from 'next/image';
 import { useState } from 'react';
-import { createTicket } from '@/utils/supportTicketsApi';
+import { createTicket, uploadTicketDocumentsWithProgress } from '@/utils/supportTicketsApi';
 import { toast } from 'react-toastify';
+import { useAuth } from '@/hooks/useAuth';
+
+const formatFileSize = bytes => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+};
 
 export default function NewTicketModal({ isOpen, setIsOpen, onTicketCreated }) {
+  // The ticket's requester is always the person filing it — the backend sets
+  // it from the authenticated caller regardless of what's sent, so this is
+  // display-only. There is no "file on someone else's behalf" flow here.
+  const { user } = useAuth();
+  const loggedInName =
+    [user?.first_name, user?.last_name].filter(Boolean).join(' ') ||
+    user?.name ||
+    user?.email ||
+    '';
   const [formData, setFormData] = useState({
     subject: '',
     category: '',
     priority: '',
     description: '',
-    issuer: '',
     channel: 'web',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [attachments, setAttachments] = useState([]);
+  // null = not uploading attachments yet; a ticket must exist before the
+  // upload endpoint (POST /tickets/{id}/documents) has anywhere to send to.
+  const [uploadProgress, setUploadProgress] = useState(null);
+
+  const handleFileChange = e => {
+    const selected = Array.from(e.target.files);
+    setAttachments(prev => [...prev, ...selected]);
+    // Reset the input so picking the same file again after removing it fires
+    // onChange (the browser otherwise treats it as an unchanged selection).
+    e.target.value = '';
+  };
+
+  const handleRemoveAttachment = index => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,30 +60,45 @@ export default function NewTicketModal({ isOpen, setIsOpen, onTicketCreated }) {
         description: formData.description,
         category: formData.category,
         priority: formData.priority,
-        issuer: formData.issuer,
         channel: formData.channel || 'web',
       };
 
       const response = await createTicket(ticketData);
-      
+      const newTicketId = response?.id || response?.ticketId;
+
+      if (attachments.length > 0 && newTicketId) {
+        setUploadProgress(0);
+        try {
+          await uploadTicketDocumentsWithProgress(newTicketId, attachments, setUploadProgress);
+        } catch (uploadErr) {
+          console.error('Failed to upload attachments:', uploadErr);
+          // The ticket itself was created successfully — don't block on this,
+          // just tell the user the attachment specifically didn't make it.
+          toast.error(
+            uploadErr?.data?.detail || uploadErr?.message || 'Ticket created, but the attachment failed to upload.'
+          );
+        }
+        setUploadProgress(null);
+      }
+
       toast.success('Ticket created successfully!');
-      
+
       // Call callback to refresh tickets list
       if (onTicketCreated) {
         onTicketCreated(response);
       }
-      
+
       setIsOpen(false);
-      
+
       // Reset form
       setFormData({
         subject: '',
         category: '',
         priority: '',
         description: '',
-        issuer: '',
         channel: 'web',
       });
+      setAttachments([]);
     } catch (err) {
       console.error('Failed to create ticket:', err);
       const errorMsg = err.data?.detail || err.message || 'Failed to create ticket. Please try again.';
@@ -58,6 +106,7 @@ export default function NewTicketModal({ isOpen, setIsOpen, onTicketCreated }) {
       toast.error(errorMsg);
     } finally {
       setIsSubmitting(false);
+      setUploadProgress(null);
     }
   };
 
@@ -125,46 +174,16 @@ export default function NewTicketModal({ isOpen, setIsOpen, onTicketCreated }) {
             />
           </div>
 
-          {/* Issuer Selection */}
+          {/* Issuer — always the logged-in user filing this ticket */}
           <div>
             <label className='block text-white text-sm font-medium mb-2'>
-              Issuer <span className='text-red-500'>*</span>
+              Issuer
             </label>
-            <select
-              required
-              value={formData.issuer}
-              onChange={e =>
-                setFormData({ ...formData, issuer: e.target.value })
-              }
-              className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white focus:outline-none focus:border-[#F1CB68] transition-colors'
-            >
-              <option value='' className='bg-[#1a1a1d]'>
-                Select issuer (person or business)
-              </option>
-              <option value='john-smith' className='bg-[#1a1a1d]'>
-                John Smith
-              </option>
-              <option value='oakridge-family-office' className='bg-[#1a1a1d]'>
-                Oakridge Family Office
-              </option>
-              <option value='isabella-w' className='bg-[#1a1a1d]'>
-                Isabella W
-              </option>
-              <option value='ryan-green' className='bg-[#1a1a1d]'>
-                Ryan Green
-              </option>
-              <option value='marta-diaz' className='bg-[#1a1a1d]'>
-                Marta Diaz
-              </option>
-              <option value='matthew-m' className='bg-[#1a1a1d]'>
-                Matthew M
-              </option>
-              <option value='brian-baker' className='bg-[#1a1a1d]'>
-                Brian Baker
-              </option>
-            </select>
+            <div className='w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-gray-300'>
+              {loggedInName || 'You'}
+            </div>
             <p className='text-gray-500 text-xs mt-1'>
-              The person or business that raised this issue
+              Tickets are filed under your account
             </p>
           </div>
 
@@ -265,8 +284,10 @@ export default function NewTicketModal({ isOpen, setIsOpen, onTicketCreated }) {
               <input
                 id='file-upload'
                 type='file'
+                multiple
                 className='hidden'
                 accept='image/*,.pdf,.doc,.docx'
+                onChange={handleFileChange}
               />
               <Image
                 src='/icons/upload-cloud.svg'
@@ -281,6 +302,59 @@ export default function NewTicketModal({ isOpen, setIsOpen, onTicketCreated }) {
               </p>
               <p className='text-gray-500 text-xs'>PNG, JPG, PDF up to 10MB</p>
             </div>
+
+            {/* Selected files */}
+            {attachments.length > 0 && (
+              <div className='space-y-2 mt-3'>
+                {attachments.map((file, index) => (
+                  <div
+                    key={`${file.name}-${index}`}
+                    className='flex items-center justify-between p-3 rounded-lg border border-white/10 bg-white/5'
+                  >
+                    <div className='flex-1 min-w-0'>
+                      <p className='text-sm font-medium text-white truncate'>
+                        {file.name}
+                      </p>
+                      <p className='text-xs text-gray-500'>
+                        {formatFileSize(file.size)}
+                      </p>
+                    </div>
+                    <button
+                      type='button'
+                      onClick={() => handleRemoveAttachment(index)}
+                      disabled={isSubmitting}
+                      className='p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed'
+                      title='Remove attachment'
+                    >
+                      <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                        <path d='M18 6L6 18M6 6l12 12' />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Upload progress — only shown once the ticket exists and the
+                attachment upload call is actually in flight */}
+            {uploadProgress !== null && (
+              <div className='mt-3'>
+                <div className='flex items-center justify-between mb-1.5'>
+                  <span className='text-xs font-medium text-gray-300'>
+                    Uploading attachment…
+                  </span>
+                  <span className='text-xs font-semibold text-[#F1CB68]'>
+                    {uploadProgress}%
+                  </span>
+                </div>
+                <div className='h-2 rounded-full overflow-hidden bg-white/10'>
+                  <div
+                    className='h-full bg-[#F1CB68] transition-all duration-150'
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </form>
 
@@ -303,7 +377,11 @@ export default function NewTicketModal({ isOpen, setIsOpen, onTicketCreated }) {
               color: '#000000',
             }}
           >
-            {isSubmitting ? 'Creating...' : 'Submit Ticket'}
+            {uploadProgress !== null
+              ? `Uploading ${uploadProgress}%`
+              : isSubmitting
+              ? 'Creating...'
+              : 'Submit Ticket'}
           </button>
         </div>
 

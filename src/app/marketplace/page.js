@@ -10,6 +10,14 @@ import { categoryGroupConfig, getCategoriesByGroup } from '@/config/assetConfig'
 import { getCategoryIcon } from '@/utils/categoryIcons';
 import { formatCurrency } from '@/utils/formatters';
 
+// expected_return is stored as free text with the formatting included, so a
+// seller can write "8.5%", "8-10%" or "2.5x". Only a bare number gets a %.
+const withPercent = value => {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  return /^[\d.]+(\s*[-–]\s*[\d.]+)?$/.test(text) ? `${text}%` : text;
+};
+
 const allInvestmentFunds = [
   {
     id: 1,
@@ -318,20 +326,20 @@ export default function Marketplace() {
                 listing.minimumValue
             ),
             minimumValue: listing.askingPrice || listing.minimumInvestment || listing.minimumValue || 0,
-            targetIRR: listing.expectedReturn 
-              ? `${listing.expectedReturn}%`
-              : listing.targetIrr 
-                ? `${listing.targetIrr}%`
-                : listing.returnValue
-                  ? `${listing.returnValue}%`
-                  : '0%',
+            // expected_return is free text with the sign already in it
+            // ("8.5%"), so only a bare number gets one appended. The list
+            // payload doesn't carry it at all yet — null renders as a dash
+            // rather than the invented '0%' this used to show.
+            targetIRR: withPercent(
+              listing.expectedReturn ?? listing.targetIrr ?? listing.returnValue
+            ),
             returnValue: parseFloat(
               listing.expectedReturn?.toString().replace('%', '') || 
               listing.targetIrr?.toString().replace('%', '') || 
               listing.returnValue?.toString().replace('%', '') ||
               '0'
             ),
-            riskLevel: listing.riskLevel || listing.risk || 'Medium',
+            riskLevel: listing.riskLevel || listing.risk || null,
             type: listing.type || '#Service',
             subType: listing.subType || '#Commercial',
             // Standardized: thumbnail_url for cards (backend falls back to the
@@ -1304,7 +1312,7 @@ function InvestmentCard({ fund, index, onViewDetails, onBuy }) {
         <div>
           <p className='text-xs mb-1 text-gray-400'>Target IRR</p>
           <p className='text-sm font-semibold text-[#F1CB68]'>
-            {fund.targetIRR}
+            {fund.targetIRR || '—'}
           </p>
         </div>
       </div>
@@ -1322,7 +1330,7 @@ function InvestmentCard({ fund, index, onViewDetails, onBuy }) {
                 : 'text-[#F1CB68]'
             }`}
           >
-            {fund.riskLevel}
+            {fund.riskLevel || '—'}
           </p>
         </div>
         <div className='flex gap-2 text-right'>

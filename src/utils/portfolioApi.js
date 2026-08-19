@@ -200,29 +200,45 @@ export const getPortfolioBenchmark = async (benchmarkValue) => {
  * GET /api/v1/portfolio/crypto/summary
  */
 export const getCryptoPortfolioSummary = async () => {
-  const endpoint = `/portfolio/crypto/summary`;
-  const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  const response = await apiGet(API_ENDPOINTS.PORTFOLIO.CRYPTO_SUMMARY);
+  return normalizePayload(response);
 };
+
+/**
+ * Valid `time_range` values accepted by GET /portfolio/crypto/performance.
+ * An unrecognised value used to fall back to 30 days with a 200; the backend
+ * now rejects it with 400 INVALID_TIME_RANGE, so keep this list in sync with
+ * the dropdown that feeds it.
+ */
+export const CRYPTO_TIME_RANGES = ['1h', '6h', '12h', '24h', '7d', '30d', '1y'];
 
 /**
  * Get Crypto Performance Data
  * GET /api/v1/portfolio/crypto/performance
+ *
+ * Either a preset `timeRange` OR an explicit start/end pair — `start_date` and
+ * `end_date` override `time_range` server-side, so we send one or the other
+ * rather than both. Both dates are required together and start must precede
+ * end, otherwise the backend answers 400 INVALID_TIME_RANGE.
+ *
+ * @param {string} timeRange one of CRYPTO_TIME_RANGES
+ * @param {string} metric value-over-time | return-rate | risk-exposure
+ * @param {{startDate: string, endDate: string}} [dateRange] ISO-8601 UTC pair
  */
-export const getCryptoPerformance = async (timeRange, metric) => {
-  const endpoint = `/portfolio/crypto/performance?time_range=${timeRange}&metric=${metric}`;
-  const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
+export const getCryptoPerformance = async (timeRange, metric, dateRange = null) => {
+  const queryParams = new URLSearchParams();
+  queryParams.append('metric', metric);
+
+  if (dateRange?.startDate && dateRange?.endDate) {
+    queryParams.append('start_date', dateRange.startDate);
+    queryParams.append('end_date', dateRange.endDate);
+  } else {
+    queryParams.append('time_range', timeRange);
   }
-  
-  return response;
+
+  const endpoint = `${API_ENDPOINTS.PORTFOLIO.CRYPTO_PERFORMANCE}?${queryParams.toString()}`;
+  const response = await apiGet(endpoint);
+  return normalizePayload(response);
 };
 
 /**
@@ -230,14 +246,9 @@ export const getCryptoPerformance = async (timeRange, metric) => {
  * GET /api/v1/portfolio/crypto/breakdown
  */
 export const getCryptoBreakdown = async (groupBy) => {
-  const endpoint = `/portfolio/crypto/breakdown?group_by=${groupBy}`;
+  const endpoint = `${API_ENDPOINTS.PORTFOLIO.CRYPTO_BREAKDOWN}?group_by=${groupBy}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  return normalizePayload(response);
 };
 
 /**
@@ -248,15 +259,80 @@ export const getCryptoHoldings = async (params = {}) => {
   const queryParams = new URLSearchParams();
   if (params.sortBy) queryParams.append('sort_by', params.sortBy);
   if (params.order) queryParams.append('order', params.order);
-  
-  const endpoint = `/portfolio/crypto/holdings${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+
+  const endpoint = `${API_ENDPOINTS.PORTFOLIO.CRYPTO_HOLDINGS}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
+  return normalizePayload(response);
+};
+
+// ============================================================================
+// CRYPTO PORTFOLIO SHARING APIs
+// ============================================================================
+
+/**
+ * Create a shareable crypto portfolio link
+ * POST /api/v1/portfolio/crypto/share
+ *
+ * @param {object} options
+ * @param {number|null} [options.expiresInDays] 1-365; null = never expires
+ * @param {string|null} [options.email] optional recipient; null = link only
+ * @param {string} [options.timeRange] preset window for the snapshot
+ * @param {string} [options.startDate] ISO-8601, use with endDate instead of timeRange
+ * @param {string} [options.endDate]
+ * @returns {Promise<{id: string, shareLink: string, accessCode: string}>}
+ */
+export const createCryptoShare = async (options = {}) => {
+  const body = {
+    expires_in_days: options.expiresInDays ?? null,
+    email: options.email ?? null,
+  };
+
+  if (options.startDate && options.endDate) {
+    body.start_date = options.startDate;
+    body.end_date = options.endDate;
+  } else {
+    body.time_range = options.timeRange || '30d';
   }
-  
-  return response;
+
+  const response = await apiPost(API_ENDPOINTS.PORTFOLIO.CRYPTO_SHARE, body);
+  return normalizePayload(response);
+};
+
+/**
+ * List active crypto portfolio share links
+ * GET /api/v1/portfolio/crypto/share
+ */
+export const listCryptoShares = async () => {
+  const response = await apiGet(API_ENDPOINTS.PORTFOLIO.CRYPTO_SHARE_LIST);
+  return normalizePayload(response);
+};
+
+/**
+ * Revoke a crypto portfolio share link
+ * DELETE /api/v1/portfolio/crypto/share/{id}
+ */
+export const revokeCryptoShare = async (shareId) => {
+  const response = await apiDelete(
+    API_ENDPOINTS.PORTFOLIO.CRYPTO_SHARE_REVOKE(shareId)
+  );
+  return normalizePayload(response);
+};
+
+/**
+ * Resolve a shared crypto portfolio anonymously.
+ * GET /api/v1/portfolio/crypto/shared?code={accessCode}
+ *
+ * No login and no KYC — the access code IS the credential, so the request must
+ * go out WITHOUT a Bearer token. A stale token from a dead session would
+ * otherwise turn a public 200 into a 401 (the bug that bit shared asset links).
+ *
+ * Contract: valid -> 200, unknown/revoked -> 404, expired -> 410
+ * SHARE_LINK_EXPIRED.
+ */
+export const getSharedCryptoPortfolio = async (accessCode) => {
+  const endpoint = `${API_ENDPOINTS.PORTFOLIO.CRYPTO_SHARED}?code=${encodeURIComponent(accessCode)}`;
+  const response = await apiGet(endpoint, { auth: false });
+  return normalizePayload(response);
 };
 
 // ============================================================================
@@ -434,22 +510,10 @@ export const searchAssets = async (params) => {
  * Note: Backend may expect asset ID instead of symbol. If 404, try searching first.
  */
 export const getAssetDetails = async (symbol) => {
-  // Try using symbol as path parameter first
-  const endpoint = `/portfolio/trade-engine/assets/${symbol}`;
-  
-  try {
-    const response = await apiGet(endpoint);
-    
-    if (response.data) {
-      response.data = transformKeys(response.data);
-    }
-    
-    return response;
-  } catch (error) {
-    // If 404, the endpoint might expect an asset ID or use query parameter
-    // For now, re-throw the error so the caller can handle it
-    throw error;
-  }
+  // A 404 here can mean the endpoint wanted an asset ID rather than a symbol —
+  // the error propagates so the caller can decide to search first.
+  const response = await apiGet(API_ENDPOINTS.TRADE_ENGINE.GET_ASSET(symbol));
+  return normalizePayload(response);
 };
 
 /**
@@ -506,19 +570,18 @@ export const getAssetPriceHistory = async (symbol, range = '1M') => {
  * GET /api/v1/portfolio/trade-engine/accounts
  */
 export const getBrokerageAccounts = async () => {
-  const endpoint = `/portfolio/trade-engine/accounts`;
-  const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  const response = await apiGet(API_ENDPOINTS.TRADE_ENGINE.ACCOUNTS);
+  return normalizePayload(response);
 };
 
 /**
  * Place Order
  * POST /api/v1/portfolio/trade-engine/orders
+ *
+ * Buy orders are funds-checked against the per-user cash ledger and fail with
+ * 400 INSUFFICIENT_FUNDS when the balance can't cover them. The response now
+ * carries the post-trade cash balance, so callers don't need a follow-up
+ * getTradingCash() to refresh what they display.
  */
 export const placeOrder = async (orderData) => {
   // Transform camelCase to snake_case for API
@@ -527,15 +590,9 @@ export const placeOrder = async (orderData) => {
     const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
     transformedData[snakeKey] = value;
   }
-  
-  const endpoint = `/portfolio/trade-engine/orders`;
-  const response = await apiPost(endpoint, transformedData);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+
+  const response = await apiPost(API_ENDPOINTS.TRADE_ENGINE.PLACE_ORDER, transformedData);
+  return normalizePayload(response);
 };
 
 /**
@@ -543,14 +600,8 @@ export const placeOrder = async (orderData) => {
  * GET /api/v1/portfolio/trade-engine/orders/{order_id}
  */
 export const getOrderStatus = async (orderId) => {
-  const endpoint = `/portfolio/trade-engine/orders/${orderId}`;
-  const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+  const response = await apiGet(API_ENDPOINTS.TRADE_ENGINE.GET_ORDER(orderId));
+  return normalizePayload(response);
 };
 
 /**
@@ -558,14 +609,58 @@ export const getOrderStatus = async (orderId) => {
  * DELETE /api/v1/portfolio/trade-engine/orders/{order_id}
  */
 export const cancelOrder = async (orderId) => {
-  const endpoint = `/portfolio/trade-engine/orders/${orderId}`;
-  const response = await apiDelete(endpoint);
+  const response = await apiDelete(API_ENDPOINTS.TRADE_ENGINE.CANCEL_ORDER(orderId));
+  return normalizePayload(response);
+};
 
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
+// ============================================================================
+// TRADING CASH LEDGER APIs
+// ============================================================================
 
-  return response;
+/**
+ * Get Trading Cash Balance + Ledger
+ * GET /api/v1/portfolio/trade-engine/cash?limit=20
+ *
+ * @returns {Promise<{cashBalance: number, currency: string, transactions: Array}>}
+ */
+export const getTradingCash = async (params = {}) => {
+  const queryParams = new URLSearchParams();
+  if (params.limit) queryParams.append('limit', params.limit);
+
+  const endpoint = `${API_ENDPOINTS.TRADE_ENGINE.CASH}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await apiGet(endpoint);
+  return normalizePayload(response);
+};
+
+/**
+ * Deposit Cash from a linked bank account
+ * POST /api/v1/portfolio/trade-engine/cash/deposit
+ *
+ * @param {{linkedAccountId: string, amount: number}} depositData
+ * @returns {Promise<{cashBalance, sourceAccountBalance, amount, currency}>}
+ * @throws 400 INSUFFICIENT_FUNDS when the source account can't cover it,
+ *         404 when the linked account id isn't the caller's
+ */
+export const depositTradingCash = async ({ linkedAccountId, amount }) => {
+  const response = await apiPost(API_ENDPOINTS.TRADE_ENGINE.CASH_DEPOSIT, {
+    linked_account_id: linkedAccountId,
+    amount,
+  });
+  return normalizePayload(response);
+};
+
+/**
+ * Withdraw Cash back to a linked bank account
+ * POST /api/v1/portfolio/trade-engine/cash/withdraw
+ *
+ * Same request/response shape as depositTradingCash, reverse direction.
+ */
+export const withdrawTradingCash = async ({ linkedAccountId, amount }) => {
+  const response = await apiPost(API_ENDPOINTS.TRADE_ENGINE.CASH_WITHDRAW, {
+    linked_account_id: linkedAccountId,
+    amount,
+  });
+  return normalizePayload(response);
 };
 
 /**

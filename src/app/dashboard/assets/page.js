@@ -1022,6 +1022,20 @@ export default function AssetsPage() {
 }
 
 // Asset Card Component
+// How many spec rows every asset card shows, regardless of category. The
+// category groups define anywhere from 4 to 8 card fields (see
+// categoryGroupConfig), so rendering all of them put a tall Assets card next
+// to a short Shadow Wealth card in the same grid row.
+const CARD_SPEC_ROWS = 5;
+
+// How many of the asset's tags the card shows. Tags are entered on the add
+// wizard's last step and land in specifications.tags.
+const CARD_TAG_LIMIT = 4;
+
+// Fields whose values run long enough to break a fixed-height card. They are
+// short-facts-only up here; the full text lives on the detail page.
+const LONG_FORM_CARD_FIELDS = ['description', 'notes', 'purpose', 'documentation'];
+
 function AssetCard({
   asset,
   appraisal,
@@ -1219,57 +1233,88 @@ function AssetCard({
     return specs[camel] ?? asset[camel] ?? '';
   };
 
-  // Render card field
-  const renderCardField = fieldName => {
-    const value = getFieldValue(fieldName);
-    if (!value) return null;
-
+  // Display formatting for one spec row: money gets a currency prefix, dates
+  // are localised, everything else passes through untouched.
+  const formatFieldValue = (fieldName, value) => {
+    if (value === null || value === undefined || value === '') return '';
     const lowerName = fieldName.toLowerCase();
-
-    // Skip Image as it's rendered separately
-    if (lowerName.includes('image')) return null;
-
-    // Format value based on field type
     let displayValue = value;
+
     if (
       typeof value === 'string' &&
       (lowerName.includes('value') ||
         lowerName.includes('cost') ||
-        lowerName.includes('owed'))
+        lowerName.includes('owed')) &&
+      !value.startsWith('$')
     ) {
-      if (!value.startsWith('$')) {
-        displayValue = formatMoney(value);
+      displayValue = formatMoney(value);
+    }
+
+    if (lowerName.includes('date') || lowerName.includes('appraisal')) {
+      try {
+        // Date-only strings (YYYY-MM-DD) must be parsed as LOCAL time:
+        // new Date("2026-07-17") is UTC midnight, which west of UTC renders
+        // as the previous day.
+        const isDateOnly =
+          typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+        const date = isDateOnly
+          ? new Date(`${value}T00:00:00`)
+          : new Date(value);
+        if (!isNaN(date.getTime())) displayValue = date.toLocaleDateString();
+      } catch (e) {
+        // Keep the original value if date parsing fails
       }
     }
 
-    return (
-      <div key={fieldName} className='mb-2'>
-        <p
-          className={`text-xs mb-1 ${
-            isDarkMode ? 'text-gray-500' : 'text-gray-600'
-          }`}
-        >
-          {fieldName}
-        </p>
-        <p
-          className={`font-semibold text-sm ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}
-        >
-          {displayValue}
-        </p>
-      </div>
-    );
+    return displayValue;
   };
+
+  // Tags are an array on specifications; older records may carry them at the
+  // asset root. Only strings survive — a malformed entry shouldn't render.
+  const assetTags = (
+    Array.isArray(asset.specifications?.tags)
+      ? asset.specifications.tags
+      : Array.isArray(asset.tags)
+        ? asset.tags
+        : []
+  )
+    .filter(tag => typeof tag === 'string' && tag.trim())
+    .slice(0, CARD_TAG_LIMIT);
+
+  // Always CARD_SPEC_ROWS rows, taken in the group's own field order so two
+  // assets of the same category always show the same labels. Padded when a
+  // group defines fewer fields than that.
+  const specRows = (() => {
+    const rows = [];
+    for (const field of cardFields) {
+      if (rows.length === CARD_SPEC_ROWS) break;
+      const lowerName = field.toLowerCase();
+      if (
+        lowerName.includes('image') ||
+        LONG_FORM_CARD_FIELDS.some(long => lowerName.includes(long))
+      ) {
+        continue;
+      }
+      const raw = getFieldValue(field);
+      // A row that just repeats the card's own title is noise — the heading
+      // directly above already says it ("Asset Name: Toyota Camry 2022").
+      if (raw && String(raw).trim() === String(asset.name || '').trim()) {
+        continue;
+      }
+      rows.push({ field, value: formatFieldValue(field, raw) });
+    }
+    while (rows.length < CARD_SPEC_ROWS) rows.push(null);
+    return rows;
+  })();
 
   return (
     <div
-      className={`bg-transparent border rounded-2xl hover:border-[#F1CB68]/50 transition-all group relative ${
+      className={`bg-transparent border rounded-2xl hover:border-[#F1CB68]/50 transition-all group relative flex flex-col h-full ${
         isDarkMode ? 'border-[#FFFFFF14]' : 'border-gray-300'
       }`}
     >
       {/* Image */}
-      <div className='relative h-48 overflow-hidden rounded-t-2xl'>
+      <div className='relative h-48 shrink-0 overflow-hidden rounded-t-2xl'>
         {asset.image ? (
           <img
             src={asset.image}
@@ -1423,7 +1468,7 @@ function AssetCard({
       </div>
 
       {/* Content */}
-      <div className='p-5'>
+      <div className='p-5 flex flex-col flex-1'>
         <h3
           className={`font-semibold text-lg mb-2 ${
             isDarkMode ? 'text-white' : 'text-gray-900'
@@ -1452,75 +1497,70 @@ function AssetCard({
           </div>
         )}
 
-        {/* Dynamic Card Fields */}
+        {/* Spec strip — a fixed number of rows on every card, whatever the
+            category. Category groups define between 4 and 8 card fields, so
+            rendering all of them (and dropping empty ones) put a 7-row card
+            next to a 3-row card in the same grid row. Missing values show an
+            em dash instead of collapsing the row, which also tells the owner
+            what is still blank. */}
         <div className='mb-4 space-y-2'>
-          {cardFields.map(field => {
-            const value = getFieldValue(field);
-            if (!value || field.toLowerCase().includes('image')) return null;
-
-            const lowerName = field.toLowerCase();
-            let displayValue = value;
-
-            // Format currency values
-            if (
-              typeof value === 'string' &&
-              (lowerName.includes('value') ||
-                lowerName.includes('cost') ||
-                lowerName.includes('owed'))
-            ) {
-              if (!value.startsWith('$')) {
-                displayValue = formatMoney(value);
-              }
-            }
-
-            // Format dates — includes "Last Appraisal" (an ISO timestamp), shown
-            // as date only. Non-date strings (e.g. "Just now") pass through.
-            if ((lowerName.includes('date') || lowerName.includes('appraisal')) && value) {
-              try {
-                // Date-only strings (YYYY-MM-DD) must be parsed as LOCAL time:
-                // new Date("2026-07-17") is UTC midnight, which west of UTC
-                // renders as the previous day.
-                const isDateOnly =
-                  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
-                const date = isDateOnly
-                  ? new Date(`${value}T00:00:00`)
-                  : new Date(value);
-                if (!isNaN(date.getTime())) {
-                  displayValue = date.toLocaleDateString();
-                }
-              } catch (e) {
-                // Keep original value if date parsing fails
-              }
-            }
-
-            // Descriptions can be arbitrarily long — clamp to two lines so
-            // they don't stretch the card; full text lives on the detail page.
-            const isDescription = lowerName.includes('description');
-
-            return (
-              <div key={field} className='flex justify-between items-center gap-3'>
+          {specRows.map((row, index) =>
+            row ? (
+              <div
+                key={row.field}
+                className='flex justify-between items-baseline gap-3'
+              >
                 <p
                   className={`text-xs shrink-0 ${
                     isDarkMode ? 'text-gray-500' : 'text-gray-600'
                   }`}
                 >
-                  {field}:
+                  {row.field}:
                 </p>
                 <p
-                  className={`font-semibold text-sm text-right min-w-0 ${
-                    isDescription ? 'line-clamp-2 break-words' : ''
-                  } ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
-                  title={isDescription ? String(displayValue) : undefined}
+                  className={`font-semibold text-sm text-right min-w-0 truncate ${
+                    row.value
+                      ? isDarkMode
+                        ? 'text-white'
+                        : 'text-gray-900'
+                      : isDarkMode
+                        ? 'text-gray-500'
+                        : 'text-gray-600'
+                  }`}
+                  title={row.value ? String(row.value) : undefined}
                 >
-                  {displayValue}
+                  {row.value || '—'}
                 </p>
               </div>
-            );
-          })}
+            ) : (
+              // Spacer: this group defines fewer fields than the strip height.
+              <div key={`spacer-${index}`} className='h-5' aria-hidden='true' />
+            )
+          )}
         </div>
 
-        {/* Action Buttons */}
-        <div className='space-y-2'>
+        {/* Tags entered when the asset was created. Neutral pills, not gold —
+            gold marks value and primary actions on this surface. The row keeps
+            its height when an asset has no tags so cards stay aligned. */}
+        <div className='flex flex-wrap gap-1.5 mb-4 min-h-[1.625rem]'>
+          {assetTags.map(tag => (
+            <span
+              key={tag}
+              className={`px-2 py-0.5 rounded-md text-[11px] font-medium max-w-full truncate ${
+                isDarkMode
+                  ? 'bg-white/[0.06] text-gray-300 border border-[#FFFFFF14]'
+                  : 'bg-gray-100 text-gray-700 border border-gray-200'
+              }`}
+              title={tag}
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+
+        {/* Action Buttons — mt-auto pins them to the card's bottom edge so the
+            primary CTA lines up across a grid row. */}
+        <div className='space-y-2 mt-auto'>
           <button
             onClick={onViewDetails}
             className='w-full bg-[#F1CB68] hover:bg-[#BF9B30] text-[#101014] py-2.5 rounded-lg font-semibold transition-colors'
