@@ -16,6 +16,7 @@ import {
   specForFieldName,
   validateForSpec,
 } from '@/utils/validation';
+import { getFieldWidget, isTypedWidget } from '@/config/assetFieldWidget';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -240,35 +241,11 @@ const fieldNameToKey = fieldName => {
     .replace(/^_+|_+$/g, '');
 };
 
-// Helper function to get field type based on field name
-const getFieldType = fieldName => {
-  const lowerName = fieldName.toLowerCase();
-  if (lowerName.includes('date')) return 'date';
-  if (
-    lowerName.includes('price') ||
-    lowerName.includes('value') ||
-    lowerName.includes('cost') ||
-    lowerName.includes('owed')
-  )
-    return 'currency';
-  if (lowerName.includes('rate') || lowerName.includes('interest'))
-    return 'percentage';
-  if (
-    lowerName.includes('description') ||
-    lowerName.includes('notes') ||
-    lowerName.includes('purpose')
-  )
-    return 'textarea';
-  if (lowerName.includes('image')) return 'file';
-  if (lowerName.includes('condition')) return 'select';
-  if (lowerName.includes('ownership type')) return 'select';
-  if (lowerName.includes('risk level')) return 'select';
-  if (lowerName.includes('payment frequency')) return 'select';
-  if (lowerName.includes('currency')) return 'select';
-  if (lowerName.includes('type') && !lowerName.includes('ownership'))
-    return 'select';
-  return 'text';
-};
+// The widget rule moved to config/assetFieldWidget.js so the validation
+// layer resolves the SAME answer from a field label. When these were two
+// copies they drifted, and a dropdown ended up with a typed rule it could
+// not display. Aliased so the call sites below stay unchanged.
+const getFieldType = getFieldWidget;
 
 // Helper function to get select options. Entries are either plain strings (value
 // === label) or { value, label } when the wire value differs from what we show.
@@ -1004,7 +981,7 @@ export default function AddAssetPage() {
    * the tag chip editor) are skipped, and Make/Model/Year is expanded into the
    * three keys it actually writes.
    */
-  const validateCategoryFields = () => {
+  const collectCategoryFieldErrors = () => {
     const nextErrors = {};
 
     const check = (label, key) => {
@@ -1023,21 +1000,55 @@ export default function AddAssetPage() {
         return;
       }
 
-      const spec = specForLabel(fieldName);
-      if (spec.kind === 'select' || spec.kind === 'file' || spec.kind === 'date')
-        return;
+      // Only fields the user types into can show a message. Dropdowns, date
+      // pickers and file inputs are skipped, because an error raised on one is
+      // invisible and would block the step with nothing highlighted.
+      if (!isTypedWidget(getFieldType(fieldName))) return;
 
       check(fieldName, fieldNameToKey(fieldName));
     });
 
-    setFieldErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    return nextErrors;
   };
 
+  /** Labels of the fields currently failing, for the blocking message. */
+  const erroredFieldLabels = errors =>
+    Object.keys(errors)
+      .map(key => {
+        const match = formFields.find(f => fieldNameToKey(f) === key);
+        if (match) return match;
+        // Make/Model/Year writes three keys of its own.
+        return key.charAt(0).toUpperCase() + key.slice(1);
+      })
+      .filter(Boolean);
+
   const handleNext = async () => {
-    if (currentStep === 1 && !validateCategoryFields()) {
-      toast.error('Please correct the highlighted fields before continuing.');
-      return;
+    if (currentStep === 1) {
+      const problems = collectCategoryFieldErrors();
+      if (Object.keys(problems).length) {
+        setFieldErrors(problems);
+
+        // Name the fields. A bare "fix the highlighted fields" is useless if
+        // anything ever fails to highlight.
+        const labels = erroredFieldLabels(problems);
+        toast.error(
+          labels.length === 1
+            ? `${labels[0]}: ${problems[Object.keys(problems)[0]]}`
+            : `Please correct: ${labels.join(', ')}`
+        );
+
+        // Put the cursor on the first problem so it cannot be missed.
+        const firstKey = Object.keys(problems)[0];
+        if (typeof document !== 'undefined') {
+          const el = document.querySelector(`[name="${firstKey}"]`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.focus?.();
+          }
+        }
+        return;
+      }
+      setFieldErrors({});
     }
 
     if (currentStep < steps.length) {
