@@ -1,6 +1,8 @@
 'use client';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
+import useFormValidation from '@/hooks/useFormValidation';
+import { COMMON_SPECS, KIND } from '@/utils/validation';
 import { useRouter } from 'next/navigation';
 import { login } from '@/utils/authApi';
 import { resolveOnboardingRoute } from '@/utils/onboarding';
@@ -28,11 +30,19 @@ const carouselSlides = [
   },
 ];
 
+// Login checks only that the credentials are well-formed. Complexity rules are
+// a REGISTRATION concern — applying them here would lock out any account whose
+// password predates them.
+const LOGIN_SPECS = {
+  email: COMMON_SPECS.email,
+  password: { kind: KIND.TEXT, label: 'Password', required: true, maxLen: 72 },
+};
+const LOGIN_INITIAL = { email: '', password: '' };
+
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const form = useFormValidation(LOGIN_SPECS, LOGIN_INITIAL);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -66,20 +76,12 @@ export default function LoginPage() {
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
+
+    if (!form.validateAll()) return;
+
+    const email = form.values.email.trim();
+    const password = form.values.password;
     setIsLoading(true);
-
-    // Client-side validation
-    if (!email || !password) {
-      setError('Email and password are required');
-      setIsLoading(false);
-      return;
-    }
-
-    if (!email.includes('@')) {
-      setError('Please enter a valid email address');
-      setIsLoading(false);
-      return;
-    }
 
     try {
       // First login attempt (without totp_code)
@@ -125,7 +127,11 @@ export default function LoginPage() {
     try {
       // Call login again with totp_code parameter (as per backend documentation)
       // Backend accepts both TOTP codes (6 digits) and backup codes (8 characters)
-      const response = await login(email, password, twoFactorCode);
+      const response = await login(
+        form.values.email.trim(),
+        form.values.password,
+        twoFactorCode
+      );
       
       // Check if still requires 2FA (invalid code)
       if (response.requires_2fa) {
@@ -241,12 +247,15 @@ export default function LoginPage() {
               <input
                 type='email'
                 id='email'
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                {...form.fieldProps('email')}
                 placeholder='johnadams@gmail.com'
-                className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
-                required
+                className={`w-full bg-transparent border ${
+                  form.errorFor('email') ? 'border-red-500' : 'border-gray-700'
+                } rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors`}
               />
+              {form.errorFor('email') && (
+                <p className='text-xs text-red-400 mt-1'>{form.errorFor('email')}</p>
+              )}
             </div>
 
             {/* Password Field */}
@@ -261,11 +270,11 @@ export default function LoginPage() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id='password'
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  {...form.fieldProps('password')}
                   placeholder='********'
-                  className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
-                  required
+                  className={`w-full bg-transparent border ${
+                    form.errorFor('password') ? 'border-red-500' : 'border-gray-700'
+                  } rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors`}
                 />
                 <button
                   type='button'
@@ -294,6 +303,11 @@ export default function LoginPage() {
                   </svg>
                 </button>
               </div>
+              {form.errorFor('password') && (
+                <p className='text-xs text-red-400 mt-1'>
+                  {form.errorFor('password')}
+                </p>
+              )}
             </div>
 
             {/* Remember Me and Forgot Password */}

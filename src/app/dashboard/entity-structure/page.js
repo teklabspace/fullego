@@ -18,6 +18,7 @@ import {
   removePerson,
 } from '@/utils/entityApi';
 import { toast } from 'react-toastify';
+import { sanitizeText } from '@/utils/validation';
 
 // Audit-trail actions arrive as backend enum slugs ("document_uploaded",
 // "status_updated"). Never render them raw — local copy by repo convention.
@@ -1066,7 +1067,10 @@ export default function EntityStructurePage() {
                   placeholder='Add a note or comment...'
                   rows={3}
                   value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
+                  onChange={(e) =>
+                    setNoteText(sanitizeText(e.target.value, { maxLen: 5000 }))
+                  }
+                  maxLength={5000}
                   className={`w-full px-4 py-3 rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                     isDarkMode
                       ? 'bg-white/5 border-white/10 text-white placeholder-gray-500'

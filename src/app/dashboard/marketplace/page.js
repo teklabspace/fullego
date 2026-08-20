@@ -38,6 +38,12 @@ import { toast } from 'react-toastify';
 import { useAuth } from '@/hooks/useAuth';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { getStripe } from '@/lib/stripe';
+import {
+  MONEY_PRECISION,
+  sanitizeDecimal,
+  sanitizeText,
+  validateAmount,
+} from '@/utils/validation';
 
 // Shared Stripe instance for the escrow payment form (same pattern as
 // AddPaymentMethodModal in settings).
@@ -2376,6 +2382,10 @@ function CounterOfferModal({ offer, isDarkMode, onClose, onSubmitted }) {
     isDarkMode ? 'bg-[#2C2C2E] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
   }`;
 
+  // offers.amount is Numeric(20, 2) and a counter of zero is not an offer.
+  const counterAmountError = amount ? validateAmount(amount, { label: 'Counter amount' }) : null;
+  const counterInvalid = !String(amount ?? '').trim() || Boolean(counterAmountError);
+
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70' onClick={onClose}>
       <div className={`w-full max-w-md rounded-2xl p-6 ${panel}`} onClick={(e) => e.stopPropagation()}>
@@ -2383,14 +2393,39 @@ function CounterOfferModal({ offer, isDarkMode, onClose, onSubmitted }) {
         <p className={`text-sm mb-4 ${textMuted}`}>Buyer offered {offer.offerAmount} for {offer.assetName}.</p>
 
         <label className={`block text-sm font-medium mb-2 ${textMain}`}>Counter Amount ({offer.currency || 'USD'})</label>
-        <input type='text' value={amount} onChange={(e) => setAmount(e.target.value)} className={`${inputCls} mb-4`} />
+        <input
+          type='text'
+          inputMode='decimal'
+          value={amount}
+          onChange={(e) =>
+            setAmount(
+              sanitizeDecimal(e.target.value, {
+                decimals: MONEY_PRECISION.decimals,
+                intDigits: MONEY_PRECISION.intDigits,
+              })
+            )
+          }
+          className={`${inputCls} mb-1 ${counterAmountError ? 'border-red-500' : ''}`}
+        />
+        {counterAmountError ? (
+          <p className='mb-3 text-xs text-red-400'>{counterAmountError}</p>
+        ) : (
+          <div className='mb-4' />
+        )}
 
         <label className={`block text-sm font-medium mb-2 ${textMain}`}>Message</label>
-        <textarea rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder='Optional note to the buyer…' className={`${inputCls} resize-none mb-6`} />
+        <textarea
+          rows={3}
+          value={message}
+          onChange={(e) => setMessage(sanitizeText(e.target.value, { maxLen: 2000 }))}
+          maxLength={2000}
+          placeholder='Optional note to the buyer…'
+          className={`${inputCls} resize-none mb-6`}
+        />
 
         <div className='flex gap-3'>
           <button onClick={onClose} className={`flex-1 py-2.5 rounded-lg font-semibold text-sm border ${isDarkMode ? 'border-[#FFFFFF14] text-white hover:bg-white/10' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>Cancel</button>
-          <button onClick={handleSubmit} disabled={submitting} className='flex-1 py-2.5 rounded-lg font-semibold text-sm bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] disabled:opacity-60'>
+          <button onClick={handleSubmit} disabled={submitting || counterInvalid} className='flex-1 py-2.5 rounded-lg font-semibold text-sm bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E] disabled:opacity-60 disabled:cursor-not-allowed'>
             {submitting ? 'Sending…' : 'Send Counter'}
           </button>
         </div>
@@ -2522,7 +2557,7 @@ function EscrowModal({ offer, isDarkMode, onClose, onChanged }) {
             {showDispute && (
               <div className='mb-4'>
                 <label className={`block text-sm font-medium mb-2 ${textMain}`}>Dispute Reason</label>
-                <textarea rows={3} value={disputeReason} onChange={(e) => setDisputeReason(e.target.value)} placeholder='Describe the problem…'
+                <textarea rows={3} value={disputeReason} onChange={(e) => setDisputeReason(sanitizeText(e.target.value, { maxLen: 2000 }))} maxLength={2000} placeholder='Describe the problem…'
                   className={`w-full px-3 py-2 rounded-lg text-sm border resize-none focus:outline-none focus:border-[#F1CB68] ${isDarkMode ? 'bg-[#2C2C2E] border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`} />
               </div>
             )}

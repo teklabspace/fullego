@@ -80,11 +80,27 @@ const validateAppraisalFiles = (files) => {
   }
 };
 
+// The backend appends the filename verbatim to build the Supabase storage key
+// (appraisals/{id}/{uuid}_{filename}). Unicode punctuation in the name — em
+// dashes, curly quotes, etc. — or parentheses/spaces produce a key Supabase
+// rejects with 400 "InvalidKey", so normalize to a safe ASCII slug up front.
+const sanitizeFileName = (name) => {
+  const dot = name.lastIndexOf('.');
+  const base = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot).replace(/[^a-zA-Z0-9.]/g, '') : '';
+  const safeBase = base
+    .normalize('NFKD')
+    .replace(/[^\x00-\x7F]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${safeBase || 'document'}${ext}`;
+};
+
 // Append files with an explicit filename — a raw Blob without one is sent as
 // "blob" (no extension) and the backend always rejects it.
 const appendFiles = (formData, files) => {
   files.forEach((f) => {
-    if (f?.name) formData.append('files', f, f.name);
+    if (f?.name) formData.append('files', f, sanitizeFileName(f.name));
     else formData.append('files', f);
   });
 };

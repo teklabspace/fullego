@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useTheme } from '@/context/ThemeContext';
 import { getCrmUsers } from '@/utils/crmApi';
 import { toast } from 'react-toastify';
+import { sanitizeText } from '@/utils/validation';
 
 export default function AssignmentModal({
   isOpen,
@@ -208,7 +209,10 @@ export default function AssignmentModal({
             <textarea
               rows={4}
               value={internalNote}
-              onChange={e => setInternalNote(e.target.value)}
+              onChange={e =>
+                setInternalNote(sanitizeText(e.target.value, { maxLen: 5000 }))
+              }
+              maxLength={5000}
               placeholder='Add any internal notes or instructions...'
               className={`w-full px-4 py-3 rounded-lg border text-sm transition-colors resize-none ${
                 isDarkMode

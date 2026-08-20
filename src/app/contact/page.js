@@ -4,26 +4,51 @@ import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { useState } from 'react';
 import Layout from '../../components/layout/Layout';
+import useFormValidation from '@/hooks/useFormValidation';
+import { COMMON_SPECS, KIND } from '@/utils/validation';
+
+const CONTACT_SPECS = {
+  firstName: { ...COMMON_SPECS.firstName, required: false },
+  lastName: COMMON_SPECS.lastName,
+  email: COMMON_SPECS.email,
+  phone: { ...COMMON_SPECS.phone, required: true },
+  message: {
+    kind: KIND.TEXTAREA,
+    label: 'Message',
+    maxLen: 5000,
+    minLen: 10,
+    required: true,
+  },
+};
+
+const CONTACT_INITIAL = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  message: '',
+};
 
 const ContactPage = () => {
-  const [formData, setFormData] = useState({
-    firstName: 'John',
-    lastName: '',
-    email: '',
-    phone: '',
-    message: '',
-  });
+  const form = useFormValidation(CONTACT_SPECS, CONTACT_INITIAL);
+  const formData = form.values;
 
-  const handleChange = e => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
+  const fieldCls = key =>
+    `w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors ${
+      form.errorFor(key) ? 'border-red-500' : 'border-white/10'
+    }`;
+
+  const fieldMsg = key =>
+    form.errorFor(key) ? (
+      <p className='mt-1.5 text-xs text-red-400'>{form.errorFor(key)}</p>
+    ) : null;
 
   const handleSubmit = e => {
     e.preventDefault();
-    console.log('Form submitted:', formData);
+    if (!form.validateAll()) return;
+    // TODO: there is no contact endpoint in API_ENDPOINTS yet, so this stays a
+    // client-side form. The fields are validated and ready to POST.
+    console.log('Form submitted:', form.values);
   };
 
   return (
@@ -154,31 +179,28 @@ const ContactPage = () => {
                     <div>
                       <input
                         type='text'
-                        name='firstName'
-                        value={formData.firstName}
-                        onChange={handleChange}
+                        {...form.fieldProps('firstName')}
                         placeholder='John'
-                        className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors'
+                        className={fieldCls('firstName')}
                         style={{
                           fontFamily: 'Outfit',
                           fontWeight: 400,
                         }}
                       />
+                      {fieldMsg('firstName')}
                     </div>
                     <div>
                       <input
                         type='text'
-                        name='lastName'
-                        value={formData.lastName}
-                        onChange={handleChange}
+                        {...form.fieldProps('lastName')}
                         placeholder='Last Name*'
-                        required
-                        className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors'
+                        className={fieldCls('lastName')}
                         style={{
                           fontFamily: 'Outfit',
                           fontWeight: 400,
                         }}
                       />
+                      {fieldMsg('lastName')}
                     </div>
                   </div>
 
@@ -186,50 +208,45 @@ const ContactPage = () => {
                   <div>
                     <input
                       type='email'
-                      name='email'
-                      value={formData.email}
-                      onChange={handleChange}
+                      {...form.fieldProps('email')}
                       placeholder='Email*'
-                      required
-                      className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors'
+                      className={fieldCls('email')}
                       style={{
                         fontFamily: 'Outfit',
                         fontWeight: 400,
                       }}
                     />
+                      {fieldMsg('email')}
                   </div>
 
                   {/* Phone Number */}
                   <div>
                     <input
                       type='tel'
-                      name='phone'
-                      value={formData.phone}
-                      onChange={handleChange}
+                      {...form.fieldProps('phone')}
                       placeholder='Phone Number*'
-                      required
-                      className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors'
+                      className={fieldCls('phone')}
                       style={{
                         fontFamily: 'Outfit',
                         fontWeight: 400,
                       }}
                     />
+                      {fieldMsg('phone')}
                   </div>
 
                   {/* Message Textarea */}
                   <div>
                     <textarea
-                      name='message'
-                      value={formData.message}
-                      onChange={handleChange}
+                      {...form.fieldProps('message')}
                       placeholder='Your message...'
                       rows={6}
-                      className='w-full px-4 py-3 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors resize-none'
+                      className={`${fieldCls('message')} resize-none`}
                       style={{
                         fontFamily: 'Outfit',
                         fontWeight: 400,
                       }}
                     />
+                      {fieldMsg('message')}
                   </div>
 
                   {/* Submit Button */}

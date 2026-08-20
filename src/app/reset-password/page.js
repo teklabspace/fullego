@@ -1,5 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
+import useFormValidation from '@/hooks/useFormValidation';
+import { COMMON_SPECS, KIND } from '@/utils/validation';
 import Image from 'next/image';
 import { resetPassword, setPasswordWithToken } from '@/utils/authApi';
 
@@ -24,11 +26,19 @@ const carouselSlides = [
   },
 ];
 
+// Setting a NEW password applies the full registration rules (8+ chars, a
+// letter and a digit, within bcrypt's 72-byte ceiling). The confirmation field
+// only has to match, so it carries no rules of its own.
+const RESET_SPECS = {
+  password: COMMON_SPECS.password,
+  confirmPassword: { kind: KIND.TEXT, label: 'Confirm password', required: true, maxLen: 72 },
+};
+const RESET_INITIAL = { password: '', confirmPassword: '' };
+
 export default function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const form = useFormValidation(RESET_SPECS, RESET_INITIAL);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -71,19 +81,20 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError('');
 
-    // Validation
-    if (!password || !confirmPassword) {
-      setError('Please enter both password fields');
+    if (!form.validateAll()) {
+      setError('Please correct the highlighted fields');
       return;
     }
 
+    const { password, confirmPassword } = form.values;
+
+    // Cross-field check — the rules layer only ever sees one field at a time.
     if (password !== confirmPassword) {
+      form.setErrors(prev => ({
+        ...prev,
+        confirmPassword: 'Passwords do not match',
+      }));
       setError('Passwords do not match!');
-      return;
-    }
-
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long');
       return;
     }
 
@@ -163,12 +174,11 @@ export default function ResetPasswordPage() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id='password'
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  {...form.fieldProps('password')}
                   placeholder='********'
-                  className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
-                  required
-                  minLength={8}
+                  className={`w-full bg-transparent border ${
+                    form.errorFor('password') ? 'border-red-500' : 'border-gray-700'
+                  } rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors`}
                 />
                 <button
                   type='button'
@@ -197,6 +207,11 @@ export default function ResetPasswordPage() {
                   </svg>
                 </button>
               </div>
+              {form.errorFor('password') && (
+                <p className='text-xs text-red-400 mt-1'>
+                  {form.errorFor('password')}
+                </p>
+              )}
             </div>
 
             {/* Confirm Password Field */}
@@ -211,12 +226,11 @@ export default function ResetPasswordPage() {
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
                   id='confirmPassword'
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
+                  {...form.fieldProps('confirmPassword')}
                   placeholder='********'
-                  className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
-                  required
-                  minLength={8}
+                  className={`w-full bg-transparent border ${
+                    form.errorFor('confirmPassword') ? 'border-red-500' : 'border-gray-700'
+                  } rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors`}
                 />
                 <button
                   type='button'
@@ -245,6 +259,11 @@ export default function ResetPasswordPage() {
                   </svg>
                 </button>
               </div>
+              {form.errorFor('confirmPassword') && (
+                <p className='text-xs text-red-400 mt-1'>
+                  {form.errorFor('confirmPassword')}
+                </p>
+              )}
             </div>
 
             {/* Password Requirements */}

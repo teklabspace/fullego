@@ -83,7 +83,8 @@ export default function Concierge() {
             >
               <input
                 type='text'
-                placeholder='Email/Phone Number'
+                maxLength={255}
+              placeholder='Email/Phone Number'
                 className='w-full h-full bg-transparent px-6 pr-[130px] text-base md:text-[18px] leading-[130%] tracking-[-0.02em] text-white placeholder:text-white/60 focus:outline-none'
                 style={{ fontFamily: 'Poppins' }}
               />

@@ -406,8 +406,8 @@ export const API_ENDPOINTS = {
     GET_BILLING_INFO: '/payments/billing-info',
     UPDATE_BILLING_INFO: '/payments/billing-info',
     // Refunds
-    CREATE_REFUND: (id) => `/payments/payments/${id}/refund`,
-    GET_REFUNDS: (id) => `/payments/payments/${id}/refunds`,
+    CREATE_REFUND: (id) => `/payments/${id}/refund`,
+    GET_REFUNDS: (id) => `/payments/${id}/refunds`,
     // Invoices
     CREATE_INVOICE: '/payments/invoices',
     LIST_INVOICES: '/payments/invoices',
@@ -612,7 +612,7 @@ export const API_ENDPOINTS = {
     // Platform-wide document category counts (all users), admin-gated — 403 for
     // advisor/investor. Same shape as GET /documents/statistics' `categories`
     // plus a platform-wide `total`. Mirrors the /admin/assets scoping pattern.
-    DOCUMENTS_STATISTICS: '/admin/documents/statistics',
+    DOCUMENTS_STATISTICS: '/documents/statistics',
     // Support Dashboard (admin-only, dedicated endpoints)
     SUPPORT_TICKETS: '/admin/support/tickets',
     ASSET_REQUESTS: '/admin/asset-requests',

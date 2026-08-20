@@ -19,6 +19,11 @@ import {
   createTransfer,
 } from '@/utils/portfolioApi';
 import CashFlowSkeleton from '@/components/skeletons/CashFlowSkeleton';
+import {
+  MONEY_PRECISION,
+  sanitizeDecimal,
+  sanitizeText,
+} from '@/utils/validation';
 
 export default function CashFlowPage() {
   const { isDarkMode } = useTheme();
@@ -978,8 +983,24 @@ function TransferModal({
   onConfirm,
   onMakeAnother,
 }) {
+  // transfers.amount is Numeric(20, 2); the wallet address and note are
+  // free-form but bounded so an over-long paste doesn't fail at the DB write.
+  const TRANSFER_SANITIZERS = {
+    amount: v =>
+      sanitizeDecimal(v, {
+        decimals: MONEY_PRECISION.decimals,
+        intDigits: MONEY_PRECISION.intDigits,
+      }),
+    walletAddress: v => sanitizeText(v, { maxLen: 255 }),
+    note: v => sanitizeText(v, { maxLen: 1000 }),
+    description: v => sanitizeText(v, { maxLen: 1000 }),
+  };
+
   const handleInputChange = (field, value) => {
-    onTransferDataChange({ ...transferData, [field]: value });
+    const clean = TRANSFER_SANITIZERS[field]
+      ? TRANSFER_SANITIZERS[field](value)
+      : value;
+    onTransferDataChange({ ...transferData, [field]: clean });
   };
 
   // Step 1: Transfer Form
@@ -1261,6 +1282,7 @@ function TransferModal({
                       onChange={e =>
                         handleInputChange('walletAddress', e.target.value)
                       }
+                      maxLength={255}
                       placeholder='Enter wallet address or account number'
                       className={`w-full px-4 py-3 rounded-lg border ${
                         isDarkMode
@@ -1291,6 +1313,7 @@ function TransferModal({
                     <input
                       type='text'
                       value={transferData.amount}
+                      inputMode='decimal'
                       onChange={e =>
                         handleInputChange('amount', e.target.value)
                       }
@@ -1396,7 +1419,8 @@ function TransferModal({
                     onChange={e =>
                       handleInputChange('description', e.target.value)
                     }
-                    placeholder='Add a note or description for this transfer'
+                    maxLength={1000}
+                      placeholder='Add a note or description for this transfer'
                     rows={3}
                     className={`w-full px-4 py-3 rounded-lg border ${
                       isDarkMode

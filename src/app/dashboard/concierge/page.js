@@ -24,6 +24,12 @@ import { getAssetAppraisalDocuments } from '@/utils/assetsApi';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearch } from '@/context/SearchContext';
+import {
+  MONEY_PRECISION,
+  sanitizeDecimal,
+  sanitizeDigits,
+  sanitizeText,
+} from '@/utils/validation';
 
 // Canonical appraisal statuses (snake_case) returned by /concierge/appraisals and
 // /assets/{id}/appraisals. Maps each to a display label + badge classes. (Backend
@@ -873,6 +879,7 @@ export default function ConciergeServicePage() {
             <textarea
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
+              maxLength={1000}
               placeholder='Reason for rejection (required)…'
               rows={4}
               className={`w-full px-3 py-2 rounded-lg text-sm border resize-none mb-6 focus:outline-none focus:border-[#F1CB68] ${
@@ -1389,11 +1396,17 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
                 Appraised value (USD)
               </label>
               <input
-                type='number'
-                min='0'
-                step='0.01'
+                type='text'
+                inputMode='decimal'
                 value={appraisedValue}
-                onChange={e => setAppraisedValue(e.target.value)}
+                onChange={e =>
+                  setAppraisedValue(
+                    sanitizeDecimal(e.target.value, {
+                      decimals: MONEY_PRECISION.decimals,
+                      intDigits: MONEY_PRECISION.intDigits,
+                    })
+                  )
+                }
                 placeholder='e.g. 250000'
                 className={`w-full px-3 py-2 rounded-lg text-sm border mb-4 focus:outline-none focus:border-[#F1CB68] ${
                   isDarkMode
@@ -1423,7 +1436,12 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
                   <input
                     type='text'
                     value={expectedReturn}
-                    onChange={e => setExpectedReturn(e.target.value)}
+                    onChange={e =>
+                      setExpectedReturn(
+                        sanitizeText(e.target.value, { maxLen: 50 })
+                      )
+                    }
+                    maxLength={50}
                     placeholder='e.g. 8.5%'
                     className={`w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:border-[#F1CB68] ${
                       isDarkMode
@@ -1439,7 +1457,10 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
                   <input
                     type='text'
                     value={duration}
-                    onChange={e => setDuration(e.target.value)}
+                    onChange={e =>
+                      setDuration(sanitizeText(e.target.value, { maxLen: 50 }))
+                    }
+                    maxLength={50}
                     placeholder='e.g. 36 months'
                     className={`w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:border-[#F1CB68] ${
                       isDarkMode
@@ -1473,7 +1494,10 @@ function FinalizeValuationModal({ appraisal, isDarkMode, onClose, onFinalized })
                     type='text'
                     inputMode='numeric'
                     value={slotsTotal}
-                    onChange={e => setSlotsTotal(e.target.value)}
+                    // slots_total is an int on the backend model.
+                    onChange={e =>
+                      setSlotsTotal(sanitizeDigits(e.target.value, { maxLen: 6 }))
+                    }
                     placeholder='e.g. 40'
                     className={`w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:border-[#F1CB68] ${
                       isDarkMode

@@ -24,6 +24,12 @@ import {
 import LinkedAccounts from '@/components/settings/LinkedAccounts';
 import PaymentBilling from '@/components/settings/PaymentBilling';
 import UserAvatar from '@/components/ui/UserAvatar';
+import {
+  COMMON_SPECS,
+  sanitizeForSpec,
+  validateForSpec,
+  validatePassword,
+} from '@/utils/validation';
 
 export default function SettingsPage() {
   const { isDarkMode } = useTheme();
@@ -344,20 +350,81 @@ function ProfileSettings({
     }
   };
 
+  // users columns: first_name / last_name String(100), email String(255)
+  // + EmailStr, phone String(20). `country` is stored in preferences, not on
+  // the user row, so it only gets the letters-only place-name rule.
+  const PROFILE_SPECS = {
+    first_name: COMMON_SPECS.firstName,
+    last_name: COMMON_SPECS.lastName,
+    email: COMMON_SPECS.email,
+    phone: COMMON_SPECS.phone,
+    country: { kind: 'name', label: 'Country', maxLen: 100 },
+  };
+
+  const [profileErrors, setProfileErrors] = useState({});
+
   // Handle input changes
   const handleChange = (field, value) => {
+    const spec = PROFILE_SPECS[field];
+    const next = spec ? sanitizeForSpec(spec, value) : value;
+
     setProfileData(prev => ({
       ...prev,
-      [field]: value,
+      [field]: next,
     }));
+
+    // Correct a message that is already showing; don't raise a new one mid-typing.
+    setProfileErrors(prev => {
+      if (!prev[field]) return prev;
+      const message = spec ? validateForSpec(spec, next) : null;
+      const updated = { ...prev };
+      if (message) updated[field] = message;
+      else delete updated[field];
+      return updated;
+    });
+
     // Clear success message on change
     if (success) setSuccess(false);
     if (error) setError(null);
   };
 
+  const handleProfileBlur = field => e => {
+    const spec = PROFILE_SPECS[field];
+    if (!spec) return;
+    const message = validateForSpec(spec, e.target.value);
+    setProfileErrors(prev => {
+      const updated = { ...prev };
+      if (message) updated[field] = message;
+      else delete updated[field];
+      return updated;
+    });
+  };
+
+  const profileFieldCls = (field, base) =>
+    `${base} ${profileErrors[field] ? 'border-red-500' : ''}`;
+
+  const profileFieldMsg = field =>
+    profileErrors[field] ? (
+      <p className='mt-1.5 text-xs text-red-400'>{profileErrors[field]}</p>
+    ) : null;
+
   // Handle save changes
   const handleSave = async () => {
     try {
+      // Re-check everything before the round trip: over-length values reach
+      // the DB as a 500 rather than a friendly 422 (no Pydantic max_length).
+      const nextErrors = {};
+      Object.entries(PROFILE_SPECS).forEach(([field, spec]) => {
+        const message = validateForSpec(spec, profileData[field]);
+        if (message) nextErrors[field] = message;
+      });
+      if (Object.keys(nextErrors).length) {
+        setProfileErrors(nextErrors);
+        setError('Please correct the highlighted fields');
+        return;
+      }
+      setProfileErrors({});
+
       setSaving(true);
       setError(null);
       setSuccess(false);
@@ -616,8 +683,17 @@ function ProfileSettings({
       return;
     }
 
-    if (passwordForm.newPassword.length < 8) {
-      setError('Password must be at least 8 characters long');
+    // Same rules as registration, including bcrypt's 72-byte ceiling.
+    const passwordProblem = validatePassword(passwordForm.newPassword, {
+      label: 'New password',
+    });
+    if (passwordProblem) {
+      setError(passwordProblem);
+      return;
+    }
+
+    if (passwordForm.newPassword === passwordForm.currentPassword) {
+      setError('New password must be different from the current one');
       return;
     }
 
@@ -786,13 +862,16 @@ function ProfileSettings({
                 type='text'
                 value={profileData.first_name}
                 onChange={(e) => handleChange('first_name', e.target.value)}
+                onBlur={handleProfileBlur('first_name')}
+                maxLength={PROFILE_SPECS.first_name.maxLen}
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                   isDarkMode
                     ? 'bg-white/5 border-[#FFFFFF14] text-white'
                     : 'bg-gray-50 border-gray-300 text-gray-900'
-                }`}
+                } ${profileErrors['first_name'] ? 'border-red-500' : ''}`}
                 placeholder='Enter first name'
               />
+              {profileFieldMsg('first_name')}
             </div>
             <div>
               <label
@@ -806,13 +885,16 @@ function ProfileSettings({
                 type='text'
                 value={profileData.last_name}
                 onChange={(e) => handleChange('last_name', e.target.value)}
+                onBlur={handleProfileBlur('last_name')}
+                maxLength={PROFILE_SPECS.last_name.maxLen}
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                   isDarkMode
                     ? 'bg-white/5 border-[#FFFFFF14] text-white'
                     : 'bg-gray-50 border-gray-300 text-gray-900'
-                }`}
+                } ${profileErrors['last_name'] ? 'border-red-500' : ''}`}
                 placeholder='Enter last name'
               />
+              {profileFieldMsg('last_name')}
             </div>
             <div>
               <label
@@ -826,13 +908,16 @@ function ProfileSettings({
                 type='email'
                 value={profileData.email}
                 onChange={(e) => handleChange('email', e.target.value)}
+                onBlur={handleProfileBlur('email')}
+                maxLength={PROFILE_SPECS.email.maxLen}
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                   isDarkMode
                     ? 'bg-white/5 border-[#FFFFFF14] text-white'
                     : 'bg-gray-50 border-gray-300 text-gray-900'
-                }`}
+                } ${profileErrors['email'] ? 'border-red-500' : ''}`}
                 placeholder='Enter email'
               />
+              {profileFieldMsg('email')}
             </div>
             <div>
               <label
@@ -846,13 +931,16 @@ function ProfileSettings({
                 type='tel'
                 value={profileData.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
+                onBlur={handleProfileBlur('phone')}
+                maxLength={PROFILE_SPECS.phone.maxLen}
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                   isDarkMode
                     ? 'bg-white/5 border-[#FFFFFF14] text-white'
                     : 'bg-gray-50 border-gray-300 text-gray-900'
-                }`}
+                } ${profileErrors['phone'] ? 'border-red-500' : ''}`}
                 placeholder='Enter phone number'
               />
+              {profileFieldMsg('phone')}
             </div>
             <div>
               <label
@@ -866,13 +954,16 @@ function ProfileSettings({
                 type='text'
                 value={profileData.country}
                 onChange={(e) => handleChange('country', e.target.value)}
+                onBlur={handleProfileBlur('country')}
+                maxLength={PROFILE_SPECS.country.maxLen}
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F1CB68] ${
                   isDarkMode
                     ? 'bg-white/5 border-[#FFFFFF14] text-white'
                     : 'bg-gray-50 border-gray-300 text-gray-900'
-                }`}
+                } ${profileErrors['country'] ? 'border-red-500' : ''}`}
                 placeholder='Enter country'
               />
+              {profileFieldMsg('country')}
             </div>
           </div>
         )}
