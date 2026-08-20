@@ -1,5 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ctaFor,
+  cycleOfSubscription,
+  isCustomPlan,
+  planId,
+} from './planCta';
 
 const FALLBACK_PLANS = [
   {
@@ -62,20 +68,6 @@ const FALLBACK_PLANS = [
   },
 ];
 
-const planId = (p) => p?.id ?? p?.planId ?? p?.plan_id;
-// Canonical magnitude for upgrade/downgrade direction. Live plans carry numeric
-// monthly/annual prices; fallback data uses pre-formatted strings (→ NaN → 0).
-const planPrice = (p) =>
-  Number(p?.price ?? p?.amount ?? p?.monthlyPrice ?? p?.monthly_price ?? 0) || 0;
-
-// Custom/enterprise plans (e.g. Concierge) have no purchasable price and are
-// routed to sales instead of the subscribe flow.
-const isCustomPlan = (p) =>
-  Boolean(p?.isCustom ?? p?.is_custom) ||
-  (p?.monthlyPrice == null && p?.monthly_price == null &&
-    p?.annualPrice == null && p?.annual_price == null &&
-    p?.price == null && p?.amount == null);
-
 // Format a price for display. Numbers are rendered as currency via Intl; strings
 // (pre-formatted fallback data) pass through untouched.
 const formatMoney = (value, currency = 'USD') => {
@@ -92,36 +84,28 @@ const formatMoney = (value, currency = 'USD') => {
   }
 };
 
-// The current subscription may identify its plan by id, name, or slug;
-// compare across all plausible fields on both sides.
-const matchesCurrent = (plan, current) => {
-  const currentKeys = [
-    current?.planId, current?.plan_id, current?.id,
-    current?.plan, current?.planName, current?.plan_name,
-  ].filter((v) => v != null).map(String);
-  const planKeys = [
-    planId(plan), plan?.name, plan?.planName, plan?.plan_name,
-  ].filter((v) => v != null).map(String);
-  return currentKeys.some((a) => planKeys.some((b) => a === b));
-};
-
-// Decide the CTA for a plan relative to the user's current subscription, gated by
-// the backend capability flags (can_subscribe / can_upgrade).
-const ctaFor = (plan, current, caps) => {
-  if (current && matchesCurrent(plan, current)) return { action: 'current', label: 'Current plan', disabled: true };
-  if (isCustomPlan(plan)) return { action: 'contact', label: 'Contact Sales', disabled: false };
-  if (!current) {
-    return { action: 'subscribe', label: 'Subscribe', disabled: caps ? !caps.canSubscribe : false };
-  }
-  const currentPrice = Number(current?.amount ?? current?.price ?? 0);
-  const disabled = caps ? !caps.canUpgrade : false;
-  return planPrice(plan) >= currentPrice
-    ? { action: 'upgrade', label: 'Upgrade', disabled }
-    : { action: 'downgrade', label: 'Downgrade', disabled };
-};
-
 export default function PlanSelector({ plans, current, capabilities, loading, onSelectPlan, isDarkMode }) {
-  const [billingCycle, setBillingCycle] = useState('monthly');
+  // Open on the cycle the user is actually paying for. Defaulting to monthly
+  // showed an annual subscriber a monthly view of their own plan, which reads
+  // as though their subscription changed.
+  const [billingCycle, setBillingCycle] = useState(
+    () => cycleOfSubscription(current) || 'monthly',
+  );
+
+  // `current` arrives after the first render, so adopt its cycle once — but
+  // never override a cycle the user has picked themselves.
+  const userChoseCycle = useRef(false);
+  const subscriptionCycle = cycleOfSubscription(current);
+  useEffect(() => {
+    if (!userChoseCycle.current && subscriptionCycle) {
+      setBillingCycle(subscriptionCycle);
+    }
+  }, [subscriptionCycle]);
+
+  const chooseCycle = (cycle) => {
+    userChoseCycle.current = true;
+    setBillingCycle(cycle);
+  };
 
   const displayPlans = plans.length > 0 ? plans : FALLBACK_PLANS;
 
@@ -156,7 +140,7 @@ export default function PlanSelector({ plans, current, capabilities, loading, on
             <button
               key={cycle}
               type="button"
-              onClick={() => setBillingCycle(cycle)}
+              onClick={() => chooseCycle(cycle)}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
                 billingCycle === cycle
                   ? 'bg-[#F1CB68]/20 text-[#BF9B30]'
@@ -186,7 +170,7 @@ export default function PlanSelector({ plans, current, capabilities, loading, on
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {displayPlans.map((plan) => {
-            const cta = ctaFor(plan, current, capabilities);
+            const cta = ctaFor(plan, current, capabilities, billingCycle);
             const name = plan.name || plan.planName || plan.plan_name;
             return (
               <div
