@@ -1177,6 +1177,7 @@ export default function SupportDashboardPage() {
                         </button>
                         <input
                           type='text'
+                          maxLength={5000}
                           placeholder='Type a message...'
                           value={messageInput}
                           onChange={e => setMessageInput(e.target.value)}
@@ -1519,6 +1520,7 @@ export default function SupportDashboardPage() {
                         Internal Notes
                       </h4>
                       <textarea
+                        maxLength={5000}
                         placeholder='Add internal notes (not visible to user)...'
                         className={`w-full px-3 py-2 rounded-lg text-sm border resize-none ${
                           isDarkMode

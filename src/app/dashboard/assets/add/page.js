@@ -11,6 +11,11 @@ import TagsInput from '@/components/ui/TagsInput';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/hooks/useAuth';
 import { getCategoryIcon } from '@/utils/categoryIcons';
+import {
+  sanitizeForSpec,
+  specForFieldName,
+  validateForSpec,
+} from '@/utils/validation';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -27,6 +32,7 @@ import {
   deleteAssetPhoto,
   deleteAssetDocument,
 } from '@/utils/assetsApi';
+import { listDelegationGrants } from '@/utils/delegationApi';
 
 const steps = [
   { id: 1, title: 'Basic Information' },
@@ -92,6 +98,23 @@ const ASSET_TYPE_BY_CATEGORY = {
   'Art & Collectibles': 'luxury_asset',
   'Watches & Jewelry': 'luxury_asset',
 };
+
+// Step 3's valuation box mirrors these keys, so a change to either side has to
+// update the other (see handleSpecChange).
+const VALUE_SYNC_KEYS = new Set([
+  'estimated_value',
+  'current_value',
+  'amount_owed',
+  'contribution_value',
+]);
+
+// Category fields are almost all optional BY CONTRACT: the backend's
+// resolve_initial_values() writes 0.00 into current_value when no value is
+// supplied, and the asset name falls back to the category name. Marking them
+// required here would block submissions the API accepts, so validation on this
+// form is format-only — with one exception: when a category actually shows an
+// "Asset Name" field, leaving it blank is a mistake rather than a choice.
+const REQUIRED_FIELD_LABELS = new Set(['Asset Name']);
 
 // Currency inputs are free text ("$61,500", "61500"). Strip the decoration and
 // return a number, or undefined for blank/garbage so the key is dropped from the
@@ -278,20 +301,49 @@ export default function AddAssetPage() {
   // Only investors create or edit assets — advisors and admins reaching this
   // URL directly are sent back to the (read-only for them) assets list.
   //
-  // The one exception: `?forClient=<investorId>` puts an advisor into delegated
-  // mode, where they add ONE asset for a client under a grant issued by an
-  // admin. The server re-checks that grant, so this is a UX gate only.
+  // Two exceptions, both under a delegation grant (server re-checks each, so
+  // this is a UX gate only):
+  // 1. `?forClient=<investorId>` puts an advisor into delegated CREATE mode,
+  //    adding ONE asset for a client under a grant issued by an admin.
+  // 2. `?edit=<assetId>` alone (no forClient) lets an advisor back into an
+  //    asset they already created, while their grant is still CONSUMED (not
+  //    yet confirmed/locked by the investor — decision D1). There's no
+  //    investor id in the URL for this case, so it can only be confirmed by
+  //    checking the advisor's own grants once mounted.
   const { isInvestor, isAdvisor, mounted: authMounted } = useAuth();
   const onBehalfOf = searchParams.get('forClient');
   const isDelegatedMode = Boolean(onBehalfOf) && isAdvisor;
-  const canUseWizard = isInvestor || isDelegatedMode;
+
+  const isAdvisorEditAttempt = isAdvisor && isEditMode && !onBehalfOf;
+  const [advisorEditGrant, setAdvisorEditGrant] = useState(undefined); // undefined = still checking
+  useEffect(() => {
+    if (!authMounted || !isAdvisorEditAttempt) return;
+    let cancelled = false;
+    listDelegationGrants('advisor')
+      .then(grants => {
+        if (cancelled) return;
+        setAdvisorEditGrant(
+          grants.find(g => g.assetId === editAssetId && g.status === 'consumed') || null
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setAdvisorEditGrant(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authMounted, isAdvisorEditAttempt, editAssetId]);
+
+  const checkingAdvisorEditGrant = isAdvisorEditAttempt && advisorEditGrant === undefined;
+  const canUseWizard = isInvestor || isDelegatedMode || Boolean(advisorEditGrant);
 
   useEffect(() => {
-    if (authMounted && !canUseWizard) {
+    if (!authMounted || checkingAdvisorEditGrant) return;
+    if (!canUseWizard) {
       toast.error('Only investor accounts can add or edit assets.');
       router.replace('/dashboard/assets');
     }
-  }, [authMounted, canUseWizard, router]);
+  }, [authMounted, checkingAdvisorEditGrant, canUseWizard, router]);
   const [currentStep, setCurrentStep] = useState(1);
   // All three steps show in both modes; in edit mode step 2 manages the
   // asset's EXISTING photos/documents via the asset-scoped media endpoints.
@@ -679,6 +731,67 @@ export default function AddAssetPage() {
     }
   };
 
+  // Per-field validation messages for the category form, keyed by field key
+  // (the same snake_case key used in formData).
+  const [fieldErrors, setFieldErrors] = useState({});
+  // Step 3's standalone valuation box sits outside the category form.
+  const [valuationError, setValuationError] = useState(null);
+
+  // Field labels come from the category config, so the spec is derived from the
+  // label exactly the way `getFieldType` derives the widget. One rule set
+  // therefore covers every sub-category without listing them.
+  const specForLabel = fieldName =>
+    specForFieldName(fieldName, {
+      required: REQUIRED_FIELD_LABELS.has(fieldName),
+    });
+
+  const setFieldError = (key, message) =>
+    setFieldErrors(prev => {
+      if (!message && !prev[key]) return prev;
+      const next = { ...prev };
+      if (message) next[key] = message;
+      else delete next[key];
+      return next;
+    });
+
+  /** onChange for a category field: sanitise, store, re-check if already flagged. */
+  const handleSpecChange = (fieldName, fieldKey) => e => {
+    const spec = specForLabel(fieldName);
+    const next = sanitizeForSpec(spec, e.target.value);
+
+    setFormData(prev => ({ ...prev, [fieldKey]: next }));
+    if (VALUE_SYNC_KEYS.has(fieldKey)) setEstimatedValue(next);
+
+    // Only correct a message that is already on screen — never raise a new one
+    // while the field is still being filled in.
+    setFieldErrors(prev => {
+      if (!prev[fieldKey]) return prev;
+      const message = validateForSpec(spec, next);
+      const updated = { ...prev };
+      if (message) updated[fieldKey] = message;
+      else delete updated[fieldKey];
+      return updated;
+    });
+  };
+
+  /** onBlur for a category field: this is where a message first appears. */
+  const handleSpecBlur = (fieldName, fieldKey) => e => {
+    setFieldError(
+      fieldKey,
+      validateForSpec(specForLabel(fieldName), e.target.value)
+    );
+  };
+
+  const fieldInputCls = (fieldKey, spacing = 'px-4') =>
+    `w-full ${spacing} py-3 rounded-lg bg-[#2A2A2D] border ${
+      fieldErrors[fieldKey] ? 'border-red-500' : 'border-[#FFFFFF14]'
+    } text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors`;
+
+  const renderFieldError = fieldKey =>
+    fieldErrors[fieldKey] ? (
+      <p className='mt-1.5 text-xs text-red-400'>{fieldErrors[fieldKey]}</p>
+    ) : null;
+
   const handleChange = e => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -885,7 +998,48 @@ export default function AddAssetPage() {
     }
   };
 
+  /**
+   * Re-check every visible field of the chosen category before leaving step 1.
+   * Widgets that cannot hold a bad value (dropdowns, date picker, file inputs,
+   * the tag chip editor) are skipped, and Make/Model/Year is expanded into the
+   * three keys it actually writes.
+   */
+  const validateCategoryFields = () => {
+    const nextErrors = {};
+
+    const check = (label, key) => {
+      const message = validateForSpec(specForLabel(label), formData[key]);
+      if (message) nextErrors[key] = message;
+    };
+
+    formFields.forEach(fieldName => {
+      const lower = fieldName.toLowerCase();
+      if (lower.includes('image') || lower.includes('tag')) return;
+
+      if (fieldName === 'Make/Model/Year') {
+        check('Make', 'make');
+        check('Model', 'model');
+        check('Year', 'year');
+        return;
+      }
+
+      const spec = specForLabel(fieldName);
+      if (spec.kind === 'select' || spec.kind === 'file' || spec.kind === 'date')
+        return;
+
+      check(fieldName, fieldNameToKey(fieldName));
+    });
+
+    setFieldErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
   const handleNext = async () => {
+    if (currentStep === 1 && !validateCategoryFields()) {
+      toast.error('Please correct the highlighted fields before continuing.');
+      return;
+    }
+
     if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
     } else if (isEditMode) {
@@ -1486,6 +1640,13 @@ export default function AddAssetPage() {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('file_type', fileType);
+    // Delegated mode: the file is being uploaded for the client, not for the
+    // advisor. The server re-checks the grant and files it under the INVESTOR's
+    // account — without this it 403s INVESTOR_ROLE_REQUIRED, which is why the
+    // asset could be created but never got its photos.
+    if (isDelegatedMode) {
+      formData.append('on_behalf_of', onBehalfOf);
+    }
 
     const headers = {};
     if (typeof window !== 'undefined') {
@@ -1703,10 +1864,13 @@ export default function AddAssetPage() {
               type='text'
               name='make'
               value={formData.make || ''}
-              onChange={handleChange}
+              onChange={handleSpecChange('Make', 'make')}
+              onBlur={handleSpecBlur('Make', 'make')}
+              maxLength={specForLabel('Make').maxLen}
               placeholder='Enter make'
-              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+              className={fieldInputCls('make')}
             />
+            {renderFieldError('make')}
           </div>
           <div>
             <label className='block text-sm font-medium text-white mb-2'>
@@ -1716,10 +1880,13 @@ export default function AddAssetPage() {
               type='text'
               name='model'
               value={formData.model || ''}
-              onChange={handleChange}
+              onChange={handleSpecChange('Model', 'model')}
+              onBlur={handleSpecBlur('Model', 'model')}
+              maxLength={specForLabel('Model').maxLen}
               placeholder='Enter model'
-              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+              className={fieldInputCls('model')}
             />
+            {renderFieldError('model')}
           </div>
           <div>
             <label className='block text-sm font-medium text-white mb-2'>
@@ -1735,9 +1902,11 @@ export default function AddAssetPage() {
                 const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
                 setFormData(prev => ({ ...prev, year: digits }));
               }}
+              onBlur={handleSpecBlur('Year', 'year')}
               placeholder='Enter year'
-              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+              className={fieldInputCls('year')}
             />
+            {renderFieldError('year')}
           </div>
         </div>
       );
@@ -1797,13 +1966,16 @@ export default function AddAssetPage() {
               </span>
               <input
                 type='text'
+                inputMode='decimal'
                 name={fieldKey}
                 value={value}
-                onChange={handleChange}
+                onChange={handleSpecChange(fieldName, fieldKey)}
+                onBlur={handleSpecBlur(fieldName, fieldKey)}
                 placeholder='0.00'
-                className='w-full pl-8 pr-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+                className={fieldInputCls(fieldKey, 'pl-8 pr-4')}
               />
             </div>
+            {renderFieldError(fieldKey)}
           </div>
         );
 
@@ -1816,16 +1988,19 @@ export default function AddAssetPage() {
             <div className='relative'>
               <input
                 type='text'
+                inputMode='decimal'
                 name={fieldKey}
                 value={value}
-                onChange={handleChange}
+                onChange={handleSpecChange(fieldName, fieldKey)}
+                onBlur={handleSpecBlur(fieldName, fieldKey)}
                 placeholder='0.00'
-                className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+                className={fieldInputCls(fieldKey)}
               />
               <span className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400'>
                 %
               </span>
             </div>
+            {renderFieldError(fieldKey)}
           </div>
         );
 
@@ -1838,11 +2013,14 @@ export default function AddAssetPage() {
             <textarea
               name={fieldKey}
               value={value}
-              onChange={handleChange}
+              onChange={handleSpecChange(fieldName, fieldKey)}
+              onBlur={handleSpecBlur(fieldName, fieldKey)}
+              maxLength={specForLabel(fieldName).maxLen}
               placeholder={`Enter ${fieldName.toLowerCase()}`}
               rows={4}
-              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors resize-none'
+              className={`${fieldInputCls(fieldKey)} resize-none`}
             />
+            {renderFieldError(fieldKey)}
           </div>
         );
 
@@ -1879,10 +2057,13 @@ export default function AddAssetPage() {
               type='text'
               name={fieldKey}
               value={value}
-              onChange={handleChange}
+              onChange={handleSpecChange(fieldName, fieldKey)}
+              onBlur={handleSpecBlur(fieldName, fieldKey)}
+              maxLength={specForLabel(fieldName).maxLen}
               placeholder={`Enter ${fieldName.toLowerCase()}`}
-              className='w-full px-4 py-3 rounded-lg bg-[#2A2A2D] border border-[#FFFFFF14] text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+              className={fieldInputCls(fieldKey)}
             />
+            {renderFieldError(fieldKey)}
           </div>
         );
     }
@@ -3060,12 +3241,35 @@ export default function AddAssetPage() {
                       </span>
                       <input
                         type='text'
+                        inputMode='decimal'
                         value={estimatedValue}
-                        onChange={e => setEstimatedValue(e.target.value)}
+                        // Bound for assets.current_value, a Numeric(20, 2)
+                        // column: digits only, 2 decimal places, 18 before.
+                        onChange={e =>
+                          setEstimatedValue(
+                            sanitizeForSpec(
+                              specForFieldName('Estimated Value'),
+                              e.target.value
+                            )
+                          )
+                        }
+                        onBlur={e =>
+                          setValuationError(
+                            validateForSpec(
+                              specForFieldName('Estimated Value'),
+                              e.target.value
+                            )
+                          )
+                        }
                         placeholder='00.0'
-                        className='w-full pl-10 pr-4 py-3 rounded-lg bg-[#1a1a1d] border border-[#FFFFFF14] text-white text-lg placeholder-gray-600 focus:outline-none focus:border-[#F1CB68] transition-colors'
+                        className={`w-full pl-10 pr-4 py-3 rounded-lg bg-[#1a1a1d] border ${
+                          valuationError ? 'border-red-500' : 'border-[#FFFFFF14]'
+                        } text-white text-lg placeholder-gray-600 focus:outline-none focus:border-[#F1CB68] transition-colors`}
                       />
                     </div>
+                    {valuationError && (
+                      <p className='mt-1.5 text-xs text-red-400'>{valuationError}</p>
+                    )}
                   </div>
                 </div>
               </div>

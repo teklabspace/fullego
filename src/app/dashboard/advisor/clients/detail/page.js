@@ -127,15 +127,28 @@ function ClientDetailInner() {
   // An advisor may add ONE asset for this client, and only while they hold an
   // ACTIVE grant. The server enforces it; this just decides whether to offer it.
   const [creationGrant, setCreationGrant] = useState(null);
+  // Assets this advisor can still open the edit wizard for — a CONSUMED grant
+  // (created, not yet confirmed/locked by the investor — decision D1).
+  const [editableAssetIds, setEditableAssetIds] = useState(() => new Set());
   useEffect(() => {
     if (!(mounted && isAdvisor && clientId)) return;
     listDelegationGrants('advisor')
-      .then((gs) =>
+      .then((gs) => {
         setCreationGrant(
           gs.find((g) => g.investorId === clientId && g.status === 'active' && g.isUsable) || null
-        )
-      )
-      .catch(() => setCreationGrant(null));
+        );
+        setEditableAssetIds(
+          new Set(
+            gs
+              .filter((g) => g.investorId === clientId && g.status === 'consumed' && g.assetId)
+              .map((g) => g.assetId)
+          )
+        );
+      })
+      .catch(() => {
+        setCreationGrant(null);
+        setEditableAssetIds(new Set());
+      });
   }, [mounted, isAdvisor, clientId]);
 
   const openTab = useCallback(async (key) => {
@@ -343,12 +356,29 @@ function ClientDetailInner() {
           <Empty what={tab} />
         ) : (
           <ul className={`divide-y ${divide}`}>
-            {rows.map((r) => (
-              <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+            {rows.map((r) => {
+              const isEditableAsset = tab === 'assets' && editableAssetIds.has(r.id);
+              return (
+              <li
+                key={r.id}
+                className={`flex flex-wrap items-center justify-between gap-3 p-4 ${
+                  isEditableAsset ? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5' : ''
+                }`}
+                {...(isEditableAsset
+                  ? { onClick: () => router.push(`/dashboard/assets/detail?id=${r.id}`) }
+                  : {})}
+              >
                 {tab === 'assets' && (
                   <>
                     <div>
-                      <p className="text-sm font-medium">{r.name}</p>
+                      <p className="text-sm font-medium">
+                        {r.name}
+                        {isEditableAsset && (
+                          <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-[#F1CB68]">
+                            Editable
+                          </span>
+                        )}
+                      </p>
                       <p className={`text-xs ${textMuted}`}>
                         {r.assetCode ? `${r.assetCode} · ` : ''}{titleCase(r.assetType)} · {titleCase(r.status)}
                       </p>
@@ -406,7 +436,8 @@ function ClientDetailInner() {
                   </>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createTicket, uploadTicketDocumentsWithProgress } from '@/utils/supportTicketsApi';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/hooks/useAuth';
+import { COMMON_SPECS, sanitizeText, validateForSpec } from '@/utils/validation';
 
 const formatFileSize = bytes => {
   if (bytes === 0) return '0 Bytes';
@@ -49,9 +50,31 @@ export default function NewTicketModal({ isOpen, setIsOpen, onTicketCreated }) {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
+  // support_tickets.subject is String(255) and description is Text; both are
+  // NOT NULL, and a one-word description helps nobody triage the ticket.
+  const ticketErrors = {
+    subject: validateForSpec(COMMON_SPECS.ticketSubject, formData.subject),
+    description: validateForSpec(
+      COMMON_SPECS.ticketDescription,
+      formData.description
+    ),
+  };
+  const hasTicketError = Boolean(ticketErrors.subject || ticketErrors.description);
+
+  const ticketFieldMsg = key =>
+    ticketErrors[key] ? (
+      <p className='mt-1.5 text-xs text-red-400'>{ticketErrors[key]}</p>
+    ) : null;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (hasTicketError) {
+      setError(ticketErrors.subject || ticketErrors.description);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -164,14 +187,22 @@ export default function NewTicketModal({ isOpen, setIsOpen, onTicketCreated }) {
             </label>
             <input
               type='text'
-              required
               value={formData.subject}
               onChange={e =>
-                setFormData({ ...formData, subject: e.target.value })
+                setFormData({
+                  ...formData,
+                  subject: sanitizeText(e.target.value, { maxLen: 255 }),
+                })
               }
+              maxLength={255}
               placeholder='Enter ticket subject'
-              className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
+              className={`w-full px-4 py-3 rounded-lg bg-transparent border text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors ${
+                ticketErrors.subject && formData.subject
+                  ? 'border-red-500'
+                  : 'border-white/10'
+              }`}
             />
+            {formData.subject ? ticketFieldMsg('subject') : null}
           </div>
 
           {/* Issuer — always the logged-in user filing this ticket */}
@@ -261,15 +292,23 @@ export default function NewTicketModal({ isOpen, setIsOpen, onTicketCreated }) {
               Description <span className='text-red-500'>*</span>
             </label>
             <textarea
-              required
               rows={6}
               value={formData.description}
               onChange={e =>
-                setFormData({ ...formData, description: e.target.value })
+                setFormData({
+                  ...formData,
+                  description: sanitizeText(e.target.value, { maxLen: 5000 }),
+                })
               }
+              maxLength={5000}
               placeholder='Describe your issue in detail...'
-              className='w-full px-4 py-3 rounded-lg bg-transparent border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors resize-none'
+              className={`w-full px-4 py-3 rounded-lg bg-transparent border text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors resize-none ${
+                ticketErrors.description && formData.description
+                  ? 'border-red-500'
+                  : 'border-white/10'
+              }`}
             />
+            {formData.description ? ticketFieldMsg('description') : null}
           </div>
 
           {/* Attachment */}

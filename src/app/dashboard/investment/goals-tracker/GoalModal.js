@@ -2,6 +2,16 @@
 import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { adjustGoal, createInvestmentGoal } from '@/utils/investmentApi';
+import {
+  MONEY_PRECISION,
+  QUANTITY_PRECISION,
+  sanitizeDecimal,
+  sanitizeSymbol,
+  sanitizeText,
+  validateAmount,
+  validateQuantity,
+  validateText,
+} from '@/utils/validation';
 
 // Create / Update-progress modal. `goal` null = create; otherwise a partial
 // adjust of the given goal. Completion is decided SERVER-side: when an
@@ -48,6 +58,57 @@ export default function GoalModal({ isDarkMode, goal, onClose, onSaved }) {
     isDarkMode ? 'text-gray-400' : 'text-gray-600'
   }`;
 
+  // investment_goals column shapes: name String(255), symbol String(50),
+  // target_amount / current_value / monthly_contribution Numeric(20, 2),
+  // target_quantity / current_quantity Numeric(20, 8), notes String(1000).
+  const onMoney = setter => e =>
+    setter(
+      sanitizeDecimal(e.target.value, {
+        decimals: MONEY_PRECISION.decimals,
+        intDigits: MONEY_PRECISION.intDigits,
+      })
+    );
+
+  const onQty = setter => e =>
+    setter(
+      sanitizeDecimal(e.target.value, {
+        decimals: QUANTITY_PRECISION.decimals,
+        intDigits: QUANTITY_PRECISION.intDigits,
+      })
+    );
+
+  const goalErrors = {
+    name: isAdjust ? null : validateText(name, { label: 'Goal name', maxLen: 255, minLen: 2 }),
+    targetAmount: validateAmount(targetAmount, {
+      label: 'Target amount',
+      allowZero: isAdjust,
+    }),
+    currentValue: validateAmount(currentValue, {
+      label: 'Current value',
+      allowZero: true,
+    }),
+    targetQuantity: validateQuantity(targetQuantity, {
+      label: 'Target quantity',
+      allowZero: true,
+    }),
+    currentQuantity: validateQuantity(currentQuantity, {
+      label: 'Current quantity',
+      allowZero: true,
+    }),
+    monthlyContribution: validateAmount(monthlyContribution, {
+      label: 'Monthly contribution',
+      allowZero: true,
+    }),
+    notes: validateText(notes, { label: 'Notes', maxLen: 1000 }),
+  };
+
+  const hasGoalError = Object.values(goalErrors).some(Boolean);
+  const errClass = 'mt-1.5 text-xs text-red-400';
+  const fieldCls = key =>
+    `${inputClasses} ${goalErrors[key] ? 'border-red-500' : ''}`;
+  const fieldMsg = key =>
+    goalErrors[key] ? <p className={errClass}>{goalErrors[key]}</p> : null;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isAdjust) {
@@ -59,6 +120,12 @@ export default function GoalModal({ isDarkMode, goal, onClose, onSaved }) {
         toast.error('Target amount must be greater than zero.');
         return;
       }
+    }
+
+    // Format rules (precision, length) on top of the two required-field checks.
+    if (hasGoalError) {
+      toast.error('Please correct the highlighted fields.');
+      return;
     }
 
     try {
@@ -135,17 +202,22 @@ export default function GoalModal({ isDarkMode, goal, onClose, onSaved }) {
                 <input
                   type='text'
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) =>
+                    setName(sanitizeText(e.target.value, { maxLen: 255 }))
+                  }
+                  maxLength={255}
                   placeholder='e.g. Buy 10 AAPL'
-                  className={inputClasses}
+                  className={fieldCls('name')}
                 />
+                {fieldMsg('name')}
               </div>
               <div>
                 <label className={labelClasses}>Symbol (optional)</label>
                 <input
                   type='text'
                   value={symbol}
-                  onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                  onChange={(e) => setSymbol(sanitizeSymbol(e.target.value))}
+                  maxLength={50}
                   placeholder='AAPL, BTCUSD'
                   className={inputClasses}
                 />
@@ -159,26 +231,26 @@ export default function GoalModal({ isDarkMode, goal, onClose, onSaved }) {
                 Target Amount ($){!isAdjust && ' *'}
               </label>
               <input
-                type='number'
-                min='0'
-                step='any'
+                type='text'
+                inputMode='decimal'
                 value={targetAmount}
-                onChange={(e) => setTargetAmount(e.target.value)}
+                onChange={onMoney(setTargetAmount)}
                 placeholder='1000'
-                className={inputClasses}
+                className={fieldCls('targetAmount')}
               />
+              {fieldMsg('targetAmount')}
             </div>
             <div>
               <label className={labelClasses}>Current Value ($)</label>
               <input
-                type='number'
-                min='0'
-                step='any'
+                type='text'
+                inputMode='decimal'
                 value={currentValue}
-                onChange={(e) => setCurrentValue(e.target.value)}
+                onChange={onMoney(setCurrentValue)}
                 placeholder='0'
-                className={inputClasses}
+                className={fieldCls('currentValue')}
               />
+              {fieldMsg('currentValue')}
             </div>
           </div>
 
@@ -187,39 +259,39 @@ export default function GoalModal({ isDarkMode, goal, onClose, onSaved }) {
               <div>
                 <label className={labelClasses}>Target Quantity</label>
                 <input
-                  type='number'
-                  min='0'
-                  step='any'
+                  type='text'
+                  inputMode='decimal'
                   value={targetQuantity}
-                  onChange={(e) => setTargetQuantity(e.target.value)}
+                  onChange={onQty(setTargetQuantity)}
                   placeholder='10'
-                  className={inputClasses}
+                  className={fieldCls('targetQuantity')}
                 />
+                {fieldMsg('targetQuantity')}
               </div>
             )}
             <div>
               <label className={labelClasses}>Current Quantity</label>
               <input
-                type='number'
-                min='0'
-                step='any'
+                type='text'
+                inputMode='decimal'
                 value={currentQuantity}
-                onChange={(e) => setCurrentQuantity(e.target.value)}
+                onChange={onQty(setCurrentQuantity)}
                 placeholder='0'
-                className={inputClasses}
+                className={fieldCls('currentQuantity')}
               />
+              {fieldMsg('currentQuantity')}
             </div>
             <div>
               <label className={labelClasses}>Monthly Contribution ($)</label>
               <input
-                type='number'
-                min='0'
-                step='any'
+                type='text'
+                inputMode='decimal'
                 value={monthlyContribution}
-                onChange={(e) => setMonthlyContribution(e.target.value)}
+                onChange={onMoney(setMonthlyContribution)}
                 placeholder='100'
-                className={inputClasses}
+                className={fieldCls('monthlyContribution')}
               />
+              {fieldMsg('monthlyContribution')}
             </div>
           </div>
 
@@ -252,11 +324,15 @@ export default function GoalModal({ isDarkMode, goal, onClose, onSaved }) {
             <label className={labelClasses}>Notes</label>
             <textarea
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) =>
+                setNotes(sanitizeText(e.target.value, { maxLen: 1000 }))
+              }
+              maxLength={1000}
               rows={2}
               placeholder='Optional notes about this goal'
-              className={`${inputClasses} resize-none`}
+              className={`${fieldCls('notes')} resize-none`}
             />
+            {fieldMsg('notes')}
           </div>
 
           <div className='flex gap-3 pt-2'>
@@ -273,7 +349,7 @@ export default function GoalModal({ isDarkMode, goal, onClose, onSaved }) {
             </button>
             <button
               type='submit'
-              disabled={submitting}
+              disabled={submitting || hasGoalError}
               className='flex-1 py-3 rounded-lg text-sm font-bold bg-[#F1CB68] text-black hover:bg-[#F1CB68]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed'
             >
               {submitting ? 'Saving' : isAdjust ? 'Save Progress' : 'Create Goal'}

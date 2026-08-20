@@ -1,6 +1,13 @@
 'use client';
 
 import { formatCurrency, formatPercent } from '@/utils/formatters';
+import {
+  MONEY_PRECISION,
+  QUANTITY_PRECISION,
+  sanitizeDecimal,
+  validateAmount,
+  validateQuantity,
+} from '@/utils/validation';
 
 export default function OrderForm({
   orderType,
@@ -28,6 +35,48 @@ export default function OrderForm({
   brokerageAccounts = [],
   isDarkMode,
 }) {
+  // orders.quantity is Numeric(20, 8) and orders.price / stop_price are
+  // Numeric(20, 2) — typing outside those shapes is blocked at the keystroke,
+  // and the remaining problems (zero, blank) gate the Place Order button.
+  const onQuantityChange = e =>
+    setQuantity(
+      sanitizeDecimal(e.target.value, {
+        decimals: QUANTITY_PRECISION.decimals,
+        intDigits: QUANTITY_PRECISION.intDigits,
+      })
+    );
+
+  const onMoneyChange = setter => e =>
+    setter(
+      sanitizeDecimal(e.target.value, {
+        decimals: MONEY_PRECISION.decimals,
+        intDigits: MONEY_PRECISION.intDigits,
+      })
+    );
+
+  const quantityError = validateQuantity(quantity, { label: 'Quantity' });
+  const stopPriceError =
+    orderMode === 'stop-limit'
+      ? validateAmount(stopPrice, { label: 'Stop price' })
+      : null;
+  const limitPriceError =
+    orderMode !== 'market'
+      ? validateAmount(limitPrice, { label: 'Limit price' })
+      : null;
+
+  // A blank field is only a problem at submit time, so the button separately
+  // checks that the fields this order mode needs are actually filled in.
+  const missingRequired =
+    !String(quantity ?? '').trim() ||
+    (orderMode === 'stop-limit' && !String(stopPrice ?? '').trim()) ||
+    (orderMode !== 'market' && !String(limitPrice ?? '').trim());
+
+  const orderInvalid = Boolean(
+    quantityError || stopPriceError || limitPriceError || missingRequired
+  );
+
+  const errorText = 'mt-1.5 text-xs text-red-400';
+
   const price = assetDetails?.currentPrice;
   const changePct = assetDetails?.changePercentage;
   const changeUp = (changePct ?? 0) >= 0;
@@ -176,15 +225,24 @@ export default function OrderForm({
                 Quantity
               </label>
               <input
-                type='number'
+                type='text'
+                inputMode='decimal'
                 value={quantity}
-                onChange={e => setQuantity(e.target.value)}
+                onChange={onQuantityChange}
+                placeholder='0'
                 className={`w-full px-4 py-3 rounded-lg border ${
                   isDarkMode
-                    ? 'bg-gradiend-to-r from-[#222126] to-[#111116] border-[#FFFFFF14] text-white'
-                    : 'bg-white border-gray-300 text-gray-900'
+                    ? 'bg-gradiend-to-r from-[#222126] to-[#111116] text-white'
+                    : 'bg-white text-gray-900'
+                } ${
+                  quantityError
+                    ? 'border-red-500'
+                    : isDarkMode
+                    ? 'border-[#FFFFFF14]'
+                    : 'border-gray-300'
                 } focus:outline-none `}
               />
+              {quantityError && <p className={errorText}>{quantityError}</p>}
             </div>
 
             {/* Stop Price — stop-limit only: the trigger that activates the limit order */}
@@ -207,16 +265,24 @@ export default function OrderForm({
                   </span>
                   <input
                     type='text'
+                    inputMode='decimal'
                     value={stopPrice}
-                    onChange={e => setStopPrice(e.target.value)}
+                    onChange={onMoneyChange(setStopPrice)}
                     placeholder='Trigger price'
                     className={`w-full pl-8 pr-4 py-3 rounded-lg border ${
                       isDarkMode
-                        ? 'bg-gradiend-to-r from-[#222126] to-[#111116] border-[#FFFFFF14] text-white'
-                        : 'bg-white border-gray-300 text-gray-900'
+                        ? 'bg-gradiend-to-r from-[#222126] to-[#111116] text-white'
+                        : 'bg-white text-gray-900'
+                    } ${
+                      stopPriceError
+                        ? 'border-red-500'
+                        : isDarkMode
+                        ? 'border-[#FFFFFF14]'
+                        : 'border-gray-300'
                     } focus:outline-none focus:border-[#F1CB68]`}
                   />
                 </div>
+                {stopPriceError && <p className={errorText}>{stopPriceError}</p>}
               </div>
             )}
 
@@ -240,15 +306,26 @@ export default function OrderForm({
                   </span>
                   <input
                     type='text'
+                    inputMode='decimal'
                     value={limitPrice}
-                    onChange={e => setLimitPrice(e.target.value)}
+                    onChange={onMoneyChange(setLimitPrice)}
+                    placeholder='0.00'
                     className={`w-full pl-8 pr-4 py-3 rounded-lg border ${
                       isDarkMode
-                        ? 'bg-gradiend-to-r from-[#222126] to-[#111116] border-[#FFFFFF14] text-white'
-                        : 'bg-white border-gray-300 text-gray-900'
+                        ? 'bg-gradiend-to-r from-[#222126] to-[#111116] text-white'
+                        : 'bg-white text-gray-900'
+                    } ${
+                      limitPriceError
+                        ? 'border-red-500'
+                        : isDarkMode
+                        ? 'border-[#FFFFFF14]'
+                        : 'border-gray-300'
                     } focus:outline-none focus:border-[#F1CB68]`}
                   />
                 </div>
+                {limitPriceError && (
+                  <p className={errorText}>{limitPriceError}</p>
+                )}
               </div>
             )}
           </div>
@@ -504,7 +581,11 @@ export default function OrderForm({
           {/* Place Order Button */}
           <button
             onClick={handlePlaceOrder}
-            className={`px-10 py-4 rounded-lg font-bold text-lg transition-all ${
+            disabled={orderInvalid}
+            title={
+              orderInvalid ? 'Enter a valid quantity and price first' : undefined
+            }
+            className={`px-10 py-4 rounded-lg font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
               orderType === 'sell'
                 ? 'bg-[#FF6B6B] text-white hover:bg-[#e05555]'
                 : 'bg-[#F1CB68] text-[#101014] hover:bg-[#C49D2E]'

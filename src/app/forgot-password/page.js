@@ -1,5 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import useFormValidation from '@/hooks/useFormValidation';
+import { COMMON_SPECS } from '@/utils/validation';
 import Image from 'next/image';
 import { requestOTP, verifyOTP } from '@/utils/authApi';
 
@@ -24,9 +26,14 @@ const carouselSlides = [
   },
 ];
 
+// The OTP boxes below already accept a single digit each, so only the email
+// step needs rules.
+const EMAIL_SPECS = { email: COMMON_SPECS.email };
+
 export default function ForgotPasswordPage() {
   const [step, setStep] = useState(1); // 1: email, 2: OTP
-  const [email, setEmail] = useState('');
+  const emailForm = useFormValidation(EMAIL_SPECS, { email: '' });
+  const email = emailForm.values.email.trim();
   const [otp, setOtp] = useState(['', '', '', '', '', '']); // 6 digits for OTP
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -78,7 +85,7 @@ export default function ForgotPasswordPage() {
         setIsVerificationFlow(true);
         const pendingEmail = sessionStorage.getItem('pending_verification_email');
         if (pendingEmail) {
-          setEmail(pendingEmail);
+          emailForm.setValue('email', pendingEmail);
           setStep(2); // Go directly to OTP step
           // Auto-request OTP
           handleEmailSubmitForVerification(pendingEmail);
@@ -102,6 +109,11 @@ export default function ForgotPasswordPage() {
     setError('');
     setOtpSuccessMessage('');
     setOtpSent(false);
+
+    // A malformed address would come back as a 422 that reads like a server
+    // failure — catch it here instead.
+    if (!emailForm.validateAll()) return;
+
     setIsLoading(true);
 
     try {
@@ -244,12 +256,19 @@ export default function ForgotPasswordPage() {
                   <input
                     type='email'
                     id='email'
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder='hello@livia24@gmail.com'
-                    className='w-full bg-transparent border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors'
-                    required
+                    {...emailForm.fieldProps('email')}
+                    placeholder='you@example.com'
+                    className={`w-full bg-transparent border ${
+                      emailForm.errorFor('email')
+                        ? 'border-red-500'
+                        : 'border-gray-700'
+                    } rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors`}
                   />
+                  {emailForm.errorFor('email') && (
+                    <p className='text-xs text-red-400 mt-1'>
+                      {emailForm.errorFor('email')}
+                    </p>
+                  )}
                 </div>
 
                 <button

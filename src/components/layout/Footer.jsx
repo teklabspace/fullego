@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+import { validateEmail } from '@/utils/validation';
 
 const footerLinks = {
   Company: [
@@ -33,11 +34,22 @@ const Footer = () => {
   const currentYear = new Date().getFullYear();
   const [email, setEmail] = useState('');
 
+  const [subscribeError, setSubscribeError] = useState(null);
+
   const handleSubscribe = e => {
     e.preventDefault();
-    // Handle newsletter subscription
-    console.log('Newsletter subscription:', email);
+
+    const problem = validateEmail(email) || (!email.trim() && 'Enter your email address');
+    if (problem) {
+      setSubscribeError(problem);
+      return;
+    }
+
+    // TODO: no newsletter endpoint exists yet; the address is validated and
+    // ready to POST once one does.
+    console.log('Newsletter subscription:', email.trim());
     setEmail('');
+    setSubscribeError(null);
   };
 
   return (
@@ -139,10 +151,18 @@ const Footer = () => {
                   type='email'
                   placeholder='Your email'
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className='w-full px-4 py-2.5 rounded-lg bg-[#1a1a1f] border border-white/10 text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors text-sm'
-                  required
+                  maxLength={255}
+                  onChange={e => {
+                    setEmail(e.target.value);
+                    if (subscribeError) setSubscribeError(null);
+                  }}
+                  className={`w-full px-4 py-2.5 rounded-lg bg-[#1a1a1f] border text-white placeholder:text-white/50 focus:outline-none focus:border-[#F1CB68]/50 transition-colors text-sm ${
+                    subscribeError ? 'border-red-500' : 'border-white/10'
+                  }`}
                 />
+                {subscribeError && (
+                  <p className='text-xs text-red-400'>{subscribeError}</p>
+                )}
                 <button
                   type='submit'
                   className='w-full px-4 py-2.5 rounded-lg bg-[#F1CB68] text-black font-medium  transition-colors text-sm'

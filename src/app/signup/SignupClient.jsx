@@ -7,6 +7,26 @@ import Image from 'next/image';
 import { toast } from 'react-toastify';
 import { API_BASE_URL, API_BASE_PATH } from '@/config/api';
 import { isValidationError, fieldErrorsFromError } from '@/utils/apiError';
+import useFormValidation from '@/hooks/useFormValidation';
+import { COMMON_SPECS } from '@/utils/validation';
+
+// Keyed snake_case to match the backend's 422 envelope, so per-field messages
+// from the API merge into the same slots the client-side rules write to.
+const SIGNUP_SPECS = {
+  first_name: COMMON_SPECS.firstName,
+  last_name: COMMON_SPECS.lastName,
+  email: COMMON_SPECS.email,
+  phone: COMMON_SPECS.phone,
+  password: COMMON_SPECS.password,
+};
+
+const SIGNUP_INITIAL = {
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '',
+  password: '',
+};
 
 const carouselSlides = [
   {
@@ -34,25 +54,22 @@ export default function SignupClient() {
   const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phone, setPhone] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+
+  // Sanitises on every keystroke (digits can't be typed into the name fields,
+  // letters can't be typed into the phone) and validates on blur + submit.
+  const form = useFormValidation(SIGNUP_SPECS, SIGNUP_INITIAL);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  // Per-field messages from a 422 validation envelope, keyed by backend field
-  // name (snake_case: first_name, last_name, email, phone, password).
-  const [fieldErrors, setFieldErrors] = useState({});
 
-  const inputClass = (hasError) =>
+  // A field's message shows once it has been blurred, submitted, or returned in
+  // a 422 envelope — never while it is being filled in for the first time.
+  const fieldError = form.errorFor;
+
+  const inputClass = hasError =>
     `w-full bg-transparent border ${
       hasError ? 'border-red-500' : 'border-gray-700'
     } rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#F1CB68] transition-colors`;
-
-  const clearFieldError = (key) =>
-    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
 
   useEffect(() => {
     const emailParam = searchParams.get('email');
@@ -63,9 +80,11 @@ export default function SignupClient() {
     // Shared-asset links prefill the email only. No claim context is needed:
     // share grants are keyed by email server-side and VERIFYING the email is
     // the claim — the asset then shows up under GET /assets/shared-with-me.
-    if (emailParam) setEmail(emailParam);
-    if (firstParam) setFirstName(firstParam);
-    if (lastParam) setLastName(lastParam);
+    // Prefills go through setValue so a name arriving from an OAuth callback is
+    // sanitised the same way a typed one is.
+    if (emailParam) form.setValue('email', emailParam);
+    if (firstParam) form.setValue('first_name', firstParam);
+    if (lastParam) form.setValue('last_name', lastParam);
 
     if (emailParam || firstParam || lastParam || oauthParam) {
       router.replace('/signup', { scroll: false });
@@ -82,50 +101,36 @@ export default function SignupClient() {
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
-    setFieldErrors({});
-    setIsLoading(true);
 
-    if (!firstName.trim() || !lastName.trim()) {
-      // Backend now requires non-empty first/last name on POST /register (422 otherwise).
-      setError('First name and last name are required');
-      setIsLoading(false);
+    // Every field is checked against the same rules the API enforces, so the
+    // round-trip is only spent on things the client genuinely cannot know
+    // (duplicate email, rate limits).
+    if (!form.validateAll()) {
+      setError('Please correct the highlighted fields');
       return;
     }
-    if (!email || !password) {
-      setError('Email and password are required');
-      setIsLoading(false);
-      return;
-    }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long');
-      setIsLoading(false);
-      return;
-    }
-    if (!email.includes('@')) {
-      setError('Please enter a valid email address');
-      setIsLoading(false);
-      return;
-    }
+
+    setIsLoading(true);
+    const { first_name, last_name, email, phone, password } = form.values;
 
     try {
       await register({
-        email,
+        email: email.trim(),
         password,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        phone,
+        firstName: first_name.trim(),
+        lastName: last_name.trim(),
+        phone: phone.trim(),
       });
 
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem('pending_verification_email', email);
+        sessionStorage.setItem('pending_verification_email', email.trim());
       }
 
       window.location.href = '/forgot-password?verify=true';
     } catch (err) {
       // Field-level validation → show messages inline under each input.
       if (isValidationError(err)) {
-        const fe = fieldErrorsFromError(err);
-        if (Object.keys(fe).length) setFieldErrors(fe);
+        form.setServerErrors(fieldErrorsFromError(err));
       }
 
       // Top banner — the backend message is now user-friendly; only special-case
@@ -199,14 +204,12 @@ export default function SignupClient() {
               <input
                 type='text'
                 id='firstName'
-                value={firstName}
-                onChange={e => { setFirstName(e.target.value); clearFieldError('first_name'); }}
+                {...form.fieldProps('first_name')}
                 placeholder='John'
-                required
-                className={inputClass(fieldErrors.first_name)}
+                className={inputClass(fieldError('first_name'))}
               />
-              {fieldErrors.first_name && (
-                <p className='text-xs text-red-400 mt-1'>{fieldErrors.first_name}</p>
+              {fieldError('first_name') && (
+                <p className='text-xs text-red-400 mt-1'>{fieldError('first_name')}</p>
               )}
             </div>
 
@@ -220,14 +223,12 @@ export default function SignupClient() {
               <input
                 type='text'
                 id='lastName'
-                value={lastName}
-                onChange={e => { setLastName(e.target.value); clearFieldError('last_name'); }}
+                {...form.fieldProps('last_name')}
                 placeholder='Doe'
-                required
-                className={inputClass(fieldErrors.last_name)}
+                className={inputClass(fieldError('last_name'))}
               />
-              {fieldErrors.last_name && (
-                <p className='text-xs text-red-400 mt-1'>{fieldErrors.last_name}</p>
+              {fieldError('last_name') && (
+                <p className='text-xs text-red-400 mt-1'>{fieldError('last_name')}</p>
               )}
             </div>
 
@@ -238,13 +239,12 @@ export default function SignupClient() {
               <input
                 type='email'
                 id='email'
-                value={email}
-                onChange={e => { setEmail(e.target.value); clearFieldError('email'); }}
+                {...form.fieldProps('email')}
                 placeholder='you@example.com'
-                className={inputClass(fieldErrors.email)}
+                className={inputClass(fieldError('email'))}
               />
-              {fieldErrors.email && (
-                <p className='text-xs text-red-400 mt-1'>{fieldErrors.email}</p>
+              {fieldError('email') && (
+                <p className='text-xs text-red-400 mt-1'>{fieldError('email')}</p>
               )}
             </div>
 
@@ -258,13 +258,12 @@ export default function SignupClient() {
               <input
                 type='tel'
                 id='phone'
-                value={phone}
-                onChange={e => { setPhone(e.target.value); clearFieldError('phone'); }}
+                {...form.fieldProps('phone')}
                 placeholder='+1 (555) 000-0000'
-                className={inputClass(fieldErrors.phone)}
+                className={inputClass(fieldError('phone'))}
               />
-              {fieldErrors.phone && (
-                <p className='text-xs text-red-400 mt-1'>{fieldErrors.phone}</p>
+              {fieldError('phone') && (
+                <p className='text-xs text-red-400 mt-1'>{fieldError('phone')}</p>
               )}
             </div>
 
@@ -279,10 +278,9 @@ export default function SignupClient() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id='password'
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); clearFieldError('password'); }}
+                  {...form.fieldProps('password')}
                   placeholder='Enter your password'
-                  className={`${inputClass(fieldErrors.password)} pr-10`}
+                  className={`${inputClass(fieldError('password'))} pr-10`}
                 />
                 <button
                   type='button'
@@ -292,8 +290,8 @@ export default function SignupClient() {
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
-              {fieldErrors.password && (
-                <p className='text-xs text-red-400 mt-1'>{fieldErrors.password}</p>
+              {fieldError('password') && (
+                <p className='text-xs text-red-400 mt-1'>{fieldError('password')}</p>
               )}
             </div>
 

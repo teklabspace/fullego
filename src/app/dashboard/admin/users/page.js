@@ -969,6 +969,7 @@ export default function AdminUsersPage() {
             <textarea
               value={kycRejectReason}
               onChange={(e) => setKycRejectReason(e.target.value)}
+              maxLength={1000}
               placeholder="Reason for rejection (required)…"
               rows={4}
               className={`w-full px-3 py-2 rounded-lg text-sm border resize-none mb-6 focus:outline-none focus:border-[#F1CB68] ${

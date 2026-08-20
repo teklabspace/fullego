@@ -19,7 +19,9 @@
     "build:clean": "npm run clean && npm run build",
     "pages:build": "npm run clean && next build",
     "pages:deploy": "npx wrangler pages deploy out",
-    "cf:deploy": "npm run pages:build && npm run pages:deploy"
+    "cf:deploy": "npm run pages:build && npm run pages:deploy",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.10.0",
@@ -44,6 +46,7 @@
     "eslint-config-next": "^15.2.6",
     "globals": "^17.3.0",
     "tailwindcss": "^4",
+    "vitest": "^4.1.11",
     "wrangler": "^4.45.4"
   }
 }

@@ -5,6 +5,11 @@ import { toast } from 'react-toastify';
 import { getBankAccounts } from '@/utils/bankingApi';
 import { depositTradingCash } from '@/utils/portfolioApi';
 import { formatCurrency } from '@/utils/formatters';
+import {
+  MONEY_PRECISION,
+  sanitizeDecimal,
+  validateAmount,
+} from '@/utils/validation';
 
 /**
  * Deposit cash from a linked bank account into the trading cash ledger.
@@ -51,8 +56,15 @@ export default function DepositModal({ isDarkMode, onClose, onSuccess }) {
   const selected = accounts.find((a) => (a.id || '') === accountId);
   const available = accountBalance(selected);
   const parsedAmount = parseFloat(amount);
+  // payments/transfer amounts are Numeric(20, 2): two decimal places, and a
+  // deposit of zero is meaningless.
+  const amountError = validateAmount(amount, { label: 'Amount' });
   const canSubmit =
-    !submitting && accountId && parsedAmount > 0 && Number.isFinite(parsedAmount);
+    !submitting &&
+    accountId &&
+    String(amount ?? '').trim() !== '' &&
+    !amountError &&
+    Number.isFinite(parsedAmount);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -177,15 +189,23 @@ export default function DepositModal({ isDarkMode, onClose, onSuccess }) {
               Amount
             </label>
             <input
-              type='number'
-              min='0.01'
-              step='0.01'
+              type='text'
               inputMode='decimal'
               placeholder='0.00'
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className={fieldClass}
+              onChange={(e) =>
+                setAmount(
+                  sanitizeDecimal(e.target.value, {
+                    decimals: MONEY_PRECISION.decimals,
+                    intDigits: MONEY_PRECISION.intDigits,
+                  })
+                )
+              }
+              className={`${fieldClass} ${amountError ? 'border-red-500' : ''}`}
             />
+            {amountError && (
+              <p className='mt-1.5 text-xs text-red-400'>{amountError}</p>
+            )}
 
             <div className='flex gap-3 mt-6'>
               <button

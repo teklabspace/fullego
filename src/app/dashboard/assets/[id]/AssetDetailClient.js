@@ -21,6 +21,7 @@ import
     transferAssetOwnership,
   } from '@/utils/assetsApi';
 import { getMyListings, listListings } from '@/utils/marketplaceApi';
+import { listDelegationGrants } from '@/utils/delegationApi';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -497,6 +498,28 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
 
     fetchAssetData();
   }, [assetId, adminCode, isStaffView, authMounted]);
+
+  // Does this advisor still hold an edit grant on THIS asset (decision D1 —
+  // created under a delegation grant, not yet confirmed/locked by the
+  // investor)? Drives showing the same Edit Asset button investors get.
+  const [advisorEditGrant, setAdvisorEditGrant] = useState(null);
+  useEffect(() => {
+    if (!authMounted || !isAdvisor || !assetId) return;
+    let cancelled = false;
+    listDelegationGrants('advisor')
+      .then(grants => {
+        if (cancelled) return;
+        setAdvisorEditGrant(
+          grants.find(g => g.assetId === assetId && g.status === 'consumed') || null
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setAdvisorEditGrant(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authMounted, isAdvisor, assetId]);
 
   // Fetch the current-month AI quota so we can show "X left" and disable the
   // button once it's exhausted (guide §5). Best-effort: a failure here just
@@ -1086,8 +1109,10 @@ export default function AssetDetailClient({ assetId: propAssetId }) {
           <div className='flex gap-3'>
             {/* Edit is only available while the asset is still pending review
                 or was rejected — once approved, the record is locked for the
-                investor and changes go through support/appraisal flows. */}
-            {isInvestor &&
+                investor and changes go through support/appraisal flows. An
+                advisor gets the same button while they still hold a CONSUMED
+                (unlocked) delegation grant on this specific asset. */}
+            {(isInvestor || advisorEditGrant) &&
               (aiReview?.decision || asset.aiReviewStatus) !== 'approved' && (
                 <button
                   onClick={() =>

@@ -3,6 +3,7 @@ import { useTheme } from '@/context/ThemeContext';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import Modal from '../ui/Modal';
+import { validateEmail } from '@/utils/validation';
 
 const ShareDocumentModal = ({ isOpen, setIsOpen, file, shareLink = '', loading = false, onShare }) => {
   const { isDarkMode } = useTheme();
@@ -13,6 +14,7 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, shareLink = '', loading =
   const [requireSignIn, setRequireSignIn] = useState(false);
   const [copied, setCopied] = useState(false);
   const [emailInput, setEmailInput] = useState('');
+  const [emailError, setEmailError] = useState(null);
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [invitedUsers, setInvitedUsers] = useState([]);
 
@@ -39,25 +41,42 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, shareLink = '', loading =
   };
 
   const handleAddEmail = () => {
-    if (emailInput && emailInput.includes('@')) {
-      const initials = emailInput
-        .split('@')[0]
-        .split('.')
-        .map(n => n[0].toUpperCase())
-        .join('')
-        .substring(0, 2);
+    const candidate = emailInput.trim();
+    if (!candidate) return;
 
-      setInvitedUsers([
-        ...invitedUsers,
-        {
-          id: Date.now(),
-          email: emailInput,
-          permission: 'view',
-          initials: initials,
-        },
-      ]);
-      setEmailInput('');
+    // A bare "@" check let "a@b" and "someone@localhost" through — the share
+    // grant is keyed by email server-side, so a malformed one silently never
+    // reaches anybody.
+    const problem = validateEmail(candidate);
+    if (problem) {
+      setEmailError(problem);
+      return;
     }
+
+    if (invitedUsers.some(u => u.email.toLowerCase() === candidate.toLowerCase())) {
+      setEmailError('That address has already been added');
+      return;
+    }
+
+    const initials = candidate
+      .split('@')[0]
+      .split('.')
+      .filter(Boolean)
+      .map(n => n[0].toUpperCase())
+      .join('')
+      .substring(0, 2);
+
+    setInvitedUsers([
+      ...invitedUsers,
+      {
+        id: Date.now(),
+        email: candidate,
+        permission: 'view',
+        initials: initials,
+      },
+    ]);
+    setEmailInput('');
+    setEmailError(null);
   };
 
   const handleRemoveUser = id => {
@@ -423,7 +442,11 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, shareLink = '', loading =
               <input
                 type='email'
                 value={emailInput}
-                onChange={e => setEmailInput(e.target.value)}
+                onChange={e => {
+                  setEmailInput(e.target.value);
+                  if (emailError) setEmailError(null);
+                }}
+                maxLength={255}
                 onKeyPress={e => e.key === 'Enter' && handleAddEmail()}
                 placeholder='Enter email addresses...'
                 className={`flex-1 bg-transparent text-sm outline-none ${
@@ -442,6 +465,9 @@ const ShareDocumentModal = ({ isOpen, setIsOpen, file, shareLink = '', loading =
                 <span className='text-[#F1CB68] text-lg leading-none'>+</span>
               </button>
             </div>
+            {emailError && (
+              <p className='mt-1.5 text-xs text-red-400'>{emailError}</p>
+            )}
 
             {/* Invited Users List */}
             {invitedUsers.length > 0 && (

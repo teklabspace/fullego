@@ -199,6 +199,7 @@ const Hero = () => {
           >
             <input
               type='text'
+              maxLength={255}
               placeholder='Email/Phone Number'
               className='w-full sm:flex-1 rounded-full bg-transparent px-4 sm:px-4 py-3 text-sm text-brand-white placeholder:text-white focus:outline-none border border-[#FFFFFF1A] sm:border-0'
               value={contactValue}
