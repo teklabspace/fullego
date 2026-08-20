@@ -36,6 +36,7 @@ import {
   PERCENT_PRECISION,
   QUANTITY_PRECISION,
 } from './rules';
+import { FIELD_WIDGET, getFieldWidget } from '@/config/assetFieldWidget';
 
 export const KIND = {
   NAME: 'name',
@@ -143,8 +144,11 @@ const includesAny = (haystack, needles) => needles.some(n => haystack.includes(n
 /**
  * Resolve a human-facing field label to a validation spec.
  *
- * Order matters and mirrors the wizard's own `getFieldType` precedence so the
- * two never disagree about what a field is.
+ * The WIDGET decides the family, so the rule can never disagree with the
+ * control the wizard actually draws — a dropdown or date picker has no error
+ * slot, and attaching a typed rule to one blocks the form with a message the
+ * user cannot see. Within a typed widget, the label then chooses the specific
+ * rule (email, phone, year, person-name, ...).
  */
 export const specForFieldName = (fieldName, overrides = {}) => {
   const label = String(fieldName || '').trim();
@@ -152,81 +156,32 @@ export const specForFieldName = (fieldName, overrides = {}) => {
 
   const base = { label, kind: KIND.TEXT, maxLen: SPEC_TEXT_MAX, required: false };
 
-  const resolve = () => {
-    // -- dates -------------------------------------------------------------
-    if (lower.includes('date')) return { kind: KIND.DATE, maxLen: undefined };
-
-    // -- money -------------------------------------------------------------
-    // Same trigger words the renderer uses to draw the "$" prefix.
-    if (
-      lower.includes('price') ||
-      lower.includes('value') ||
-      lower.includes('cost') ||
-      lower.includes('owed') ||
-      lower.includes('amount') ||
-      lower.includes('balance') ||
-      lower.includes('premium') ||
-      lower.includes('salary') ||
-      lower.includes('income') ||
-      lower.includes('payment') ||
-      lower.includes('contribution')
-    ) {
-      return { kind: KIND.MONEY, maxLen: 25, allowZero: true };
-    }
-
-    // -- percentages -------------------------------------------------------
-    if (
-      lower.includes('rate') ||
-      lower.includes('interest') ||
-      lower.includes('percentage') ||
-      lower.includes('percent') ||
-      lower.includes('yield') ||
-      lower.includes('apr')
-    ) {
-      return { kind: KIND.PERCENT, maxLen: 7 };
-    }
-
-    // -- long text ---------------------------------------------------------
-    if (
-      lower.includes('description') ||
-      lower.includes('notes') ||
-      lower.includes('purpose') ||
-      lower.includes('summary') ||
-      lower.includes('comment') ||
-      lower.includes('message') ||
-      lower.includes('remarks')
-    ) {
-      return { kind: KIND.TEXTAREA, maxLen: LONG_TEXT_MAX };
-    }
-
-    // -- media -------------------------------------------------------------
-    if (lower.includes('image') || lower.includes('photo') || lower.includes('file'))
-      return { kind: KIND.FILE, maxLen: undefined };
-
-    // -- enumerations (rendered as dropdowns, nothing to type) -------------
-    if (lower.includes('currency')) return { kind: KIND.CURRENCY_CODE, maxLen: 3 };
-    if (
-      lower.includes('condition') ||
-      lower.includes('ownership type') ||
-      lower.includes('risk level') ||
-      lower.includes('payment frequency') ||
-      (lower.includes('type') && !lower.includes('ownership'))
-    ) {
-      return { kind: KIND.SELECT, maxLen: undefined };
-    }
-
+  // Refinements available only once the widget is a plain text box.
+  const refineText = () => {
     // -- identity / contact ------------------------------------------------
     if (lower.includes('email')) return { kind: KIND.EMAIL, maxLen: 255 };
-    if (lower.includes('phone') || lower.includes('mobile') || lower.includes('telephone'))
+    if (
+      lower.includes('phone') ||
+      lower.includes('mobile') ||
+      lower.includes('telephone')
+    )
       return { kind: KIND.PHONE, maxLen: 20 };
     if (lower.includes('password')) return { kind: KIND.PASSWORD, maxLen: 72 };
-    if (lower.includes('website') || lower.includes('url') || lower.includes('link'))
+    if (
+      lower.includes('website') ||
+      lower.includes('url') ||
+      lower.includes('link')
+    )
       return { kind: KIND.URL, maxLen: 500 };
 
     // -- numbers -----------------------------------------------------------
     if (lower === 'year' || lower.endsWith(' year') || lower.includes('year of'))
       return { kind: KIND.YEAR, maxLen: 4 };
-    if (lower.includes('quantity') || lower.includes('units') || lower.includes('shares'))
+    if (
+      lower.includes('quantity') ||
+      lower.includes('units') ||
+      lower.includes('shares')
+    )
       return { kind: KIND.QUANTITY, maxLen: 22 };
     if (
       lower.includes('number of') ||
@@ -234,19 +189,65 @@ export const specForFieldName = (fieldName, overrides = {}) => {
       /\bcounts?\b/.test(lower) ||
       lower.includes('bedrooms') ||
       lower.includes('bathrooms')
-    ) {
+    )
       return { kind: KIND.INTEGER, maxLen: 9 };
-    }
     if (lower.includes('symbol') || lower.includes('ticker'))
       return { kind: KIND.SYMBOL, maxLen: 50 };
 
+    // Percent-shaped labels the renderer draws as a plain box (it only adds the
+    // "%" suffix for rate/interest). A text box has an error slot, so the
+    // sharper rule is safe to apply here.
+    if (
+      lower.includes('percentage') ||
+      lower.includes('percent') ||
+      lower.includes('yield') ||
+      lower.includes('apr')
+    )
+      return { kind: KIND.PERCENT, maxLen: 7 };
+
+    // Money-shaped labels the wizard still renders as a plain box (it only
+    // draws the "$" prefix for price/value/cost/owed).
+    if (
+      lower.includes('amount') ||
+      lower.includes('balance') ||
+      lower.includes('premium') ||
+      lower.includes('salary') ||
+      lower.includes('income') ||
+      lower.includes('contribution') ||
+      lower.includes('payment')
+    )
+      return { kind: KIND.MONEY, maxLen: 25, allowZero: true };
+
     // -- names -------------------------------------------------------------
     // Organisations first: "Company Name" must not become letters-only.
-    if (includesAny(lower, ORG_NAME_HINTS)) return { kind: KIND.TEXT, maxLen: SPEC_TEXT_MAX };
-    if (includesAny(lower, PERSON_NAME_HINTS)) return { kind: KIND.NAME, maxLen: 100 };
+    if (includesAny(lower, ORG_NAME_HINTS))
+      return { kind: KIND.TEXT, maxLen: SPEC_TEXT_MAX };
+    if (includesAny(lower, PERSON_NAME_HINTS))
+      return { kind: KIND.NAME, maxLen: 100 };
 
     // Everything else stays free-form (Model, Serial Number, Location, ...).
     return { kind: KIND.TEXT, maxLen: SPEC_TEXT_MAX };
+  };
+
+  const resolve = () => {
+    switch (getFieldWidget(label)) {
+      case FIELD_WIDGET.DATE:
+        return { kind: KIND.DATE, maxLen: undefined };
+      case FIELD_WIDGET.SELECT:
+        // Dropdowns constrain their own value; nothing to check, and nowhere
+        // to show a message if there were.
+        return { kind: KIND.SELECT, maxLen: undefined };
+      case FIELD_WIDGET.FILE:
+        return { kind: KIND.FILE, maxLen: undefined };
+      case FIELD_WIDGET.CURRENCY:
+        return { kind: KIND.MONEY, maxLen: 25, allowZero: true };
+      case FIELD_WIDGET.PERCENTAGE:
+        return { kind: KIND.PERCENT, maxLen: 7 };
+      case FIELD_WIDGET.TEXTAREA:
+        return { kind: KIND.TEXTAREA, maxLen: LONG_TEXT_MAX };
+      default:
+        return refineText();
+    }
   };
 
   return { ...base, ...resolve(), ...overrides };
