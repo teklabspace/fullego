@@ -126,12 +126,14 @@ export const linkBankAccount = async (linkData) => {
 export const getBankAccounts = async () => {
   const endpoint = API_ENDPOINTS.BANKING.LIST_ACCOUNTS;
   const response = await apiGet(endpoint);
-  
-  if (response.data) {
-    response.data = transformKeys(response.data);
-  }
-  
-  return response;
+
+  // The payload is double-nested: the success envelope's `data` is itself
+  // `{ data: [...] }`, and apiGet strips only the outer layer. So `response`
+  // here is `{ data: [...] }` — verified against the running API. Return the
+  // array itself so `category` and `subtype` arrive predictably camelCased;
+  // callers already tolerate both shapes.
+  const list = Array.isArray(response) ? response : response?.data ?? [];
+  return transformKeys(list);
 };
 
 /**
@@ -145,11 +147,15 @@ export const getBankAccounts = async () => {
 export const getBankAccount = async (accountId) => {
   const endpoint = API_ENDPOINTS.BANKING.GET_ACCOUNT(accountId);
   const response = await apiGet(endpoint);
-  
+
+  // Same unwrapping caveat as getBankAccounts above: the envelope is gone by
+  // the time we get here, so a plain object is the account itself.
+  if (response && !response.data) return transformKeys(response);
+
   if (response.data) {
     response.data = transformKeys(response.data);
   }
-  
+
   return response;
 };
 
@@ -254,4 +260,64 @@ export const getBankBalance = async (accountId) => {
   }
   
   return response;
+};
+
+/**
+ * 11. Get Investment Holdings
+ * GET /api/v1/banking/accounts/{linked_account_id}/holdings
+ *
+ * Only meaningful for accounts where category === 'investment'. Any other
+ * account returns an empty list — that is a valid answer, not an error.
+ *
+ * @param {string} accountId - Linked account ID (UUID, required)
+ * @returns {Promise<{holdings: Array, totalValue: number}>}
+ *
+ * Each holding carries `institutionValue`, Plaid's own figure for the
+ * position's current market value. Display and sum THAT rather than
+ * quantity * institutionPrice — Plaid's number is authoritative and the two
+ * do not always agree.
+ */
+export const getAccountHoldings = async (accountId) => {
+  const endpoint = API_ENDPOINTS.BANKING.GET_HOLDINGS(accountId);
+  const response = await apiGet(endpoint);
+
+  const payload = transformKeys(response?.data ?? response ?? {});
+  return {
+    holdings: Array.isArray(payload.holdings) ? payload.holdings : [],
+    totalValue: payload.totalValue ?? null,
+  };
+};
+
+/**
+ * 12. Get Liability Detail
+ * GET /api/v1/banking/accounts/{linked_account_id}/liabilities
+ *
+ * Only meaningful for category === 'credit' | 'loan'.
+ *
+ * A freshly linked account may not have synced its liability data yet, and the
+ * backend answers 404 in that case. That is a PENDING state, not a failure, so
+ * it resolves to null instead of throwing — callers show "not synced yet"
+ * rather than an error banner. Every other status still throws.
+ *
+ * @param {string} accountId - Linked account ID (UUID, required)
+ * @returns {Promise<Object|null>}
+ *
+ * The shape of `details` depends on `liabilityType`:
+ *   - 'mortgage' → interestRate, loanTerm, maturityDate, escrowBalance, ...
+ *                  (minimumPaymentAmount / lastStatementBalance / isOverdue
+ *                   are null here; Plaid does not report them for mortgages)
+ *   - 'credit'   → aprs[], lastStatementIssueDate, and the payment fields above
+ * Treat `details` as loosely typed: read known keys, assume nothing is present.
+ */
+export const getAccountLiabilities = async (accountId) => {
+  const endpoint = API_ENDPOINTS.BANKING.GET_LIABILITIES(accountId);
+
+  try {
+    const response = await apiGet(endpoint);
+    const payload = response?.data ?? response;
+    return payload ? transformKeys(payload) : null;
+  } catch (err) {
+    if (err?.status === 404) return null;
+    throw err;
+  }
 };

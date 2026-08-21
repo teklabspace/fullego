@@ -22,6 +22,7 @@ import {
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
+import { isCash, sumCash } from '@/utils/bankingCategories';
 import
   {
     Area,
@@ -870,12 +871,15 @@ function DebtsCard({ portfolioSummary, portfolioPerformance, loading }) {
 function CashOnHandCard({ accountData, bankAccounts, loading }) {
   const { isDarkMode } = useTheme();
 
-  // Calculate total cash from bank accounts
-  const hasCashData = !!accountData || (bankAccounts && bankAccounts.length > 0);
+  // Only depository accounts are cash. Since Plaid categorisation landed, the
+  // same endpoint also returns credit cards, loans and investment accounts —
+  // summing all of them counted a mortgage balance AS cash.
+  const cashAccounts = Array.isArray(bankAccounts)
+    ? bankAccounts.filter(isCash)
+    : [];
+  const hasCashData = !!accountData || cashAccounts.length > 0;
   const totalCash = hasCashData
-    ? (bankAccounts?.reduce((sum, account) => {
-        return sum + (parseFloat(account.balance) || 0);
-      }, 0) || accountData?.stats?.portfolioValue || 0)
+    ? sumCash(bankAccounts) || accountData?.stats?.portfolioValue || 0
     : 0;
 
   // Calculate overdue payments (negative balance or pending payments)
@@ -933,9 +937,9 @@ function CashOnHandCard({ accountData, bankAccounts, loading }) {
         {formatCurrency(totalCash)}
       </h2>
       {/* Per-account breakdown, bar length proportional to balance. */}
-      {Array.isArray(bankAccounts) && bankAccounts.length > 0 && totalCash > 0 && (
+      {cashAccounts.length > 0 && totalCash > 0 && (
         <div className='space-y-2.5 mb-1'>
-          {[...bankAccounts]
+          {[...cashAccounts]
             .map((a) => ({
               name: a.accountName || a.name || a.institutionName || a.institution_name || 'Account',
               mask: a.mask || a.accountNumber?.slice(-4) || null,

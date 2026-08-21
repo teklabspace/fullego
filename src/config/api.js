@@ -375,6 +375,10 @@ export const API_ENDPOINTS = {
     // Transactions & Balance
     GET_TRANSACTIONS: (id) => `/banking/accounts/${id}/transactions`,
     GET_BALANCE: (id) => `/banking/accounts/${id}/balance`,
+    // Plaid categorisation (Aug 2026). Holdings are only meaningful for
+    // category === 'investment'; liabilities for 'credit' | 'loan'.
+    GET_HOLDINGS: (id) => `/banking/accounts/${id}/holdings`,
+    GET_LIABILITIES: (id) => `/banking/accounts/${id}/liabilities`,
   },
   // Subscription & Billing APIs (Preferences Tab)
   SUBSCRIPTIONS: {

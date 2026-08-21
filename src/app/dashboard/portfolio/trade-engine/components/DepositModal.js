@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { getBankAccounts } from '@/utils/bankingApi';
+import { isCash } from '@/utils/bankingCategories';
 import { depositTradingCash } from '@/utils/portfolioApi';
 import { formatCurrency } from '@/utils/formatters';
 import {
@@ -30,7 +31,10 @@ export default function DepositModal({ isDarkMode, onClose, onSuccess }) {
         const res = await getBankAccounts();
         // getBankAccounts returns the array directly (the client already
         // unwrapped the envelope); tolerate a nested `data` just in case.
-        const list = Array.isArray(res) ? res : res?.data || [];
+        const all = Array.isArray(res) ? res : res?.data || [];
+        // You can only fund trading cash FROM cash. The linked-accounts list
+        // now also carries credit cards, loans and investment accounts.
+        const list = all.filter(isCash);
         setAccounts(list);
         if (list.length > 0) setAccountId(list[0].id || '');
       } catch (err) {
@@ -140,8 +144,10 @@ export default function DepositModal({ isDarkMode, onClose, onSuccess }) {
                 isDarkMode ? 'text-gray-300' : 'text-gray-700'
               }`}
             >
-              You don’t have a linked bank account yet. Link one in Settings
-              before you can fund trading.
+              You don’t have a linked bank account to fund from yet. Link a
+              checking or savings account in Settings before you can fund
+              trading — credit cards, loans and investment accounts can’t be
+              used as a funding source.
             </p>
             <a
               href='/dashboard/settings'

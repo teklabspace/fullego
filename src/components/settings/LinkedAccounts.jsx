@@ -12,6 +12,14 @@ import {
   linkBankAccount,
 } from '@/utils/bankingApi';
 import { getBrokerageAccounts } from '@/utils/portfolioApi';
+import {
+  groupByCategory,
+  isInvestment,
+  isLiability,
+  subtypeOf,
+} from '@/utils/bankingCategories';
+import AccountHoldings from '@/components/settings/AccountHoldings';
+import AccountLiability from '@/components/settings/AccountLiability';
 import { getBenchmarks } from '@/utils/marketApi';
 
 const PROVIDERS = {
@@ -575,19 +583,37 @@ function PlaidPanel({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          {accounts.map((account) => (
-            <ServiceCard
-              key={account.id}
-              account={account}
-              isDarkMode={isDarkMode}
-              selected={selectedAccountId === account.id}
-              loadingTransactions={loadingTransactions && selectedAccountId === account.id}
-              transactions={transactions}
-              transactionsError={transactionsError}
-              onViewTransactions={() => onViewTransactions(account.id)}
-              onDisconnect={() => onDisconnect(account.id)}
-            />
+        /* Plaid returns cash, cards, loans and investments in one list, so
+           group them — a mortgage sitting between two current accounts with no
+           label reads as though the user has £56k available. */
+        <div className="space-y-8">
+          {groupByCategory(accounts).map((section) => (
+            <div key={section.category}>
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className={`text-sm font-semibold uppercase tracking-wide ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {section.title}
+                </h3>
+                <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  {section.accounts.length}
+                  {section.accounts.length === 1 ? ' account' : ' accounts'}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                {section.accounts.map((account) => (
+                  <ServiceCard
+                    key={account.id}
+                    account={account}
+                    isDarkMode={isDarkMode}
+                    selected={selectedAccountId === account.id}
+                    loadingTransactions={loadingTransactions && selectedAccountId === account.id}
+                    transactions={transactions}
+                    transactionsError={transactionsError}
+                    onViewTransactions={() => onViewTransactions(account.id)}
+                    onDisconnect={() => onDisconnect(account.id)}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -850,6 +876,33 @@ function ServiceCard({
 }) {
   const status = account.isActive === false ? 'inactive' : 'connected';
 
+  // Which extra panel this account can show, if any.
+  const liability = isLiability(account);
+  const investment = isInvestment(account);
+  const [panel, setPanel] = useState(null); // 'holdings' | 'liability' | null
+
+  const currency = account.currency || 'USD';
+  const balance = account.balance;
+  const balanceLabel = liability ? 'Owed' : 'Balance';
+  const subtype = subtypeOf(account);
+
+  const formattedBalance =
+    balance == null || Number.isNaN(Number(balance))
+      ? null
+      : (() => {
+          try {
+            return new Intl.NumberFormat(undefined, {
+              style: 'currency',
+              currency,
+              maximumFractionDigits: 2,
+            }).format(Number(balance));
+          } catch {
+            return `${balance} ${currency}`;
+          }
+        })();
+
+  const togglePanel = (name) => setPanel((current) => (current === name ? null : name));
+
   return (
     <div className={`rounded-2xl p-5 md:p-6 border ${isDarkMode ? 'bg-[#1A1A1D] border-[#FFFFFF14]' : 'bg-white border-gray-200'}`}>
       <div className="flex items-start justify-between mb-4">
@@ -861,6 +914,12 @@ function ServiceCard({
             <h3 className={`font-semibold text-base ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
               {account.accountName || account.account_name || 'Linked Account'}
             </h3>
+            {/* Plaid's own label. Open-ended set — display only, never branched on. */}
+            {subtype && (
+              <span className={`block text-xs capitalize ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                {subtype}
+              </span>
+            )}
             {status === 'connected' && (
               <span className="inline-block mt-1 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full font-medium">
                 Connected
@@ -880,9 +939,25 @@ function ServiceCard({
           </svg>
         </button>
       </div>
-      <p className={`ms-16 text-sm mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+      <p className={`ms-16 text-sm mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
         {account.institutionName || account.institution_name || 'Bank'} · {account.maskedNumber || account.accountNumber || account.account_number || '••••'}
       </p>
+      {formattedBalance && (
+        <div className="ms-16 mb-4 flex items-baseline gap-2">
+          {/* For credit and loan accounts `balance` is the amount OWED, not
+              money available — label it so the number is never misread. */}
+          <span className={`text-xs uppercase tracking-wide ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+            {balanceLabel}
+          </span>
+          <span className={`text-lg font-semibold tabular-nums ${
+            liability
+              ? 'text-orange-400'
+              : isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            {formattedBalance}
+          </span>
+        </div>
+      )}
       <div className="flex flex-wrap gap-3">
         <button
           onClick={onViewTransactions}
@@ -892,10 +967,44 @@ function ServiceCard({
         >
           {selected ? 'Hide Transactions' : 'View Recent Transactions'}
         </button>
+        {investment && (
+          <button
+            onClick={() => togglePanel('holdings')}
+            className={`flex-1 min-w-[150px] px-4 py-2 rounded-lg font-medium border transition-all ${
+              isDarkMode ? 'border-[#F1CB68] text-white hover:bg-[#F1CB68]/10' : 'border-[#F1CB68] text-gray-900 hover:bg-[#F1CB68]/10'
+            }`}
+          >
+            {panel === 'holdings' ? 'Hide Holdings' : 'View Holdings'}
+          </button>
+        )}
+        {liability && (
+          <button
+            onClick={() => togglePanel('liability')}
+            className={`flex-1 min-w-[150px] px-4 py-2 rounded-lg font-medium border transition-all ${
+              isDarkMode ? 'border-[#F1CB68] text-white hover:bg-[#F1CB68]/10' : 'border-[#F1CB68] text-gray-900 hover:bg-[#F1CB68]/10'
+            }`}
+          >
+            {panel === 'liability' ? 'Hide Details' : 'View Details'}
+          </button>
+        )}
         <button onClick={onDisconnect} className="px-4 py-2 text-red-400 hover:text-red-300 font-medium transition-colors">
           Disconnect
         </button>
       </div>
+      {panel === 'holdings' && (
+        <div className="mt-4 border-t border-dashed border-gray-600/40 pt-3">
+          <AccountHoldings accountId={account.id} isDarkMode={isDarkMode} />
+        </div>
+      )}
+      {panel === 'liability' && (
+        <div className="mt-4 border-t border-dashed border-gray-600/40 pt-3">
+          <AccountLiability
+            accountId={account.id}
+            currency={currency}
+            isDarkMode={isDarkMode}
+          />
+        </div>
+      )}
       {selected && (
         <div className="mt-4 ms-16 border-t border-dashed border-gray-600/40 pt-3">
           {loadingTransactions ? (
