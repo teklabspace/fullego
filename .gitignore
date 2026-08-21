@@ -65,6 +65,9 @@ docs/superpowers/
 # QA test reports and evidence
 /test report/
 /qa-audit-*/
+# Plaid QA runs: screenshots, headed-browser scripts, captured API calls.
+# Evidence only — nothing here is imported by the app.
+/qa-plaid-*/
 
 # editor / assistant config
 /.claude/
